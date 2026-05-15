@@ -43,15 +43,30 @@
 								:invoiceTypes="invoiceTypes"
 								v-model="invoiceType"
 							/>
-							<div v-if="customer" class="customer-outstanding-banner px-4 pb-3">
-								<v-chip
-									:color="customer_outstanding > 0 ? 'error' : 'success'"
-									variant="tonal"
-									size="small"
-									:prepend-icon="customer_outstanding > 0 ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline'"
+						</v-card>
+
+						<!-- Outstanding Due panel — right column of top grid -->
+						<v-card
+							v-if="!pos_profile.posa_use_delivery_charges"
+							flat
+							class="invoice-section-card pos-themed-card outstanding-panel"
+						>
+							<div class="outstanding-panel__inner">
+								<div class="outstanding-panel__label">{{ __("Outstanding Due") }}</div>
+								<div
+									class="outstanding-panel__amount"
+									:class="customer && customer_outstanding > 0 ? 'outstanding-panel__amount--due' : 'outstanding-panel__amount--clear'"
 								>
-									{{ __("Outstanding Due") }}: {{ formatCurrency(customer_outstanding) }}
-								</v-chip>
+									{{ customer ? formatCurrency(customer_outstanding) : '—' }}
+								</div>
+								<v-icon
+									v-if="customer"
+									:color="customer_outstanding > 0 ? 'error' : 'success'"
+									size="22"
+									class="outstanding-panel__icon"
+								>
+									{{ customer_outstanding > 0 ? 'mdi-alert-circle' : 'mdi-check-circle' }}
+								</v-icon>
 							</div>
 						</v-card>
 
@@ -1186,6 +1201,46 @@ export default {
 /* Disable pointer events for elements */
 .disable-events {
 	pointer-events: none;
+}
+
+/* Outstanding Due right-column panel */
+.outstanding-panel {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.outstanding-panel__inner {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	padding: 12px 16px;
+	width: 100%;
+	height: 100%;
+	text-align: center;
+	position: relative;
+}
+.outstanding-panel__label {
+	font-size: 0.72rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--pos-text-secondary, rgba(0,0,0,0.5));
+}
+.outstanding-panel__amount {
+	font-size: 1.5rem;
+	font-weight: 700;
+	line-height: 1.1;
+}
+.outstanding-panel__amount--due {
+	color: rgb(var(--v-theme-error));
+}
+.outstanding-panel__amount--clear {
+	color: rgb(var(--v-theme-success));
+}
+.outstanding-panel__icon {
+	margin-top: 2px;
 }
 
 /* Style for customer balance field */
