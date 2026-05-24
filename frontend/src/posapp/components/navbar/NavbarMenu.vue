@@ -475,57 +475,6 @@ export default {
 					],
 				},
 				{
-					id: "terminal",
-					title: __("Terminal"),
-					description: __("Customer-facing tools and printer setup."),
-					actions: [
-						this.isEnabledSetting(this.posProfile?.posa_enable_customer_display)
-							? {
-									id: "customer-display",
-									label: __("Open Customer Display"),
-									subtitle: __("Show cart on customer-facing screen"),
-									icon: "mdi-monitor-eye",
-									tone: "primary",
-									handler: "openCustomerDisplay",
-								}
-							: null,
-						this.isEnabledSetting(this.posProfile?.posa_silent_print)
-							? {
-									id: "qz-tray-setup",
-									label: __("QZ Tray Setup"),
-									subtitle: __("Connect printer and manage certificate"),
-									icon: "mdi-printer-wireless",
-									tone: "primary",
-									handler: "openQzTraySetup",
-								}
-							: null,
-					].filter(Boolean),
-				},
-				{
-					id: "tools",
-					title: __("Tools"),
-					description: __("Updates and app info that stay out of the cashier flow."),
-					actions: [
-						{
-							id: "check-for-updates",
-							label: __("Check for Updates"),
-							subtitle: __("Check for new commits"),
-							icon: "mdi-update",
-							tone: "info",
-							handler: "checkForUpdatesAction",
-							disabled: this.manualOffline || !this.networkOnline || !this.serverOnline,
-						},
-						{
-							id: "about",
-							label: __("About"),
-							subtitle: __("App information"),
-							icon: "mdi-information-outline",
-							tone: "neutral",
-							handler: "showAboutAction",
-						},
-					],
-				},
-				{
 					id: "session",
 					title: __("Session"),
 					description: __("Sensitive actions kept away from quick taps."),

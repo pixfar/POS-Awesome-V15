@@ -105,24 +105,7 @@
 					<slot name="status-indicator"></slot>
 				</div>
 
-				<NavbarInfoGadgets
-					:class="['info-gadgets-wrapper', isRtl ? 'rtl-info-gadgets' : 'ltr-info-gadgets']"
-				>
-					<!-- Cache Usage Meter -->
-					<template #cache-usage-meter>
-						<slot name="cache-usage-meter"></slot>
-					</template>
-
-					<!-- Database Usage Gadget -->
-					<template #db-usage-gadget>
-						<slot name="db-usage-gadget"></slot>
-					</template>
-
-					<!-- CPU Load Gadget -->
-					<template #cpu-gadget>
-						<slot name="cpu-gadget"></slot>
-					</template>
-				</NavbarInfoGadgets>
+				<!-- NavbarInfoGadgets hidden -->
 
 				<div :class="['profile-section', isRtl ? 'rtl-profile-section' : 'ltr-profile-section']">
 					<v-chip
