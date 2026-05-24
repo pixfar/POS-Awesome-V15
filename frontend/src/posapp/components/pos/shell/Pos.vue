@@ -37,6 +37,18 @@
 			:class="{ 'dynamic-main-row--phone': isPhone }"
 		>
 			<v-col
+				v-show="!useCompactPosSwitcher || compactPanel === 'invoice'"
+				:xl="useCompactPosSwitcher ? 12 : 7"
+				:lg="useCompactPosSwitcher ? 12 : 7"
+				:md="useCompactPosSwitcher ? 12 : 7"
+				:sm="useCompactPosSwitcher ? 12 : 7"
+				cols="12"
+				class="pos dynamic-col dynamic-col--invoice"
+			>
+				<Invoice ref="invoicePanel"></Invoice>
+			</v-col>
+
+			<v-col
 				v-show="(!useCompactPosSwitcher || compactPanel === 'selector') && activeView === 'items'"
 				:xl="useCompactPosSwitcher ? 12 : 5"
 				:lg="useCompactPosSwitcher ? 12 : 5"
@@ -83,18 +95,6 @@
 				class="pos dynamic-col dynamic-col--selector"
 			>
 				<Payments></Payments>
-			</v-col>
-
-			<v-col
-				v-show="!useCompactPosSwitcher || compactPanel === 'invoice'"
-				:xl="useCompactPosSwitcher ? 12 : 7"
-				:lg="useCompactPosSwitcher ? 12 : 7"
-				:md="useCompactPosSwitcher ? 12 : 7"
-				:sm="useCompactPosSwitcher ? 12 : 7"
-				cols="12"
-				class="pos dynamic-col dynamic-col--invoice"
-			>
-				<Invoice ref="invoicePanel"></Invoice>
 			</v-col>
 		</v-row>
 		<div v-if="showBottomDock" ref="mobileDock" class="mobile-pos-stack">

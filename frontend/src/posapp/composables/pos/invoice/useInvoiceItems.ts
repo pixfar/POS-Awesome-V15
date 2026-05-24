@@ -83,7 +83,19 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 			key: "item_name",
 			required: true,
 		},
+		{
+			title: __("Item Code"),
+			key: "item_code",
+			align: "start",
+			required: true,
+		},
 		{ title: __("QTY"), key: "qty", align: "center", required: true },
+		{
+			title: __("Stock Qty"),
+			key: "actual_qty",
+			align: "center",
+			required: true,
+		},
 		{ title: __("UOM"), key: "uom", align: "center", required: false },
 		{
 			title: __("Price List Rate"),
@@ -142,6 +154,8 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 				selected_columns.value = available_columns.value
 					.filter((col) => {
 						if (col.required) return true;
+						if (col.key === "item_code") return true;
+						if (col.key === "actual_qty") return true;
 						if (col.key === "price_list_rate") return true;
 						if (
 							col.key === "discount_percentage" &&

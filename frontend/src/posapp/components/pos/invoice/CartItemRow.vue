@@ -71,6 +71,18 @@
 				</div>
 			</td>
 
+			<!-- Item Code Column (Optional) -->
+			<td v-else-if="column.key === 'item_code'" class="text-start" :data-column-key="'item_code'">
+				<span class="text-caption text-medium-emphasis">{{ item.item_code }}</span>
+			</td>
+
+			<!-- Stock Qty Column -->
+			<td v-else-if="column.key === 'actual_qty'" class="text-center" :data-column-key="'actual_qty'">
+				<span style="color: #000000; font-size: 1rem; font-weight: 500;">
+					{{ formatFloat(item.actual_qty || 0) }}
+				</span>
+			</td>
+
 			<!-- Quantity Column -->
 			<td v-else-if="column.key === 'qty'" class="text-center" :data-column-key="'qty'">
 				<div class="posa-cart-table__qty-counter" :class="{ 'rtl-layout': isRTL }">
