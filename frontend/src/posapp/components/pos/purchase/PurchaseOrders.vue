@@ -695,7 +695,7 @@ export default {
 </script>
 
 <style scoped>
-@import "../Invoice.vue.css";
+@import "../invoice-shared-styles.css";
 
 .purchase-invoice-card {
 	border-radius: var(--pos-radius-md, 18px);
