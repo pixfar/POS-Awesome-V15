@@ -298,9 +298,7 @@ export default {
 			item: 0,
 			baseItems: [
 				{ text: "POS", icon: "mdi-network-pos", to: "/pos" },
-				{ text: "Payments", icon: "mdi-credit-card", to: "/payments" },
 				{ text: "Purchase Order", icon: "mdi-cart-plus", to: "/orders" },
-				{ text: "Barcode Printing", icon: "mdi-barcode", to: "/barcode" },
 			],
 			items: [],
 			company: "POS Awesome",
@@ -437,13 +435,6 @@ export default {
 
 			const systemActions = [
 				{
-					id: "show-about",
-					label: this.__("About"),
-					subtitle: this.__("View app information and current build details"),
-					icon: "mdi-information-outline",
-					tone: "neutral",
-				},
-				{
 					id: "logout",
 					label: this.__("Logout"),
 					subtitle: this.__("Sign out of the current POS session"),
@@ -537,17 +528,10 @@ export default {
 		updateNavigationItems() {
 			const items = [...this.baseItems];
 			if (this.posProfile?.posa_use_gift_cards) {
-				items.splice(2, 0, {
+				items.splice(1, 0, {
 					text: "Gift Cards",
 					icon: "mdi-card-account-details-outline",
 					to: "/gift-cards",
-				});
-			}
-			if (this.currentCashier?.is_supervisor) {
-				items.splice(1, 0, {
-					text: "Awesome Dashboard",
-					icon: "mdi-view-dashboard-outline",
-					to: "/dashboard",
 				});
 			}
 			if (this.posProfile?.posa_enable_cash_movement) {

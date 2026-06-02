@@ -19,6 +19,7 @@ import {
 	buildLoadItemsRequest,
 	type LoadItemsOptions,
 } from "./items/loadItemsRequest";
+import { sortItemsForSearchTerm } from "../utils/itemSearchSort.js";
 
 export const useItemsStore = defineStore("items", () => {
 	type OfflineModule = Record<string, any>;
@@ -718,9 +719,9 @@ export const useItemsStore = defineStore("items", () => {
 					forceServer: true,
 				});
 
-				const serverResults = filterItemsByGroup(
-					items.value,
-					itemGroup.value,
+				const serverResults = sortItemsForSearchTerm(
+					filterItemsByGroup(items.value, itemGroup.value),
+					term,
 				);
 				filteredItems.value = serverResults;
 				performanceMetrics.value.searchMisses++;
@@ -736,9 +737,10 @@ export const useItemsStore = defineStore("items", () => {
 		const cacheKey = `search_${getCacheScope()}_${activePriceList.value || "default"}_${term}_${itemGroup.value}`;
 		const cached = getCachedSearchResult(cacheKey);
 		if (cached) {
-			filteredItems.value = cached;
+			const sortedCached = sortItemsForSearchTerm(cached, term);
+			filteredItems.value = sortedCached;
 			performanceMetrics.value.searchHits++;
-			return cached;
+			return sortedCached;
 		}
 
 		try {
@@ -795,6 +797,7 @@ export const useItemsStore = defineStore("items", () => {
 				);
 			}
 
+			searchResults = sortItemsForSearchTerm(searchResults, term);
 			setCachedSearchResult(cacheKey, searchResults);
 
 			filteredItems.value = searchResults;

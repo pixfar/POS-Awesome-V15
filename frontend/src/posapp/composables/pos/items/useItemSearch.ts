@@ -1,4 +1,8 @@
 import { ref } from "vue";
+import {
+	sortItemsByCodeAsc,
+	sortItemsForSearchTerm,
+} from "../../../utils/itemSearchSort.js";
 import { perfMarkStart, perfMarkEnd } from "../../../utils/perf.js";
 
 declare const frappe: any;
@@ -96,7 +100,7 @@ export function useItemSearch() {
 
 		// Filter by search term
 		const rawSearch = (searchTerm || "").trim();
-		if (rawSearch && rawSearch.length >= 3) {
+		if (rawSearch && rawSearch.length >= 2) {
 			const term = rawSearch.toLowerCase();
 			const searchWords = term.split(/\s+/).filter(Boolean);
 
@@ -137,7 +141,7 @@ export function useItemSearch() {
 		}
 
 		perfMarkEnd("pos:search-filter", mark);
-		return filtered;
+		return sortItemsForSearchTerm(filtered, rawSearch);
 	};
 
 	/**
@@ -196,16 +200,15 @@ export function useItemSearch() {
 		if (!items || !items.length) return [];
 
 		const term = (searchTerm || "").trim().toLowerCase();
-		const needsLocalSearch = term && term.length >= 3;
+		const needsLocalSearch = term && term.length >= 2;
 
-		// PERF: If no filters needed, just slice and return
 		if (
 			!needsLocalSearch &&
 			!hideZeroRate &&
 			!hideVariants &&
 			!onlyBarcode
 		) {
-			return items.slice(0, limit);
+			return sortItemsByCodeAsc(items).slice(0, limit);
 		}
 
 		let searchTerms: string[] | null = null;
@@ -213,7 +216,7 @@ export function useItemSearch() {
 			searchTerms = term.split(/\s+/).filter(Boolean);
 		}
 
-		const result: SearchItem[] = [];
+		const matches: SearchItem[] = [];
 		const activeTerms = searchTerms || [];
 		const resolveItemRate = (item: SearchItem): number => {
 			const candidates = [
@@ -279,14 +282,10 @@ export function useItemSearch() {
 				if (!hasBarcode) continue;
 			}
 
-			result.push(item);
-
-			if (result.length >= limit) {
-				break;
-			}
+			matches.push(item);
 		}
 
-		return result;
+		return sortItemsForSearchTerm(matches, term).slice(0, limit);
 	};
 
 	return {

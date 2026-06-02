@@ -1,5 +1,5 @@
 <template>
-	<div class="sticky-header">
+	<div :class="embedded ? 'item-header-shell' : 'sticky-header'">
 		<v-row class="items">
 			<v-col
 				class="pb-0"
@@ -10,7 +10,7 @@
 					<v-text-field
 						density="compact"
 						clearable
-						autofocus
+						:autofocus="!embedded"
 						variant="solo"
 						color="primary"
 						class="pos-themed-input"
@@ -57,6 +57,7 @@
 							>
 							</v-btn>
 							<v-btn
+								v-if="!hideTools"
 								icon="mdi-tune-vertical"
 								size="small"
 								color="primary"
@@ -114,7 +115,7 @@
 			</v-col>
 		</v-row>
 		<v-expand-transition>
-			<div v-if="toolsOpen" class="tools-panel">
+			<div v-if="!hideTools && toolsOpen" class="tools-panel">
 				<div class="tools-panel__actions">
 					<v-btn
 						v-if="context === 'purchase'"
@@ -179,6 +180,8 @@ const props = defineProps({
 	syncProgress: { type: Number, default: 0 },
 	syncItemsCount: { type: Number, default: 0 },
 	context: { type: String, default: "pos" },
+	embedded: { type: Boolean, default: false },
+	hideTools: { type: Boolean, default: false },
 });
 
 defineEmits([
@@ -228,6 +231,10 @@ defineExpose({
 </script>
 
 <style scoped>
+.item-header-shell {
+	padding: 0;
+}
+
 .sticky-header {
 	position: sticky;
 	top: 0;

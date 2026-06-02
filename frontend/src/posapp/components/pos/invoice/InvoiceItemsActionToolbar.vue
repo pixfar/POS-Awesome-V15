@@ -1,19 +1,17 @@
 <template>
-	<div class="column-selector-container">
-		<v-text-field
-			ref="itemSearchField"
-			:model-value="itemSearch"
-			@update:model-value="$emit('update:itemSearch', $event)"
-			density="compact"
-			variant="solo"
-			color="primary"
-			class="item-search-field pos-themed-input"
-			:label="__('Search items or barcode')"
-			prepend-inner-icon="mdi-magnify"
-			hide-details
-			clearable
-			autocomplete="off"
-		></v-text-field>
+	<div class="column-selector-container invoice-catalog-search">
+		<div class="invoice-catalog-search__field">
+			<InvoiceCatalogSearchField
+				v-if="resolvedCatalogSearch"
+				ref="catalogSearchFieldRef"
+				:catalog-search="resolvedCatalogSearch"
+			/>
+			<v-skeleton-loader
+				v-else
+				type="text"
+				class="invoice-catalog-search__loader"
+			/>
+		</div>
 		<v-btn
 			density="compact"
 			variant="text"
@@ -76,12 +74,14 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, inject, ref, unref } from "vue";
+import InvoiceCatalogSearchField from "./InvoiceCatalogSearchField.vue";
+import { posCatalogSearchKey } from "../../../composables/pos/items/posCatalogSearch";
 
 const props = defineProps({
-	itemSearch: {
-		type: String,
-		default: "",
+	catalogSearch: {
+		type: Object,
+		default: null,
 	},
 	availableColumns: {
 		type: Array,
@@ -93,11 +93,16 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(["update:itemSearch", "update:selectedColumns"]);
+const emit = defineEmits(["update:selectedColumns"]);
+
+const injectedCatalogSearch = inject(posCatalogSearchKey, null);
+const resolvedCatalogSearch = computed(
+	() => props.catalogSearch || unref(injectedCatalogSearch) || null,
+);
 
 const showColumnSelector = ref(false);
 const tempSelectedColumns = ref([]);
-const itemSearchField = ref(null);
+const catalogSearchFieldRef = ref(null);
 
 const toggleColumnSelection = () => {
 	tempSelectedColumns.value = [...props.selectedColumns];
@@ -114,10 +119,32 @@ const updateSelectedColumns = () => {
 };
 
 const focusSearch = () => {
-	itemSearchField.value?.focus?.();
+	catalogSearchFieldRef.value?.focusSearch?.();
 };
 
 defineExpose({
 	focusSearch,
 });
 </script>
+
+<style scoped>
+.invoice-catalog-search {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.invoice-catalog-search__field {
+	flex: 1;
+	min-width: 0;
+}
+
+.invoice-catalog-search__loader {
+	border-radius: 16px;
+}
+
+.column-selector-btn {
+	flex-shrink: 0;
+	margin-top: 2px;
+}
+</style>

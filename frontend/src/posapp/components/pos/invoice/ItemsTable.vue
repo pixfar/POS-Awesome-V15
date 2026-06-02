@@ -27,8 +27,6 @@
 			:single-expand="true"
 			:header-props="dynamicHeaderProps"
 			@update:expanded="handleExpandedUpdate"
-			:search="itemSearch"
-			:custom-filter="customItemFilter"
 		>
 			<template #no-data>
 				<div class="posa-cart-empty-state">
@@ -132,7 +130,6 @@ import { logComponentRender } from "../../../utils/perf";
 import CartItemRow from "./CartItemRow.vue";
 import ItemsTableExpandedRow from "./ItemsTableExpandedRow.vue";
 
-import { useItemsTableSearch } from "../../../composables/pos/items/useItemsTableSearch";
 import { useItemsTableDragDrop } from "../../../composables/pos/items/useItemsTableDragDrop";
 import {
 	DATA_TABLE_EXPAND_COLUMN,
@@ -152,7 +149,6 @@ interface Props {
 	headers?: any[];
 	expanded?: any[];
 	itemsPerPage?: number;
-	itemSearch?: string;
 	pos_profile?: any;
 	invoiceType?: string;
 	stock_settings?: any;
@@ -195,7 +191,6 @@ const invoiceStore = useInvoiceStore();
 const tableContainer = ref<HTMLElement | null>(null);
 
 // Composables
-const { customItemFilter } = useItemsTableSearch();
 const dragDropHandlers = useItemsTableDragDrop(emit, eventBus);
 const { isRtl } = useRtl();
 const { memoizedFormatFloat, memoizedFormatCurrency, clearFormatCache } = useFormatters({
@@ -213,15 +208,12 @@ const nameEdit = useItemsTableNameEdit();
 // Computed
 const items = computed(() => invoiceStore.items);
 const invoice_doc = computed(() => invoiceStore.invoiceDoc || {});
-const hasItemSearch = computed(() => !!props.itemSearch?.trim());
-const emptyStateIcon = computed(() => (hasItemSearch.value ? "mdi-cart-search" : "mdi-cart-outline"));
-const emptyStateTitle = computed(() =>
-	hasItemSearch.value ? __("No matching items in cart") : __("No items in cart"),
-);
+const emptyStateIcon = computed(() => "mdi-cart-outline");
+const emptyStateTitle = computed(() => __("No items in cart"));
 const emptyStateSubtitle = computed(() =>
-	hasItemSearch.value
-		? __("Try a different search term or clear the cart search.")
-		: __("Add items from the selector to start building this sale."),
+	__(
+		"Search, scan, or browse items on the left or right to add them to this sale.",
+	),
 );
 
 const memoizedIsNegative = computed(() => {

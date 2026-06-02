@@ -175,10 +175,9 @@
 						<div class="items-table-wrapper">
 							<InvoiceItemsActionToolbar
 								ref="actionToolbar"
-								:itemSearch="itemSearch"
+								:catalog-search="catalogSearchProp"
 								:availableColumns="available_columns"
 								:selectedColumns="selected_columns"
-								@update:itemSearch="itemSearch = $event"
 								@update:selectedColumns="
 									(cols) => {
 										selected_columns = cols;
@@ -192,7 +191,6 @@
 								:headers="items_headers"
 								v-model:expanded="expanded"
 								:itemsPerPage="itemsPerPage"
-								:itemSearch="itemSearch"
 								:pos_profile="pos_profile"
 								:invoiceType="invoiceType"
 								:stock_settings="stock_settings"
@@ -310,7 +308,7 @@ import { useToastStore } from "../../stores/toastStore.js";
 import { useUIStore } from "../../stores/uiStore.js";
 import { storeToRefs } from "pinia";
 import stockCoordinator from "../../utils/stockCoordinator";
-import { getCurrentInstance, ref } from "vue";
+import { getCurrentInstance, ref, computed } from "vue";
 import { save_and_clear_invoice as saveAndClearInvoiceAction } from "./invoice_utils/actions";
 import { fetchDraftInvoices } from "../../utils/draftInvoices";
 
@@ -331,8 +329,14 @@ import {
 
 export default {
 	name: "POSInvoice",
+	props: {
+		catalogSearch: {
+			type: Object,
+			default: null,
+		},
+	},
 	mixins: [format],
-	setup() {
+	setup(props) {
 		const instance = getCurrentInstance();
 		const uiStore = useUIStore();
 		const invoiceStore = useInvoiceStore();
@@ -377,6 +381,7 @@ export default {
 		const stockLogic = useInvoiceStock(items, packed_items, uiStore.eventBus, () => {});
 
 		return {
+			catalogSearchProp: computed(() => props.catalogSearch),
 			uiStore,
 			activeView,
 			isOnline,
@@ -412,7 +417,6 @@ export default {
 			show_packed_dialog: false,
 			invoiceTypes: ["Invoice", "Order", "Quotation"],
 			itemsPerPage: 1000,
-			itemSearch: "",
 			expanded: [],
 			singleExpand: true,
 			cancel_dialog: false,
@@ -559,6 +563,10 @@ export default {
 
 		focusItemSearchField() {
 			this.uiStore.triggerItemSearchFocus();
+		},
+
+		focusInvoiceCatalogSearchField() {
+			this.$refs.actionToolbar?.focusSearch?.();
 		},
 
 		focusAdditionalDiscountField() {
@@ -1050,6 +1058,7 @@ export default {
 		);
 
 		this._busHandlers = {
+			focus_invoice_catalog_search: this.focusInvoiceCatalogSearchField,
 			add_item: this.add_item,
 			clear_invoice: this.handleClearInvoice,
 			apply_pricing_rules: () => {

@@ -225,6 +225,10 @@ import { useScanProcessor } from "../../../composables/pos/items/useScanProcesso
 import { useItemCurrency } from "../../../composables/pos/items/useItemCurrency";
 import { startItemsSelectorInitialization } from "../../../composables/pos/items/useItemsSelectorInitialization";
 import { registerItemsSelectorEvents } from "../../../composables/pos/items/useItemsSelectorEvents";
+import {
+	posCatalogSearchKey,
+	type PosCatalogSearchApi,
+} from "../../../composables/pos/items/posCatalogSearch";
 import { registerItemsSelectorTypeToSearch } from "../../../composables/pos/items/useItemsSelectorTypeToSearch";
 import { useItemsSelectorLayoutLifecycle } from "../../../composables/pos/items/useItemsSelectorLayoutLifecycle";
 import { useItemsSelectorSearchInput } from "../../../composables/pos/items/useItemsSelectorSearchInput";
@@ -1040,6 +1044,7 @@ const {
 	requestItemSearchFocus,
 	requestForegroundItemSearchFocus,
 	handleItemSearchFocus,
+	bindDefaultSearchInputHandlers,
 	cleanup: stopSearchInputWatcher,
 } = useItemsSelectorSearchInput({
 	searchInput: search_input,
@@ -1055,6 +1060,7 @@ const {
 	triggerItemSearchFocus: () => uiStore.triggerItemSearchFocus(),
 });
 cleanupSearchInput = stopSearchInputWatcher;
+
 const {
 	newItemDialog,
 	newItemDialogScannedBarcode,
@@ -1077,6 +1083,175 @@ const esc_event = () => clearSearch();
 const onEnter = (e) => itemsSelectorSearch.onEnter(e);
 const handleSearchKeydown = (e) => itemsSelectorFocus.handleSearchKeydown(e);
 const handleSearchPaste = (e) => itemsSelectorFocus.handleSearchPaste(e);
+
+const normalizeSearchTerm = (value: unknown) => String(value ?? "").trim();
+
+const findCatalogSearchMatch = (term: string) => {
+	const normalized = term.toLowerCase();
+	const visibleItems = Array.isArray(displayedItems.value)
+		? displayedItems.value
+		: [];
+	if (!visibleItems.length) {
+		return null;
+	}
+
+	const exact = visibleItems.find((item) => {
+		const itemCode = String(item?.item_code || "").toLowerCase();
+		const barcode = String(item?.barcode || "").toLowerCase();
+		if (itemCode === normalized || barcode === normalized) {
+			return true;
+		}
+		if (Array.isArray(item?.item_barcode)) {
+			return item.item_barcode.some(
+				(row) => String(row?.barcode || "").toLowerCase() === normalized,
+			);
+		}
+		if (Array.isArray(item?.barcodes)) {
+			return item.barcodes.some(
+				(bc) => String(bc || "").toLowerCase() === normalized,
+			);
+		}
+		return false;
+	});
+	if (exact) {
+		return exact;
+	}
+	if (visibleItems.length === 1) {
+		return visibleItems[0];
+	}
+	return null;
+};
+
+const searchAndAddItem = async (event?: KeyboardEvent) => {
+	const term = normalizeSearchTerm(search_input.value || first_search.value);
+	if (!term) {
+		return;
+	}
+
+	if (event && typeof event.preventDefault === "function") {
+		event.preventDefault();
+	}
+
+	handleSearchInput(term);
+
+	if (/^\d{12,}$/.test(term)) {
+		await onBarcodeScannedFromScannerInput(term);
+		if (!scanErrorDialog.value) {
+			clearSearch();
+		}
+		return;
+	}
+
+	if (term.length < 2) {
+		return;
+	}
+
+	if (itemsSelectorSearch.search_onchange?.cancel) {
+		itemsSelectorSearch.search_onchange.cancel();
+	}
+	await itemsSelectorSearch._performSearch();
+
+	let matchedItem = findCatalogSearchMatch(term);
+	if (!matchedItem) {
+		matchedItem =
+			itemsIntegration.findItemByCode(term) ||
+			itemsIntegration.findItemByBarcode(term);
+	}
+	if (matchedItem) {
+		await add_item(matchedItem, { suppressNegativeWarning: true });
+		if (!scanErrorDialog.value) {
+			clearSearch();
+		}
+		return;
+	}
+
+	scannerInput.searchFromScanner.value = true;
+	try {
+		await scanProcessor.processScannedItem(term);
+	} finally {
+		scannerInput.searchFromScanner.value = false;
+	}
+	if (!scanErrorDialog.value) {
+		clearSearch();
+	}
+};
+
+const invoiceCatalogSearchFocus = () => {
+	scannerInput.setInputHandlers?.({
+		get: () => String(search_input.value || ""),
+		set: (value: string) => {
+			prepareSearchInjection();
+			handleSearchInput(String(value ?? ""));
+		},
+		clear: clearSearch,
+		focus: () => invoiceCatalogSearchApi.value?.focusSearch?.(),
+	});
+};
+
+const invoiceCatalogSearchBlur = () => {
+	bindDefaultSearchInputHandlers();
+};
+
+const runCatalogSearch = async () => {
+	const term = normalizeSearchTerm(search_input.value || first_search.value);
+	if (!term || term.length < 2) {
+		return;
+	}
+	if (itemsSelectorSearch.search_onchange?.cancel) {
+		itemsSelectorSearch.search_onchange.cancel();
+	}
+	await itemsSelectorSearch._performSearch();
+};
+
+const addItemFromCatalog = async (item) => {
+	if (!item) {
+		return;
+	}
+	await add_item(item, { suppressNegativeWarning: true });
+	if (!scanErrorDialog.value) {
+		clearSearch();
+	}
+};
+
+const invoiceCatalogSearchApi = computed<PosCatalogSearchApi | null>(() => {
+	if (props.context !== "pos") {
+		return null;
+	}
+	return {
+		searchInput: search_input,
+		qtyInput: debounce_qty,
+		posProfile: pos_profile,
+		displayedItems,
+		isLoading: isLoadingOrSyncing,
+		scannerLocked,
+		enableBackgroundSync: enable_background_sync,
+		lastSyncTime: lastSyncTimeLabel,
+		syncStatus,
+		showSyncProgress: showSearchSyncProgress,
+		syncProgress: syncProgressValue,
+		syncItemsCount: syncedItemsCount,
+		hideQtyDecimals: hide_qty_decimals,
+		handleSearchInput,
+		onEnter,
+		handleSearchKeydown,
+		handleSearchPaste,
+		handleSearchFocus: invoiceCatalogSearchFocus,
+		clearSearch,
+		clearQty,
+		onQtyBlur,
+		startCameraScanning,
+		toggleItemSettings,
+		forceReloadItems,
+		runCatalogSearch,
+		addItemFromCatalog,
+		searchAndAddItem,
+		focusSearch: () => {
+			eventBus?.emit?.("focus_invoice_catalog_search");
+		},
+		bindDefaultSearchInputHandlers,
+	};
+});
+
 const searchItems = (term) => itemsIntegration.searchItems(term);
 const get_items = (force = false) => itemsIntegration.get_items(force);
 const loadVisibleItems = (reset = false) => itemsLoader.loadVisibleItems(reset);
@@ -1182,6 +1357,8 @@ defineExpose({
 	clearLastInvoiceRateCache,
 	scheduleLastInvoiceRateRefresh,
 	itemSync,
+	searchAndAddItem,
+	getInvoiceCatalogSearchApi: () => invoiceCatalogSearchApi.value,
 });
 </script>
 

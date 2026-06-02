@@ -110,15 +110,19 @@ export function useItemsSelectorSearchInput({
 		clearHighlightedItem();
 	});
 
-	scannerInput.setInputHandlers?.({
-		get: () => String(searchInput.value || ""),
-		set: (value: string) => {
-			prepareSearchInjection();
-			handleSearchInput(String(value ?? ""));
-		},
-		clear: clearSearch,
-		focus: requestForegroundItemSearchFocus,
-	});
+	const bindDefaultSearchInputHandlers = () => {
+		scannerInput.setInputHandlers?.({
+			get: () => String(searchInput.value || ""),
+			set: (value: string) => {
+				prepareSearchInjection();
+				handleSearchInput(String(value ?? ""));
+			},
+			clear: clearSearch,
+			focus: requestForegroundItemSearchFocus,
+		});
+	};
+
+	bindDefaultSearchInputHandlers();
 
 	return {
 		clearSearch,
@@ -129,6 +133,7 @@ export function useItemsSelectorSearchInput({
 		requestItemSearchFocus,
 		requestForegroundItemSearchFocus,
 		handleItemSearchFocus,
+		bindDefaultSearchInputHandlers,
 		cleanup: stopSearchInputWatcher,
 	};
 }

@@ -45,7 +45,10 @@
 				cols="12"
 				class="pos dynamic-col dynamic-col--invoice"
 			>
-				<Invoice ref="invoicePanel"></Invoice>
+				<Invoice
+					ref="invoicePanel"
+					:catalog-search="catalogSearchApi"
+				></Invoice>
 			</v-col>
 
 			<v-col
@@ -57,7 +60,7 @@
 				cols="12"
 				class="pos dynamic-col dynamic-col--selector"
 			>
-				<ItemsSelector context="pos" />
+				<ItemsSelector ref="itemsSelectorPanel" context="pos" />
 			</v-col>
 			<v-col
 				v-show="(!useCompactPosSwitcher || compactPanel === 'selector') && activeView === 'offers'"
@@ -215,7 +218,17 @@ import NewAddress from "../customer/NewAddress.vue";
 import Variants from "../items/Variants.vue";
 import Returns from "../flows/Returns.vue";
 import MpesaPayments from "../payments/Mpesa-Payments.vue";
-import { inject, ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from "vue";
+import {
+	inject,
+	ref,
+	onMounted,
+	onBeforeUnmount,
+	computed,
+	watch,
+	nextTick,
+	provide,
+} from "vue";
+import { posCatalogSearchKey } from "../../../composables/pos/items/posCatalogSearch";
 import { usePosShift } from "../../../composables/pos/shared/usePosShift";
 import { useOffers } from "../../../composables/pos/shared/useOffers";
 // Import the cache cleanup function
@@ -233,7 +246,14 @@ export default {
 		const eventBus = inject("eventBus");
 		const dialog = ref(false);
 		const invoicePanel = ref(null);
+		const itemsSelectorPanel = ref(null);
 		const additionalDiscountField = ref(null);
+
+		const catalogSearchApi = computed(
+			() => itemsSelectorPanel.value?.getInvoiceCatalogSearchApi?.() ?? null,
+		);
+
+		provide(posCatalogSearchKey, catalogSearchApi);
 		const mobileDock = ref(null);
 		const responsive = useResponsive();
 		const rtl = useRtl();
@@ -615,6 +635,8 @@ export default {
 			discountPercentageOfferName,
 			getCurrencySymbol,
 			invoicePanel,
+			itemsSelectorPanel,
+			catalogSearchApi,
 			eventBus,
 			dialog,
 		};

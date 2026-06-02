@@ -1,5 +1,9 @@
 import { ref } from "vue";
 import type { Item, POSProfile } from "../../../../types/models";
+import {
+	sortItemsByCodeAsc,
+	sortItemsForSearchTerm,
+} from "../../../../utils/itemSearchSort.js";
 
 export function useItemsSearch() {
 	const itemsMap = ref(new Map<string, Item>()); // O(1) lookup by item_code
@@ -108,7 +112,7 @@ export function useItemsSearch() {
 		const searchTerm = term.toLowerCase();
 		const searchTerms = searchTerm.split(/\s+/).filter(Boolean);
 
-		return itemList.filter((item) => {
+		const matches = itemList.filter((item) => {
 			if (!item) {
 				return false;
 			}
@@ -146,13 +150,16 @@ export function useItemsSearch() {
 					String(field).toLowerCase().includes(searchTerm),
 				);
 		});
+
+		return sortItemsForSearchTerm(matches, term);
 	};
 
 	const filterItemsByGroup = (itemList: Item[], group: string) => {
-		if (group === "ALL") {
-			return itemList;
-		}
-		return itemList.filter((item) => item.item_group === group);
+		const filtered =
+			group === "ALL"
+				? itemList
+				: itemList.filter((item) => item.item_group === group);
+		return sortItemsByCodeAsc(filtered);
 	};
 
 	const getItemByCode = (itemCode: string) => {

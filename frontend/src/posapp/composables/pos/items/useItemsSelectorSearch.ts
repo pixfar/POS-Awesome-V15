@@ -224,6 +224,9 @@ export const useItemsSelectorSearch = ({
 		if (!match && Array.isArray(new_item.barcodes)) {
 			match = new_item.barcodes.some((bc) => String(bc) === search);
 		}
+		if (!match && String(new_item.item_code || "") === search) {
+			match = true;
+		}
 
 		if (vm.flags && vm.flags.serial_no) {
 			new_item.to_set_serial_no = vm.flags.serial_no;
@@ -301,7 +304,7 @@ export const useItemsSelectorSearch = ({
 		}
 
 		// Require a minimum of three characters before running a search
-		if (!trimmedQuery || trimmedQuery.length < 3) {
+		if (!trimmedQuery || trimmedQuery.length < 2) {
 			vm.search_from_scanner = false;
 			return;
 		}
