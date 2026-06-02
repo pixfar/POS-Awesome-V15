@@ -38,12 +38,19 @@ export function usePurchaseOrder(options: {
 	const purchaseItems = ref<PurchaseItem[]>([]);
 	const supplier = ref<string | null>(null);
 	const warehouse = ref<string | null>(null);
-	const transactionDate = ref<string | null>(null);
-	const scheduleDate = ref<string | null>(null);
-	const createInvoice = ref(false);
+	const postingDateTime = ref<string | null>(null);
+	const updateStock = ref(true);
+	const customIsPaid = ref(true);
+
+	const getCurrentPostingDateTimeDisplay = () => {
+		const now = new Date();
+		const pad = (value: number) => String(value).padStart(2, "0");
+		return `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+	};
 	const supplierCurrency = ref<string | null>(null);
 	const supplierPriceList = ref<string | null>(null);
 	const priceListCurrency = ref<string | null>(null);
+	const supplierOutstanding = ref(0);
 	const submitLoading = ref(false);
 	const errorMessage = ref("");
 
@@ -55,18 +62,19 @@ export function usePurchaseOrder(options: {
 	});
 
 	const generateLineId = () => {
-		return `po_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+		return `pi_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 	};
 
 	const fetchSupplierInfo = async (supplierName: string) => {
 		if (!supplierName) {
 			supplierPriceList.value = null;
 			priceListCurrency.value = null;
+			supplierOutstanding.value = 0;
 			return null;
 		}
 		try {
 			const { message } = await frappe.call({
-				method: "posawesome.posawesome.api.purchase_orders.get_supplier_info",
+				method: "posawesome.posawesome.api.purchase_invoices.get_supplier_info",
 				args: { supplier: supplierName },
 			});
 			if (message) {
@@ -74,6 +82,7 @@ export function usePurchaseOrder(options: {
 				priceListCurrency.value = message.price_list_currency || null;
 				supplierCurrency.value =
 					message.default_currency || posProfile.value?.currency || null;
+				supplierOutstanding.value = Number(message.outstanding_amount || 0);
 			}
 			return message;
 		} catch (e) {
@@ -233,30 +242,31 @@ export function usePurchaseOrder(options: {
 		supplier.value = null;
 		supplierPriceList.value = null;
 		priceListCurrency.value = null;
+		supplierOutstanding.value = 0;
 		purchaseItems.value = [];
 		errorMessage.value = "";
 		submitLoading.value = false;
 		warehouse.value = posProfile.value?.warehouse || null;
-		transactionDate.value = formatUtils.toArabicNumerals(
-			frappe.datetime.nowdate(),
-		);
-		scheduleDate.value = formatUtils.toArabicNumerals(
-			frappe.datetime.nowdate(),
+		postingDateTime.value = formatUtils.toArabicNumerals(
+			getCurrentPostingDateTimeDisplay(),
 		);
 		receiveNow.value = false;
-		createInvoice.value = false;
+		updateStock.value = true;
+		customIsPaid.value = true;
 	};
 
 	return {
 		purchaseItems,
 		supplier,
 		warehouse,
-		transactionDate,
-		scheduleDate,
-		createInvoice,
+		postingDateTime,
+		getCurrentPostingDateTimeDisplay,
+		updateStock,
+		customIsPaid,
 		supplierCurrency,
 		supplierPriceList,
 		priceListCurrency,
+		supplierOutstanding,
 		totalAmount,
 		submitLoading,
 		errorMessage,

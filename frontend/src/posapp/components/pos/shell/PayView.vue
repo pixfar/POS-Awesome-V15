@@ -782,7 +782,7 @@ export default {
 			partySearchLoading.value = true;
 			try {
 				const r = await frappe.call({
-					method: "posawesome.posawesome.api.purchase_orders.search_suppliers",
+					method: "posawesome.posawesome.api.purchase_invoices.search_suppliers",
 					args: {
 						search_text: searchText || "",
 						limit: 20,

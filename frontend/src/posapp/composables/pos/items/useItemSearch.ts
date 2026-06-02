@@ -89,13 +89,30 @@ export function useItemSearch() {
 			});
 		}
 
+		const normalizeGroupValue = (value: unknown): string => {
+			if (value === null || value === undefined) return "";
+			if (typeof value === "object") {
+				const obj = value as Record<string, unknown>;
+				return String(obj.name || obj.item_group || obj.value || "")
+					.trim()
+					.toLowerCase();
+			}
+			return String(value).trim().toLowerCase();
+		};
+
 		// Filter by item group
 		if (itemGroup !== "ALL") {
-			const group = itemGroup.toLowerCase();
-			filtered = filtered.filter(
-				(item) =>
-					item.item_group && item.item_group.toLowerCase() === group,
-			);
+			const group = normalizeGroupValue(itemGroup);
+			filtered = filtered.filter((item) => {
+				const candidates = [
+					item.item_group,
+					(item as any).item_group_name,
+					(item as any).group_name,
+				];
+				return candidates.some(
+					(candidate) => normalizeGroupValue(candidate) === group,
+				);
+			});
 		}
 
 		// Filter by search term

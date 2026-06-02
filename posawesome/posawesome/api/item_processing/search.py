@@ -321,13 +321,6 @@ def _shape_item_row(
     if plan.posa_show_template_items and item.get("variant_of"):
         item_attributes = (variant_attributes_map or {}).get(item.get("name"), [])
 
-    if (
-        plan.posa_display_items_in_stock
-        and (not detail.get("actual_qty") or detail.get("actual_qty") < 0)
-        and not item.get("has_variants")
-    ):
-        return None
-
     row: Dict[str, Any] = {}
     row.update(item)
     row.update(detail or {})

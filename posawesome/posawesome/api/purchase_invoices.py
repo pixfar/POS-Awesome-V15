@@ -1,0 +1,51 @@
+# Copyright (c) 2026, POS Awesome contributors
+# For license information, please see license.txt
+
+import json
+
+import frappe
+
+from . import purchase_orders as po
+
+
+@frappe.whitelist()
+def create_supplier(data):
+	return po.create_supplier(data)
+
+
+@frappe.whitelist()
+def search_suppliers(search_text=None, limit=20):
+	return po.search_suppliers(search_text=search_text, limit=limit)
+
+
+@frappe.whitelist()
+def get_buying_price_list():
+	return po.get_buying_price_list()
+
+
+@frappe.whitelist()
+def get_supplier_info(supplier):
+	return po.get_supplier_info(supplier)
+
+
+@frappe.whitelist()
+def get_last_buying_rate(supplier, item_codes, company=None):
+	return po.get_last_buying_rate(supplier, item_codes, company=company)
+
+
+@frappe.whitelist()
+def create_purchase_item(data):
+	return po.create_purchase_item(data)
+
+
+@frappe.whitelist()
+def create_purchase_invoice(data):
+	payload = json.loads(data) if isinstance(data, str) else data
+	return po._create_purchase_invoice_from_pos(payload)
+
+
+# Generic item search used by ItemsSelector in purchase context.
+@frappe.whitelist()
+def search_items(search_text=None, limit=20):
+	return po.search_items(search_text=search_text, limit=limit)
+

@@ -29,7 +29,7 @@
 						<v-text-field
 							variant="solo"
 							color="primary"
-							:label="remainingAmount > 0 ? __('To Be Paid') : __('Change')"
+							:label="outstandingLabel"
 							class="sleek-field pos-themed-input"
 							hide-details
 							:model-value="formatCurrency(Math.abs(remainingAmount), currency)"
@@ -40,6 +40,16 @@
 						></v-text-field>
 					</v-col>
 				</v-row>
+
+				<v-alert
+					v-if="allowPartialPayment && totalAmount > 0"
+					type="info"
+					density="compact"
+					variant="tonal"
+					class="mx-3 mt-2"
+				>
+					{{ __("Enter any payment amount. Outstanding balance can remain on the invoice.") }}
+				</v-alert>
 
 				<v-divider class="mx-3"></v-divider>
 
@@ -136,21 +146,11 @@
 
 				<!-- Print Format Selection -->
 				<v-row class="pa-3 ma-0" dense>
-					<v-col cols="12" v-if="createInvoice">
-						<v-switch
-							v-model="printInvoice"
-							density="compact"
-							color="primary"
-							hide-details
-							:label="__('Print Purchase Invoice instead of PO')"
-							class="ma-0 mb-2"
-						></v-switch>
-					</v-col>
 					<v-col cols="12">
 						<v-select
 							v-model="selectedPrintFormat"
 							:items="printFormats"
-							:label="printInvoice ? __('Print Format (Invoice)') : __('Print Format (Order)')"
+							:label="__('Print Format (Purchase Invoice)')"
 							density="compact"
 							variant="solo"
 							color="primary"
@@ -234,10 +234,6 @@ const props = defineProps({
 		type: Object,
 		required: true,
 	},
-	createInvoice: {
-		type: Boolean,
-		default: false,
-	},
 });
 
 const emit = defineEmits(["update:modelValue", "submit"]);
@@ -246,7 +242,6 @@ const currency_precision = ref(2);
 const paymentLines = ref([]);
 const printFormats = ref([]);
 const selectedPrintFormat = ref(null);
-const printInvoice = ref(props.createInvoice);
 const loading = ref(false);
 
 const dialog = computed({
@@ -264,13 +259,22 @@ const paidAmount = computed(() =>
 
 const remainingAmount = computed(() => props.totalAmount - paidAmount.value);
 
+// Purchase Invoices always allow partial payment from POS.
+const allowPartialPayment = computed(() => true);
+
+const outstandingLabel = computed(() => {
+	if (remainingAmount.value > 0 && allowPartialPayment.value) {
+		return __("Outstanding");
+	}
+	return remainingAmount.value > 0 ? __("To Be Paid") : __("Change");
+});
+
 const isPaymentValid = computed(() => {
 	const hasNegativePayment = paymentLines.value.some((p) => (parseFloat(p.amount) || 0) < 0);
 	if (hasNegativePayment) return false;
 
-	// Allow submitting Purchase Order even with zero payment.
-	// If any payment is entered, keep full-settlement behavior.
 	if (paidAmount.value <= 0) return true;
+	if (allowPartialPayment.value) return true;
 	return remainingAmount.value <= 0;
 });
 
@@ -278,7 +282,6 @@ watch(
 	() => props.modelValue,
 	(val) => {
 		if (val) {
-			printInvoice.value = props.createInvoice;
 			initializePayments();
 			fetchPrintFormats();
 			loading.value = false;
@@ -286,9 +289,22 @@ watch(
 	},
 );
 
-watch(printInvoice, () => {
-	fetchPrintFormats();
-});
+watch(
+	() => props.totalAmount,
+	() => {
+		if (!props.modelValue) return;
+		const hasAnyAmount = paymentLines.value.some(
+			(p) => (parseFloat(p.amount) || 0) > 0,
+		);
+		if (hasAnyAmount) return;
+
+		const defaultMode =
+			paymentLines.value.find((p) => p.default) || paymentLines.value[0];
+		if (defaultMode) {
+			defaultMode.amount = props.totalAmount;
+		}
+	},
+);
 
 const flt = (value, precision, number_format, rounding_method) => {
 	if (!precision && precision != 0) {
@@ -331,7 +347,6 @@ function initializePayments() {
 		type: m.type,
 	}));
 
-	// Auto-fill default payment method if exists
 	const defaultMode = paymentLines.value.find((p) => p.default) || paymentLines.value[0];
 	if (defaultMode) {
 		defaultMode.amount = props.totalAmount;
@@ -356,12 +371,17 @@ function set_rest_amount(payment) {
 	}
 }
 
-function handlePaymentAmountChange(payment, event) {
-	const val = parseFloat(event) || 0;
-	payment.amount = val;
+function parsePaymentInput(value) {
+	const raw = value?.target?.value ?? value ?? "";
+	const normalized = formatUtils.fromArabicNumerals(String(raw)).replace(/,/g, "");
+	const parsed = parseFloat(normalized);
+	return Number.isFinite(parsed) ? parsed : 0;
+}
 
-	// Auto-balance: if this payment exceeds remaining, reduce others
-	if (remainingAmount.value < 0) {
+function handlePaymentAmountChange(payment, event) {
+	payment.amount = parsePaymentInput(event);
+
+	if (!allowPartialPayment.value && remainingAmount.value < 0) {
 		autoBalancePayments(payment);
 	}
 }
@@ -444,13 +464,13 @@ function submit(doPrint) {
 		payments,
 		print: doPrint,
 		print_format: selectedPrintFormat.value,
-		print_invoice: printInvoice.value,
+		print_invoice: true,
 	});
 }
 
 async function fetchPrintFormats() {
 	try {
-		const doctype = printInvoice.value ? "Purchase Invoice" : "Purchase Order";
+		const doctype = "Purchase Invoice";
 		const { message } = await frappe.call({
 			method: "posawesome.posawesome.api.print_formats.get_print_formats",
 			args: {

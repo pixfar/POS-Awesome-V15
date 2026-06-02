@@ -40,6 +40,21 @@ def _ensure_allowed(profile, flag, label):
         frappe.throw(_("{0} is disabled for this POS Profile.").format(label))
 
 
+def _purchase_invoice_allowed(profile):
+    return cint(profile.get("posa_allow_purchase_invoice")) or cint(
+        profile.get("posa_allow_purchase_order")
+    )
+
+
+def _ensure_purchase_invoice_allowed(profile):
+    if not _purchase_invoice_allowed(profile):
+        frappe.throw(_("Purchase Invoice is disabled for this POS Profile."))
+
+
+def _purchase_invoice_has_custom_is_paid():
+    return frappe.db.has_column("Purchase Invoice", "custom_is_paid")
+
+
 def _resolve_supplier(supplier_value):
     if isinstance(supplier_value, dict):
         supplier_value = (
@@ -239,7 +254,6 @@ def _create_purchase_receipt(po_doc, payload, default_warehouse, transaction_dat
     return receipt.name
 
 
-@frappe.whitelist()
 def create_supplier(data):
     payload = json.loads(data) if isinstance(data, str) else data
     profile = _resolve_pos_profile(payload.get("pos_profile"))
@@ -274,7 +288,6 @@ def create_supplier(data):
     return supplier.as_dict()
 
 
-@frappe.whitelist()
 def search_suppliers(search_text=None, limit=20):
     filters = {"disabled": 0}
     or_filters = None
@@ -296,12 +309,10 @@ def search_suppliers(search_text=None, limit=20):
     return suppliers
 
 
-@frappe.whitelist()
 def get_buying_price_list():
     return _resolve_buying_price_list()
 
 
-@frappe.whitelist()
 def get_supplier_info(supplier):
     """Get supplier details including the effective buying price list."""
     supplier = _resolve_supplier(supplier)
@@ -315,6 +326,20 @@ def get_supplier_info(supplier):
     if buying_price_list:
         price_list_currency = frappe.db.get_value("Price List", buying_price_list, "currency")
 
+    outstanding_amount = (
+        frappe.db.sql(
+            """
+            SELECT COALESCE(SUM(outstanding_amount), 0)
+            FROM `tabPurchase Invoice`
+            WHERE supplier = %s
+              AND docstatus = 1
+              AND outstanding_amount > 0
+            """,
+            supplier,
+        )[0][0]
+        or 0
+    )
+
     return {
         "supplier": supplier,
         "supplier_name": supplier_doc.supplier_name,
@@ -322,10 +347,10 @@ def get_supplier_info(supplier):
         "default_currency": supplier_doc.default_currency,
         "buying_price_list": buying_price_list,
         "price_list_currency": price_list_currency,
+        "outstanding_amount": flt(outstanding_amount),
     }
 
 
-@frappe.whitelist()
 def get_last_buying_rate(supplier, item_codes, company=None):
     """Get the last buying rate for items from supplier price lists or recent Purchase Invoices."""
     if isinstance(item_codes, str):
@@ -428,7 +453,6 @@ def get_last_buying_rate(supplier, item_codes, company=None):
     return result
 
 
-@frappe.whitelist()
 def create_purchase_item(data):
     payload = json.loads(data) if isinstance(data, str) else data
     profile = _resolve_pos_profile(payload.get("pos_profile"))
@@ -522,19 +546,18 @@ def _create_payment_entry(reference_doc, payments, company, transaction_date):
         return []
 
     created_payments = []
+    reference_doc.reload()
 
-    # Check if reference is PO or PI
     ref_doctype = reference_doc.doctype
     ref_name = reference_doc.name
 
-    # Determine outstanding amount
-    outstanding_amount = 0
     if ref_doctype == "Purchase Invoice":
-        outstanding_amount = reference_doc.outstanding_amount
+        outstanding_amount = flt(reference_doc.outstanding_amount)
     else:
-        # For Purchase Order, use grand_total (assuming advance payment for new PO)
-        # Or calculate if some advance was already made, but here it's new.
-        outstanding_amount = reference_doc.grand_total
+        outstanding_amount = flt(reference_doc.grand_total)
+
+    if outstanding_amount <= 0:
+        return created_payments
 
     for pay in payments:
         amount = flt(pay.get("amount"))
@@ -590,12 +613,47 @@ def _create_payment_entry(reference_doc, payments, company, transaction_date):
     return created_payments
 
 
-@frappe.whitelist()
-def create_purchase_order(data):
+def _append_purchase_invoice_items(invoice, items, warehouse, item_map):
+    for row in items:
+        item_code = row.get("item_code")
+        if not item_code:
+            continue
 
-    payload = json.loads(data) if isinstance(data, str) else data
+        qty = flt(row.get("qty"))
+        if qty <= 0:
+            continue
+
+        meta = item_map.get(item_code)
+        stock_uom = row.get("stock_uom") or (meta.stock_uom if meta else None)
+        item_name = row.get("item_name") or (meta.item_name if meta else item_code)
+        uom = row.get("uom") or stock_uom
+        conversion_factor = flt(row.get("conversion_factor") or 1) or 1
+
+        invoice.append(
+            "items",
+            {
+                "item_code": item_code,
+                "item_name": item_name,
+                "qty": qty,
+                "uom": uom,
+                "stock_uom": stock_uom,
+                "conversion_factor": conversion_factor,
+                "rate": flt(row.get("rate")),
+                "warehouse": row.get("warehouse") or warehouse,
+            },
+        )
+
+
+def _resolve_purchase_invoice_custom_is_paid(payload, payments, grand_total):
+    total_paid = sum(flt(pay.get("amount")) for pay in (payments or []))
+    if payments:
+        return 1 if total_paid >= flt(grand_total) - 0.001 else 0
+    return cint(payload.get("custom_is_paid"))
+
+
+def _create_purchase_invoice_from_pos(payload):
     profile = _resolve_pos_profile(payload.get("pos_profile"))
-    _ensure_allowed(profile, "posa_allow_purchase_order", _("Purchase orders"))
+    _ensure_purchase_invoice_allowed(profile)
 
     receive_now = cint(payload.get("receive"))
     if receive_now:
@@ -614,25 +672,25 @@ def create_purchase_order(data):
         frappe.throw(_("Company is required."))
 
     warehouse = payload.get("warehouse") or profile.get("warehouse") or get_default_warehouse(company)
-    transaction_date = payload.get("transaction_date") or nowdate()
+    transaction_date = (
+        payload.get("posting_date")
+        or payload.get("transaction_date")
+        or nowdate()
+    )
+    posting_time = payload.get("posting_time")
     schedule_date = payload.get("schedule_date") or transaction_date
 
     items = payload.get("items") or []
     if not items:
-        frappe.throw(_("Purchase order requires at least one item."))
+        frappe.throw(_("Purchase Invoice requires at least one item."))
 
-    # Get supplier currency (NEW CODE)
     supplier_doc = frappe.get_doc("Supplier", supplier)
     supplier_currency = supplier_doc.default_currency
     if not supplier_currency:
-        # Fallback to company currency if supplier has no default
         supplier_currency = frappe.get_value("Company", company, "default_currency")
 
-    # Resolve buying price list: prefer supplier-specific, then payload override, then default
     buying_price_list = payload.get("buying_price_list") or _resolve_supplier_buying_price_list(supplier)
     price_list_currency = frappe.get_value("Price List", buying_price_list, "currency")
-
-    # If currencies don't match, try to find a matching one
     if price_list_currency and price_list_currency != supplier_currency:
         alternative_price_list = frappe.db.get_value(
             "Price List", {"currency": supplier_currency, "buying": 1, "enabled": 1}, "name"
@@ -640,22 +698,32 @@ def create_purchase_order(data):
         if alternative_price_list:
             buying_price_list = alternative_price_list
 
-    po_doc = frappe.get_doc(
+    update_stock = cint(payload.get("update_stock"))
+    if receive_now:
+        update_stock = 1
+
+    invoice = frappe.get_doc(
         {
-            "doctype": "Purchase Order",
+            "doctype": "Purchase Invoice",
             "supplier": supplier,
             "company": company,
-            "transaction_date": transaction_date,
-            "schedule_date": schedule_date,
+            "posting_date": transaction_date,
+            "due_date": schedule_date,
             "currency": supplier_currency,
             "buying_price_list": buying_price_list,
+            "update_stock": update_stock,
         }
     )
 
+    if posting_time:
+        invoice.posting_time = posting_time
+        invoice.set_posting_time = 1
+
     if warehouse:
-        po_doc.set_warehouse = warehouse
+        invoice.set_warehouse = warehouse
 
     item_codes = [row.get("item_code") for row in items if row.get("item_code")]
+    item_map = {}
     if item_codes:
         item_meta = frappe.get_all(
             "Item",
@@ -663,88 +731,86 @@ def create_purchase_order(data):
             fields=["name", "item_name", "stock_uom"],
         )
         item_map = {row.name: row for row in item_meta}
-    else:
-        item_map = {}
 
-    for row in items:
-        item_code = row.get("item_code")
-        if not item_code:
-            continue
+    _append_purchase_invoice_items(invoice, items, warehouse, item_map)
 
-        qty = flt(row.get("qty"))
-        if qty <= 0:
-            continue
+    if not invoice.items:
+        frappe.throw(_("Purchase Invoice requires at least one item with quantity."))
 
-        meta = item_map.get(item_code)
-        stock_uom = row.get("stock_uom") or (meta.stock_uom if meta else None)
-        item_name = row.get("item_name") or (meta.item_name if meta else item_code)
-        uom = row.get("uom") or stock_uom
-        conversion_factor = flt(row.get("conversion_factor") or 1)
-        if not conversion_factor:
-            conversion_factor = 1
+    payments = payload.get("payments") or []
+    meaningful_payments = [
+        pay for pay in payments if flt(pay.get("amount")) > 0
+    ]
+    pos_handles_payment = bool(meaningful_payments)
 
-        po_doc.append(
-            "items",
-            {
-                "item_code": item_code,
-                "item_name": item_name,
-                "qty": qty,
-                "uom": uom,
-                "stock_uom": stock_uom,
-                "conversion_factor": conversion_factor,
-                "rate": flt(row.get("rate")),
-                "warehouse": row.get("warehouse") or warehouse,
-                "schedule_date": schedule_date,
-            },
-        )
-
-    if not po_doc.items:
-        frappe.throw(_("Purchase order requires at least one item with quantity."))
-
-    po_doc.flags.ignore_permissions = True
+    invoice.flags.ignore_permissions = True
     frappe.flags.ignore_account_permission = True
-    po_doc.save()
+    invoice.save()
 
-    # Persist a safe draft first so if any downstream step fails (submit/PR/PI/payment),
-    # the operator does not lose the created PO.
+    # Purchase Invoices always support partial payment from POS.
+    total_paid = sum(flt(pay.get("amount")) for pay in meaningful_payments)
+
+    if _purchase_invoice_has_custom_is_paid():
+        resolved_is_paid = _resolve_purchase_invoice_custom_is_paid(
+            payload, meaningful_payments, invoice.grand_total
+        )
+        if pos_handles_payment:
+            # POS records payment after submit; avoid duplicate PE on submit.
+            invoice.custom_is_paid = 0
+        else:
+            invoice.custom_is_paid = resolved_is_paid
+        invoice.save()
+
     frappe.db.commit()
 
     try:
         if cint(payload.get("submit", 1)):
-            po_doc.submit()
+            if pos_handles_payment:
+                frappe.flags.skip_purchase_invoice_auto_payment = True
+            try:
+                invoice.submit()
+            finally:
+                frappe.flags.skip_purchase_invoice_auto_payment = False
 
-        receipt_name = None
-        receipt_doc = None
-        if receive_now:
-            receipt_name = _create_purchase_receipt(po_doc, payload, warehouse, transaction_date)
-            if receipt_name:
-                receipt_doc = frappe.get_doc("Purchase Receipt", receipt_name)
-        invoice_name = None
-        if cint(payload.get("create_invoice", 0)):
-            invoice_name = _create_purchase_invoice(
-                po_doc, payload, warehouse, transaction_date, receipt_doc=receipt_doc
+        payment_names = []
+        if pos_handles_payment:
+            invoice.reload()
+            payment_names = _create_payment_entry(
+                invoice, meaningful_payments, company, transaction_date
             )
 
-        payments = payload.get("payments")
-        if payments:
-            # Use PI if created, otherwise PO
-            ref_doc = frappe.get_doc("Purchase Invoice", invoice_name) if invoice_name else po_doc
-            _create_payment_entry(ref_doc, payments, company, transaction_date)
+        if _purchase_invoice_has_custom_is_paid():
+            invoice.reload()
+            if flt(invoice.outstanding_amount) <= 0.001:
+                invoice.db_set("custom_is_paid", 1, update_modified=False)
+            else:
+                invoice.db_set("custom_is_paid", 0, update_modified=False)
 
         return {
-            "purchase_order": po_doc.name,
-            "purchase_receipt": receipt_name,
-            "purchase_invoice": invoice_name,
+            "purchase_invoice": invoice.name,
+            "purchase_order": invoice.name,
+            "payment_entries": payment_names,
         }
     except Exception as err:
         frappe.db.rollback()
-        frappe.log_error(frappe.get_traceback(), "POS Awesome PO Submit Flow Failed")
+        frappe.log_error(frappe.get_traceback(), "POS Awesome Purchase Invoice Submit Failed")
         frappe.throw(
-            _("Purchase Order {0} has been saved as Draft. Error: {1}").format(po_doc.name, str(err))
+            _("Purchase Invoice {0} has been saved as Draft. Error: {1}").format(
+                invoice.name, str(err)
+            )
         )
 
 
-@frappe.whitelist()
+def create_purchase_invoice(data):
+    payload = json.loads(data) if isinstance(data, str) else data
+    return _create_purchase_invoice_from_pos(payload)
+
+
+def create_purchase_order(data):
+    payload = json.loads(data) if isinstance(data, str) else data
+    return _create_purchase_invoice_from_pos(payload)
+
+
 def search_items(search_text=None, limit=20):
     filters = {"disabled": 0}
     or_filters = None

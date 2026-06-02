@@ -298,7 +298,7 @@ export default {
 			item: 0,
 			baseItems: [
 				{ text: "POS", icon: "mdi-network-pos", to: "/pos" },
-				{ text: "Purchase Order", icon: "mdi-cart-plus", to: "/orders" },
+				{ text: "Purchase Invoice", icon: "mdi-cart-plus", to: "/orders" },
 			],
 			items: [],
 			company: "POS Awesome",

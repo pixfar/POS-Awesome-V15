@@ -115,8 +115,8 @@ def _install_stubs():
 
 
 def _load_module():
-    module_name = "posawesome.posawesome.api.purchase_orders"
-    file_path = REPO_ROOT / "posawesome" / "posawesome" / "api" / "purchase_orders.py"
+    module_name = "posawesome.posawesome.api.purchase_invoices"
+    file_path = REPO_ROOT / "posawesome" / "posawesome" / "api" / "purchase_invoices.py"
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module

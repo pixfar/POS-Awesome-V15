@@ -1,7 +1,7 @@
 <template>
-	<v-container class="pa-0">
-		<v-row dense class="mb-2">
-			<v-col cols="12" md="6">
+	<div class="purchase-header">
+		<v-row dense class="px-3 pb-2">
+			<v-col cols="12" sm="6">
 				<v-autocomplete
 					:model-value="supplier"
 					@update:model-value="$emit('update:supplier', $event)"
@@ -9,15 +9,15 @@
 					item-title="supplier_name"
 					item-value="name"
 					:label="frappe._('Supplier')"
-					density="compact"
-					variant="outlined"
+					density="comfortable"
+					variant="solo"
 					color="primary"
 					hide-details="auto"
 					:loading="supplierLoading"
 					@update:search="$emit('search-supplier', $event)"
 					:custom-filter="() => true"
 					:no-data-text="supplierLoading ? __('Loading suppliers...') : __('Suppliers not found')"
-					class="pos-themed-input"
+					class="sleek-field pos-themed-input"
 					clearable
 				>
 					<template #append-inner>
@@ -36,7 +36,7 @@
 					</template>
 				</v-autocomplete>
 			</v-col>
-			<v-col cols="12" md="6">
+			<v-col cols="12" sm="6">
 				<v-autocomplete
 					:model-value="warehouse"
 					@update:model-value="$emit('update:warehouse', $event)"
@@ -44,66 +44,53 @@
 					item-title="warehouse_name"
 					item-value="name"
 					:label="frappe._('Warehouse')"
-					density="compact"
-					variant="outlined"
+					density="comfortable"
+					variant="solo"
 					color="primary"
 					hide-details="auto"
 					clearable
 					:loading="warehouseLoading"
-					class="pos-themed-input"
+					class="sleek-field pos-themed-input"
 				/>
 			</v-col>
 		</v-row>
 
-		<v-row dense class="mb-4">
-			<v-col cols="6">
+		<v-row dense class="px-3 pb-3 align-center">
+			<v-col cols="12" sm="6">
 				<VueDatePicker
-					:model-value="transactionDate"
-					@update:model-value="$emit('update:transactionDate', $event)"
+					:model-value="postingDateTime"
+					@update:model-value="$emit('update:postingDateTime', $event)"
 					model-type="format"
-					format="dd-MM-yyyy"
-					:enable-time-picker="false"
+					format="dd-MM-yyyy HH:mm"
+					:enable-time-picker="true"
 					auto-apply
-					:placeholder="frappe._('Posting Date')"
-					class="pos-themed-input"
+					teleport
+					:placeholder="frappe._('Date')"
+					class="sleek-field pos-themed-input posting-date-input"
 				/>
 			</v-col>
-			<v-col cols="6">
-				<VueDatePicker
-					:model-value="scheduleDate"
-					@update:model-value="$emit('update:scheduleDate', $event)"
-					model-type="format"
-					format="dd-MM-yyyy"
-					:enable-time-picker="false"
-					auto-apply
-					:placeholder="frappe._('Required By')"
-					class="pos-themed-input"
-				/>
+			<v-col cols="12" sm="6" class="d-flex flex-wrap gap-3 align-center">
+				<v-switch
+					:model-value="updateStock"
+					@update:model-value="$emit('update:updateStock', $event)"
+					density="compact"
+					hide-details
+					color="primary"
+					:label="__('Update Stock')"
+					class="ma-0"
+				></v-switch>
+				<v-switch
+					:model-value="customIsPaid"
+					@update:model-value="$emit('update:customIsPaid', $event)"
+					density="compact"
+					hide-details
+					color="info"
+					:label="__('Is Paid')"
+					class="ma-0"
+				></v-switch>
 			</v-col>
 		</v-row>
-
-		<div class="d-flex gap-4 mb-4">
-			<v-switch
-				v-if="posProfile.posa_allow_purchase_receipt"
-				:model-value="receiveNow"
-				@update:model-value="$emit('update:receiveNow', $event)"
-				density="compact"
-				hide-details
-				color="success"
-				:label="__('Receive now')"
-				class="ma-0"
-			></v-switch>
-			<v-switch
-				:model-value="createInvoice"
-				@update:model-value="$emit('update:createInvoice', $event)"
-				density="compact"
-				hide-details
-				color="primary"
-				:label="__('Create Bill')"
-				class="ma-0 ml-4"
-			></v-switch>
-		</div>
-	</v-container>
+	</div>
 </template>
 
 <script>
@@ -116,21 +103,24 @@ export default {
 		warehouse: String,
 		warehouseOptions: Array,
 		warehouseLoading: Boolean,
-		transactionDate: String,
-		scheduleDate: String,
-		receiveNow: Boolean,
-		createInvoice: Boolean,
-		posProfile: Object,
+		postingDateTime: String,
+		updateStock: Boolean,
+		customIsPaid: Boolean,
 	},
 	emits: [
 		"update:supplier",
 		"update:warehouse",
-		"update:transactionDate",
-		"update:scheduleDate",
-		"update:receiveNow",
-		"update:createInvoice",
+		"update:postingDateTime",
+		"update:updateStock",
+		"update:customIsPaid",
 		"search-supplier",
 		"create-supplier",
 	],
 };
 </script>
+
+<style scoped>
+.purchase-header :deep(.posting-date-input) {
+	width: 100%;
+}
+</style>

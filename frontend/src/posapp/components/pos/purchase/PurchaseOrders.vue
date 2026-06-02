@@ -1,81 +1,159 @@
 <template>
 	<div class="pa-0 h-100">
 		<v-row class="h-100 ma-0">
-			<!-- Left Column: Item Selector -->
-			<v-col cols="12" md="5" class="h-100 pa-0 border-e">
-				<ItemsSelector context="purchase" @add-item="onAddItem" />
-			</v-col>
-
-			<!-- Right Column: Purchase Order Form (Cart) -->
+			<!-- Left Column: Purchase Invoice (Sales-style layout) -->
 			<v-col cols="12" md="7" class="h-100 pa-0">
-				<v-card class="h-100 d-flex flex-column pos-themed-card" flat>
-					<v-card-title class="py-2 px-4 bg-primary text-white d-flex align-center">
-						<span class="text-h6">{{ __("Create Purchase Order") }}</span>
-						<v-spacer></v-spacer>
-						<v-btn
-							icon="mdi-delete"
-							variant="text"
-							color="white"
-							@click="resetForm"
-							:title="__('Clear All')"
-							:aria-label="__('Clear all purchase order items')"
-						></v-btn>
-					</v-card-title>
+				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
+					<v-card-text class="flex-grow-1 overflow-y-auto pa-3">
+						<div class="invoice-sections">
+							<div class="invoice-top-grid">
+								<v-card flat class="invoice-section-card pos-themed-card">
+									<div class="invoice-section-heading d-flex align-center">
+										<h3 class="invoice-section-heading__title">
+											{{ __("Supplier Details") }}
+										</h3>
+										<v-spacer></v-spacer>
+										<v-btn
+											icon="mdi-delete-outline"
+											variant="text"
+											size="small"
+											color="error"
+											@click="resetForm"
+											:title="__('Clear All')"
+											:aria-label="__('Clear all purchase invoice items')"
+										></v-btn>
+									</div>
+									<PurchaseHeader
+										v-model:supplier="supplier"
+										v-model:warehouse="warehouse"
+										v-model:postingDateTime="postingDateTime"
+										v-model:updateStock="updateStock"
+										v-model:customIsPaid="customIsPaid"
+										:supplierOptions="supplierOptions"
+										:supplierLoading="supplierLoading"
+										:warehouseOptions="warehouseOptions"
+										:warehouseLoading="warehouseLoading"
+										:allowCreateSupplier="allowCreateSupplier"
+										@search-supplier="handleSupplierSearch"
+										@create-supplier="supplierDialog = true"
+									/>
+								</v-card>
 
-					<v-card-text class="flex-grow-1 overflow-y-auto pa-4">
-						<!-- Header Section -->
-						<PurchaseHeader
-							v-model:supplier="supplier"
-							v-model:warehouse="warehouse"
-							v-model:transactionDate="transactionDate"
-							v-model:scheduleDate="scheduleDate"
-							v-model:receiveNow="receiveNow"
-							v-model:createInvoice="createInvoice"
-							:supplierOptions="supplierOptions"
-							:supplierLoading="supplierLoading"
-							:warehouseOptions="warehouseOptions"
-							:warehouseLoading="warehouseLoading"
-							:allowCreateSupplier="allowCreateSupplier"
-							:posProfile="pos_profile"
-							@search-supplier="handleSupplierSearch"
-							@create-supplier="supplierDialog = true"
-						/>
+								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
+									<div class="outstanding-panel__inner">
+										<div class="outstanding-panel__label">
+											{{ __("Supplier Outstanding") }}
+										</div>
+										<div
+											class="outstanding-panel__amount"
+											:class="
+												supplier && supplierOutstanding > 0
+													? 'outstanding-panel__amount--due'
+													: 'outstanding-panel__amount--clear'
+											"
+										>
+											{{
+												supplier
+													? formatCurrency(supplierOutstanding)
+													: "—"
+											}}
+										</div>
+										<v-icon
+											v-if="supplier"
+											:color="
+												supplierOutstanding > 0 ? 'error' : 'success'
+											"
+											size="22"
+											class="outstanding-panel__icon"
+										>
+											{{
+												supplierOutstanding > 0
+													? "mdi-alert-circle"
+													: "mdi-check-circle"
+											}}
+										</v-icon>
+									</div>
+								</v-card>
+							</div>
 
-						<v-divider class="mb-4"></v-divider>
+							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">
+										{{ __("Invoice Items") }}
+									</h3>
+								</div>
+								<div class="purchase-search-toolbar">
+									<v-autocomplete
+										v-model:search="itemSearchQuery"
+										:model-value="selectedSearchItemCode"
+										:items="itemSearchResults"
+										:loading="itemSearchLoading"
+										item-title="item_name"
+										item-value="item_code"
+										:label="__('Search, scan or browse item')"
+										:placeholder="__('Scan barcode or type item name / code')"
+										:custom-filter="() => true"
+										prepend-inner-icon="mdi-magnify"
+										variant="solo"
+										density="compact"
+										color="primary"
+										hide-details
+										clearable
+										class="pos-themed-input purchase-item-search"
+										:no-data-text="
+											itemSearchQuery && itemSearchQuery.length < 2
+												? __('Type at least 2 characters')
+												: __('No items found')
+										"
+										@update:search="handleItemSearchUpdate"
+										@update:model-value="handleSearchItemPicked"
+									/>
+								</div>
+								<PurchaseItemsTable
+									:headers="itemHeaders"
+									:items="purchaseItems"
+									:currencySymbol="currencySymbol(priceListCurrency || supplierCurrency)"
+									:totalAmount="totalAmount"
+									:receiveNow="false"
+									:formatCurrency="formatCurrency"
+									:formatNumber="formatNumber"
+									@update-uom="({ item, value }) => updateItemUom(item, value)"
+									@update-qty="({ item, value }) => updateItemQty(item, value)"
+									@update-rate="({ item, value }) => updateItemRate(item, value)"
+									@remove-item="removeItem"
+								/>
+							</v-card>
 
-						<!-- Items Table Section -->
-						<PurchaseItemsTable
-							:headers="itemHeaders"
-							:items="purchaseItems"
-							:currencySymbol="currencySymbol(priceListCurrency || supplierCurrency)"
-							:totalAmount="totalAmount"
-							:receiveNow="receiveNow"
-							:formatCurrency="formatCurrency"
-							:formatNumber="formatNumber"
-							@update-uom="({ item, value }) => updateItemUom(item, value)"
-							@update-qty="({ item, value }) => updateItemQty(item, value)"
-							@update-rate="({ item, value }) => updateItemRate(item, value)"
-							@update-received-qty="({ item, value }) => updateItemReceivedQty(item, value)"
-							@remove-item="removeItem"
-						/>
-
-						<v-alert v-if="errorMessage" type="error" density="compact" class="mt-4">
-							{{ errorMessage }}
-						</v-alert>
+							<v-alert
+								v-if="errorMessage"
+								type="error"
+								density="compact"
+								class="mt-2"
+							>
+								{{ errorMessage }}
+							</v-alert>
+						</div>
 					</v-card-text>
 
-					<v-card-actions class="pa-4 border-t">
-						<v-spacer></v-spacer>
+					<v-card-actions class="pa-3 border-t purchase-invoice-actions">
 						<v-btn
 							:loading="submitLoading"
 							:disabled="submitLoading || !purchaseItems.length"
 							@click="openPaymentDialog"
 							block
+							size="large"
+							color="success"
+							class="text-none purchase-pay-btn"
 						>
 							{{ __("Pay") }}
 						</v-btn>
 					</v-card-actions>
 				</v-card>
+			</v-col>
+
+			<!-- Right Column: Item Selector -->
+			<v-col cols="12" md="5" class="h-100 pa-0 border-s">
+				<ItemsSelector context="purchase" @add-item="onAddItem" />
 			</v-col>
 		</v-row>
 
@@ -85,7 +163,6 @@
 			:total-amount="totalAmount"
 			:currency="supplierCurrency"
 			:pos-profile="pos_profile"
-			:create-invoice="createInvoice"
 			@submit="handlePaymentSubmit"
 		/>
 
@@ -136,12 +213,13 @@ export default {
 			purchaseItems,
 			supplier,
 			warehouse,
-			transactionDate,
-			scheduleDate,
-			createInvoice,
+			postingDateTime,
+			updateStock,
+			customIsPaid,
 			supplierCurrency,
 			supplierPriceList,
 			priceListCurrency,
+			supplierOutstanding,
 			totalAmount,
 			submitLoading,
 			errorMessage,
@@ -167,8 +245,13 @@ export default {
 		const warehouseOptions = ref([]);
 		const warehouseLoading = ref(false);
 		const payments = ref([]);
+		const itemSearchQuery = ref("");
+		const selectedSearchItemCode = ref(null);
+		const itemSearchResults = ref([]);
+		const itemSearchLoading = ref(false);
 
 		const supplierSearchTimeout = ref(null);
+		const itemSearchTimeout = ref(null);
 
 		const handleSupplierSearch = (term) => {
 			if (supplierSearchTimeout.value) clearTimeout(supplierSearchTimeout.value);
@@ -179,7 +262,7 @@ export default {
 			supplierLoading.value = true;
 			try {
 				const { message } = await frappe.call({
-					method: "posawesome.posawesome.api.purchase_orders.search_suppliers",
+					method: "posawesome.posawesome.api.purchase_invoices.search_suppliers",
 					args: { search_text: searchText, limit: 20 },
 				});
 				supplierOptions.value = Array.isArray(message) ? message : [];
@@ -236,6 +319,47 @@ export default {
 			supplierDialog.value = false;
 		};
 
+		const searchItems = async (searchText = "") => {
+			itemSearchLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: "posawesome.posawesome.api.purchase_invoices.search_items",
+					args: { search_text: searchText, limit: 20 },
+				});
+				itemSearchResults.value = Array.isArray(message) ? message : [];
+			} catch (error) {
+				console.error("Failed to fetch purchase items:", error);
+				itemSearchResults.value = [];
+			} finally {
+				itemSearchLoading.value = false;
+			}
+		};
+
+		const handleItemSearchUpdate = (term) => {
+			itemSearchQuery.value = term || "";
+			if (itemSearchTimeout.value) clearTimeout(itemSearchTimeout.value);
+			if (!itemSearchQuery.value || itemSearchQuery.value.trim().length < 2) {
+				itemSearchResults.value = [];
+				return;
+			}
+			itemSearchTimeout.value = setTimeout(
+				() => searchItems(itemSearchQuery.value.trim()),
+				250,
+			);
+		};
+
+		const handleSearchItemPicked = async (itemCode) => {
+			if (!itemCode) return;
+			const found = itemSearchResults.value.find(
+				(item) => String(item.item_code) === String(itemCode),
+			);
+			selectedSearchItemCode.value = null;
+			if (!found) return;
+			await onAddItem(found);
+			itemSearchQuery.value = "";
+			itemSearchResults.value = [];
+		};
+
 		const openPaymentDialog = () => {
 			if (!supplier.value) {
 				errorMessage.value = __("Supplier is required.");
@@ -252,7 +376,7 @@ export default {
 		const handlePaymentSubmit = ({ payments: p, print, print_format, print_invoice }) => {
 			payments.value = p;
 			paymentDialog.value = false;
-			submitPurchaseOrder(print, print_format, print_invoice);
+			submitPurchaseInvoice(print, print_format);
 		};
 
 		const extractServerError = (error) => {
@@ -277,25 +401,63 @@ export default {
 				parseServerMessages(error?.responseJSON?._server_messages) ||
 				error?.message ||
 				error?.responseJSON?.message ||
-				__("Unable to create purchase order")
+				__("Unable to create purchase invoice")
 			);
 		};
 
-		const submitPurchaseOrder = async (print = false, printFormat = null, printInvoice = false) => {
-			if (!supplier.value || !transactionDate.value || !scheduleDate.value) {
-				errorMessage.value = __("Supplier and dates are required.");
+		const splitPostingDateTime = (dateTimeValue) => {
+			if (!dateTimeValue) {
+				return {
+					posting_date: frappe.datetime.nowdate(),
+					posting_time: frappe.datetime.now_time(),
+				};
+			}
+
+			const western = formatUtils.fromArabicNumerals(String(dateTimeValue).trim());
+			const match = western.match(
+				/^(\d{2})-(\d{2})-(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/,
+			);
+			if (match) {
+				const hours = match[4] ? String(match[4]).padStart(2, "0") : "00";
+				const minutes = match[5] || "00";
+				return {
+					posting_date: `${match[3]}-${match[2]}-${match[1]}`,
+					posting_time: `${hours}:${minutes}:00`,
+				};
+			}
+
+			if (/^\d{4}-\d{2}-\d{2}$/.test(western)) {
+				return {
+					posting_date: western,
+					posting_time: frappe.datetime.now_time(),
+				};
+			}
+
+			const parsed = new Date(western);
+			if (!isNaN(parsed.getTime())) {
+				const pad = (value) => String(value).padStart(2, "0");
+				return {
+					posting_date: `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`,
+					posting_time: `${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:00`,
+				};
+			}
+
+			return {
+				posting_date: frappe.datetime.nowdate(),
+				posting_time: frappe.datetime.now_time(),
+			};
+		};
+
+		const submitPurchaseInvoice = async (print = false, printFormat = null) => {
+			if (!supplier.value || !postingDateTime.value) {
+				errorMessage.value = __("Supplier and date are required.");
 				return;
 			}
 			submitLoading.value = true;
 			try {
-				const formatDateForBackend = (date) => {
-					if (!date) return null;
-					const western = formatUtils.fromArabicNumerals(String(date));
-					if (/^\d{4}-\d{2}-\d{2}$/.test(western)) return western;
-					const d = new Date(western);
-					if (isNaN(d.getTime())) return western;
-					return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-				};
+				const { posting_date, posting_time } = splitPostingDateTime(
+					postingDateTime.value,
+				);
 
 				const resolvedSupplier =
 					typeof supplier.value === "object" && supplier.value !== null
@@ -307,10 +469,13 @@ export default {
 					company: pos_profile.value.company,
 					warehouse: warehouse.value,
 					currency: supplierCurrency.value,
-					transaction_date: formatDateForBackend(transactionDate.value),
-					schedule_date: formatDateForBackend(scheduleDate.value),
-					receive: receiveNow.value ? 1 : 0,
-					create_invoice: createInvoice.value ? 1 : 0,
+					posting_date,
+					posting_time,
+					transaction_date: posting_date,
+					schedule_date: posting_date,
+					receive: 0,
+					update_stock: updateStock.value ? 1 : 0,
+					custom_is_paid: customIsPaid.value ? 1 : 0,
 					pos_profile: pos_profile.value,
 					payments: payments.value,
 					items: purchaseItems.value.map((item) => ({
@@ -321,25 +486,23 @@ export default {
 						conversion_factor: item.conversion_factor,
 						qty: item.qty,
 						rate: item.rate,
-						received_qty: receiveNow.value ? item.received_qty : undefined,
 						warehouse: warehouse.value || item.warehouse,
 					})),
 				};
 				const { message } = await frappe.call({
-					method: "posawesome.posawesome.api.purchase_orders.create_purchase_order",
+					method: "posawesome.posawesome.api.purchase_invoices.create_purchase_invoice",
 					args: { data: payload },
 				});
-				if (message?.purchase_order) {
-					toastStore.show({ title: __("Purchase Order created"), color: "success" });
+				const invoiceName = message?.purchase_invoice || message?.purchase_order;
+				if (invoiceName) {
+					toastStore.show({ title: __("Purchase Invoice created"), color: "success" });
 					if (print) {
-						let doctype =
-							printInvoice && message.purchase_invoice ? "Purchase Invoice" : "Purchase Order";
-						let docname =
-							printInvoice && message.purchase_invoice
-								? message.purchase_invoice
-								: message.purchase_order;
+						const doctype = "Purchase Invoice";
+						const docname = invoiceName;
 						const formatName =
-							printFormat || pos_profile.value.print_format_for_purchase || "Standard";
+							printFormat ||
+							pos_profile.value.print_format_for_purchase ||
+							"BSP Purchase Invoice";
 						const printUrl = frappe.urllib.get_full_url(
 							`/printview?doctype=${doctype}&name=${docname}&print_format=${encodeURIComponent(formatName)}`,
 						);
@@ -384,7 +547,7 @@ export default {
 
 			try {
 				const { message } = await frappe.call({
-					method: "posawesome.posawesome.api.purchase_orders.get_buying_price_list",
+					method: "posawesome.posawesome.api.purchase_invoices.get_buying_price_list",
 				});
 				if (message) await itemsStore.updatePriceList(message);
 			} catch (e) {
@@ -397,6 +560,8 @@ export default {
 
 		onBeforeUnmount(() => {
 			eventBus?.emit?.("update_buying_price_list", null);
+			if (supplierSearchTimeout.value) clearTimeout(supplierSearchTimeout.value);
+			if (itemSearchTimeout.value) clearTimeout(itemSearchTimeout.value);
 			if (pos_profile.value?.selling_price_list)
 				itemsStore.updatePriceList(pos_profile.value.selling_price_list);
 		});
@@ -407,12 +572,13 @@ export default {
 			purchaseItems,
 			supplier,
 			warehouse,
-			transactionDate,
-			scheduleDate,
-			createInvoice,
+			postingDateTime,
+			updateStock,
+			customIsPaid,
 			supplierCurrency,
 			supplierPriceList,
 			priceListCurrency,
+			supplierOutstanding,
 			totalAmount,
 			submitLoading,
 			errorMessage,
@@ -433,6 +599,12 @@ export default {
 			warehouseLoading,
 			handleSupplierSearch,
 			handleSupplierCreated,
+			itemSearchQuery,
+			selectedSearchItemCode,
+			itemSearchResults,
+			itemSearchLoading,
+			handleItemSearchUpdate,
+			handleSearchItemPicked,
 			openPaymentDialog,
 			handlePaymentSubmit,
 			toastStore,
@@ -449,8 +621,6 @@ export default {
 				{ title: __("Qty"), key: "qty", align: "center", width: "15%" },
 				{ title: __("Rate"), key: "rate", align: "center", width: "15%" },
 			];
-			if (this.receiveNow)
-				h.push({ title: __("Received"), key: "received_qty", align: "center", width: "10%" });
 			h.push(
 				{ title: __("Amount"), key: "amount", align: "end", width: "10%" },
 				{ title: "", key: "actions", align: "center", width: "50px" },
@@ -470,7 +640,69 @@ export default {
 </script>
 
 <style scoped>
-.cursor-pointer {
-	cursor: pointer;
+@import "../Invoice.vue.css";
+
+.purchase-invoice-card {
+	border-radius: var(--pos-radius-md, 18px);
+}
+
+.purchase-invoice-actions {
+	background: var(--pos-card-bg);
+}
+
+.outstanding-panel {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.outstanding-panel__inner {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	padding: 12px 16px;
+	width: 100%;
+	height: 100%;
+	text-align: center;
+}
+
+.outstanding-panel__label {
+	font-size: 0.72rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--pos-text-secondary, rgba(0, 0, 0, 0.5));
+}
+
+.outstanding-panel__amount {
+	font-size: 1.5rem;
+	font-weight: 700;
+	line-height: 1.1;
+}
+
+.outstanding-panel__amount--due {
+	color: rgb(var(--v-theme-error));
+}
+
+.outstanding-panel__amount--clear {
+	color: rgb(var(--v-theme-success));
+}
+
+.outstanding-panel__icon {
+	margin-top: 2px;
+}
+
+.purchase-search-toolbar {
+	padding: 8px 16px 0;
+}
+
+.purchase-pay-btn {
+	background: rgb(var(--v-theme-success)) !important;
+	color: #fff !important;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	box-shadow: 0 8px 20px rgba(34, 197, 94, 0.24);
 }
 </style>

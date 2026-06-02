@@ -154,11 +154,38 @@ export function useItemsSearch() {
 		return sortItemsForSearchTerm(matches, term);
 	};
 
+	const normalizeGroupValue = (value: unknown): string => {
+		if (value === null || value === undefined) {
+			return "";
+		}
+		if (typeof value === "object") {
+			const obj = value as Record<string, unknown>;
+			return String(obj.name || obj.item_group || obj.value || "")
+				.trim()
+				.toLowerCase();
+		}
+		return String(value).trim().toLowerCase();
+	};
+
+	const itemBelongsToGroup = (item: Item, selectedGroup: string): boolean => {
+		const normalizedSelected = normalizeGroupValue(selectedGroup);
+		if (!normalizedSelected || normalizedSelected === "all") {
+			return true;
+		}
+
+		const itemGroupCandidates = [
+			(item as any).item_group,
+			(item as any).item_group_name,
+			(item as any).group_name,
+		];
+
+		return itemGroupCandidates.some(
+			(value) => normalizeGroupValue(value) === normalizedSelected,
+		);
+	};
+
 	const filterItemsByGroup = (itemList: Item[], group: string) => {
-		const filtered =
-			group === "ALL"
-				? itemList
-				: itemList.filter((item) => item.item_group === group);
+		const filtered = itemList.filter((item) => itemBelongsToGroup(item, group));
 		return sortItemsByCodeAsc(filtered);
 	};
 

@@ -23,7 +23,11 @@ const routes = [
 		path: "/orders",
 		component: () =>
 			import("../components/pos/purchase/PurchaseOrders.vue"),
-		meta: { title: "Orders", layout: "default", loadingMessage: "Loading orders..." },
+		meta: {
+			title: "Purchase Invoice",
+			layout: "default",
+			loadingMessage: "Loading purchase invoice...",
+		},
 	},
 	{
 		path: "/payments",
