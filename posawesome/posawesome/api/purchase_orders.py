@@ -831,17 +831,28 @@ def search_items(search_text=None, limit=20):
     )
     item_codes = [it.get("name") for it in items if it.get("name")]
     uom_rows = []
+    bin_rows = []
     if item_codes:
         uom_rows = frappe.get_all(
             "UOM Conversion Detail",
             filters={"parent": ["in", item_codes]},
             fields=["parent", "uom", "conversion_factor"],
         )
+        bin_rows = frappe.get_all(
+            "Bin",
+            filters={"item_code": ["in", item_codes]},
+            fields=["item_code", "actual_qty"],
+        )
+
     uom_map = {}
     for row in uom_rows:
         uom_map.setdefault(row.parent, []).append(
             {"uom": row.uom, "conversion_factor": row.conversion_factor}
         )
+
+    qty_map = {}
+    for row in bin_rows:
+        qty_map[row.item_code] = qty_map.get(row.item_code, 0) + (row.actual_qty or 0)
 
     results = []
     for it in items:
@@ -857,6 +868,7 @@ def search_items(search_text=None, limit=20):
                 "stock_uom": stock_uom,
                 "item_uoms": uoms,
                 "standard_rate": it.get("standard_rate"),
+                "actual_qty": qty_map.get(item_code, 0),
             }
         )
     return results

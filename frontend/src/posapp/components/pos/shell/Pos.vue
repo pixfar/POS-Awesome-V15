@@ -722,6 +722,8 @@ export default {
 <style scoped>
 .payment-dialog :deep(.v-overlay__content) {
 	max-height: calc(100dvh - 24px);
+	border-radius: 16px;
+	overflow: hidden;
 }
 
 .dynamic-container {

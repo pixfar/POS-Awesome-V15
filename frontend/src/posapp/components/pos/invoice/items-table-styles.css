@@ -11,7 +11,7 @@
 .posa-cart-table {
 	border-radius: var(--pos-radius-md);
 	overflow: hidden;
-	box-shadow: 0 12px 24px var(--pos-shadow-light);
+	box-shadow: none;
 	border: 1px solid var(--pos-border-light);
 	height: 100%;
 	width: 100%;

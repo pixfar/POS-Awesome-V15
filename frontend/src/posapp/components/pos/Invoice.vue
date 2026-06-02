@@ -1470,7 +1470,7 @@ export default {
 	gap: 8px;
 	padding: 8px 16px;
 	background-color: var(--pos-card-bg);
-	border-radius: 8px 8px 0 0;
+	border-radius: 12px 12px 0 0;
 	box-sizing: border-box;
 	margin-bottom: 8px;
 }

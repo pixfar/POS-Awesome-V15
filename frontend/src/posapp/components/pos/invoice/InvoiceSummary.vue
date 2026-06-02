@@ -537,8 +537,10 @@ defineExpose({
 }
 
 .cards {
-	background-color: var(--pos-card-bg) !important;
+	background-color: #ffffff !important;
 	transition: all 0.3s ease;
+	border: 1px solid rgba(17, 24, 39, 0.08);
+	border-radius: 12px;
 }
 
 .sticky-summary-card {
@@ -562,11 +564,10 @@ defineExpose({
 	justify-content: space-between;
 	gap: 14px;
 	padding: 14px 16px;
-	border-radius: 20px;
-	background:
-		linear-gradient(135deg, rgba(var(--v-theme-primary), 0.12), rgba(var(--v-theme-success), 0.08)),
-		var(--pos-surface-muted);
-	border: 1px solid rgba(var(--v-theme-primary), 0.12);
+	border-radius: 12px;
+	background: #2563eb;
+	border: none;
+	box-shadow: 0 4px 16px rgba(37, 99, 235, 0.22);
 }
 
 .summary-hero__copy {
@@ -581,13 +582,14 @@ defineExpose({
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
-	color: var(--pos-text-secondary);
+	color: rgba(255, 255, 255, 0.72);
 }
 
 .summary-hero__amount {
 	font-size: clamp(1.2rem, 2vw, 1.8rem);
 	line-height: 1.1;
-	color: var(--pos-text-primary);
+	color: #ffffff;
+	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 }
 
 .summary-hero__meta {
@@ -595,7 +597,7 @@ defineExpose({
 	flex-wrap: wrap;
 	gap: 8px 14px;
 	font-size: 0.84rem;
-	color: var(--pos-text-secondary);
+	color: rgba(255, 255, 255, 0.82);
 }
 
 .summary-hero__field-wrap {
@@ -621,7 +623,19 @@ defineExpose({
 }
 
 .summary-field--dock :deep(.v-field) {
-	background: rgba(var(--v-theme-surface), 0.92);
+	background: rgba(255, 255, 255, 0.18) !important;
+	border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+.summary-field--dock :deep(.v-field__input),
+.summary-field--dock :deep(.v-label),
+.summary-field--dock :deep(input) {
+	color: #ffffff !important;
+}
+
+.summary-field--dock :deep(.v-field__prepend-inner .v-icon),
+.summary-field--dock :deep(.v-field__append-inner .v-icon) {
+	color: rgba(255, 255, 255, 0.75) !important;
 }
 
 @media (max-width: 1279px) {

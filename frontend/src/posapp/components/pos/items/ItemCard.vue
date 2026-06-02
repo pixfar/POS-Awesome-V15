@@ -7,6 +7,12 @@
 		@dragend="onDragEnd"
 	>
 		<div class="card-item-image-container">
+			<div
+				class="stock-badge"
+				:class="numericStockQty > 10 ? 'stock-badge--ok' : 'stock-badge--low'"
+			>
+				{{ formattedBadgeStock }} {{ __("In Stock") }}
+			</div>
 			<v-img
 				:src="item.image || placeholderImage"
 				class="card-item-image"
@@ -72,6 +78,7 @@
 import { computed } from "vue";
 import placeholderImage from "../placeholder-image.png";
 import ItemRateInfoMenu from "./ItemRateInfoMenu.vue";
+const __ = window.__ || ((text) => text);
 
 const props = defineProps({
 	item: { type: Object, required: true },
@@ -143,6 +150,18 @@ const formattedActualQty = computed(() => {
 	return props.formatNumber(numericQty, 4);
 });
 
+const numericStockQty = computed(() => {
+	const qty = Number(props.item.actual_qty ?? 0);
+	return Number.isFinite(qty) ? qty : 0;
+});
+
+const formattedBadgeStock = computed(() => {
+	if (props.hideQtyDecimals) {
+		return Math.round(numericStockQty.value);
+	}
+	return Number(numericStockQty.value.toFixed(2));
+});
+
 const onClick = (event) => {
 	emit("click", event, props.item);
 };
@@ -158,9 +177,9 @@ const onDragEnd = (event) => {
 
 <style scoped>
 .card-item-card {
-	background: var(--pos-surface-raised);
-	border-radius: var(--pos-radius-md);
-	border: 1px solid var(--pos-border-light);
+	background: #ffffff;
+	border-radius: 12px;
+	border: 1px solid rgba(17, 24, 39, 0.12);
 	overflow: hidden;
 	transition:
 		transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -172,7 +191,7 @@ const onDragEnd = (event) => {
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
-	box-shadow: 0 10px 24px var(--pos-shadow-light);
+	box-shadow: none;
 	will-change: transform;
 	backface-visibility: hidden;
 	transform: translate3d(0, 0, 0);
@@ -180,18 +199,16 @@ const onDragEnd = (event) => {
 }
 
 .card-item-card:hover {
-	transform: translate3d(0, -3px, 0);
-	box-shadow: 0 16px 32px var(--pos-shadow);
-	border-color: rgba(var(--v-theme-primary), 0.35);
+	transform: none;
+	box-shadow: none;
+	border-color: rgba(37, 99, 235, 0.35);
 }
 
 .card-item-card.item-highlighted {
-	border-color: rgb(var(--v-theme-primary));
-	box-shadow:
-		0 0 0 3px rgba(var(--v-theme-primary), 0.35),
-		0 12px 28px rgba(var(--v-theme-primary), 0.2);
-	transform: translate3d(0, -2px, 0);
-	background: rgba(var(--v-theme-primary), 0.08);
+	border-color: #2563eb;
+	box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+	transform: none;
+	background: #ffffff;
 }
 
 .card-item-image-container {
@@ -199,7 +216,31 @@ const onDragEnd = (event) => {
 	height: 132px;
 	flex-shrink: 0;
 	overflow: hidden;
-	background: var(--pos-surface-muted);
+	background: #f9fafb;
+}
+
+.stock-badge {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	z-index: 2;
+	font-size: 10px;
+	font-weight: 700;
+	padding: 2px 6px;
+	border-radius: 6px;
+	border: 1px solid transparent;
+}
+
+.stock-badge--ok {
+	background: #ecfdf3;
+	color: #15803d;
+	border-color: #bbf7d0;
+}
+
+.stock-badge--low {
+	background: #fef2f2;
+	color: #b91c1c;
+	border-color: #fecaca;
 }
 
 .card-item-image {
@@ -235,7 +276,7 @@ const onDragEnd = (event) => {
 }
 
 .card-item-name {
-	font-size: 0.98rem;
+	font-size: 0.92rem;
 	font-weight: 700;
 	margin: 0;
 	line-height: 1.35;
@@ -248,8 +289,8 @@ const onDragEnd = (event) => {
 }
 
 .card-item-code {
-	font-size: 0.74rem;
-	color: var(--pos-text-secondary);
+	font-size: 0.7rem;
+	color: #9ca3af;
 	display: block;
 	white-space: nowrap;
 	overflow: hidden;
@@ -278,8 +319,8 @@ const onDragEnd = (event) => {
 	flex-wrap: wrap;
 	gap: var(--pos-space-1);
 	font-weight: 700;
-	color: var(--pos-primary);
-	font-size: 1.05rem;
+	color: #1d4ed8;
+	font-size: 1.25rem;
 }
 
 .secondary-price {
@@ -289,15 +330,15 @@ const onDragEnd = (event) => {
 
 .card-item-stock {
 	text-align: right;
-	font-size: 0.82rem;
-	color: var(--pos-text-secondary);
+	font-size: 0.75rem;
+	color: #6b7280;
 	display: flex;
 	flex-direction: row;
 	align-items: flex-end;
 	gap: 6px;
-	padding: 6px 8px;
-	border-radius: var(--pos-radius-xs);
-	background: var(--pos-hover-bg);
+	padding: 4px 6px;
+	border-radius: 6px;
+	background: #f9fafb;
 	white-space: nowrap;
 }
 

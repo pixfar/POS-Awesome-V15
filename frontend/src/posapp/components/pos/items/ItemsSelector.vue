@@ -75,7 +75,7 @@
 
 				<v-card flat class="selector-section-card selector-results-card pos-themed-card">
 					<v-row class="items">
-						<v-col cols="12" class="pt-0 mt-0">
+						<v-col cols="12">
 							<ItemsSelectorCards
 								v-if="items_view === 'card'"
 								ref="itemsContainer"
@@ -1378,14 +1378,17 @@ defineExpose({
 }
 
 .selection-card {
-	border-radius: 22px;
+	border-radius: 12px;
+	border: 1px solid rgba(17, 24, 39, 0.08);
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+	padding: 5px;
 }
 
 .selector-section-card {
-	background: var(--pos-card-bg) !important;
-	border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
-	border-radius: var(--pos-radius-md, 18px);
-	box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+	background: #ffffff !important;
+	border: 1px solid rgba(17, 24, 39, 0.1);
+	border-radius: 12px;
+	box-shadow: none;
 }
 
 .section-card-heading {
@@ -1489,19 +1492,20 @@ defineExpose({
 }
 
 .selection {
-	background-color: var(--pos-surface-muted) !important;
+	background-color: #f3f4f6 !important;
 }
 
 .item-selection-option {
-	border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+	border: 1px solid rgba(17, 24, 39, 0.1);
+	border-radius: 8px;
 	transition:
 		border-color 0.2s ease,
 		background-color 0.2s ease;
 }
 
 .item-selection-option:hover {
-	background-color: rgba(var(--v-theme-primary), 0.06);
-	border-color: rgba(var(--v-theme-primary), 0.4);
+	background-color: rgba(37, 99, 235, 0.05);
+	border-color: rgba(37, 99, 235, 0.35);
 }
 
 .item-selection-image {

@@ -240,7 +240,7 @@ defineExpose({
 	top: 0;
 	z-index: 5;
 	background: var(--pos-surface);
-	padding: 12px 12px 0 12px;
+	padding: 12px 12px 12px 12px;
 	border-bottom: 1px solid var(--pos-border);
 	margin-bottom: 0;
 }
@@ -350,7 +350,7 @@ defineExpose({
 	.sticky-header {
 		top: 0;
 		z-index: 13;
-		padding: 12px 12px 2px;
+		padding: 12px 12px 12px;
 	}
 
 	.tools-panel {

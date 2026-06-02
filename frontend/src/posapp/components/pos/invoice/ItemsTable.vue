@@ -15,7 +15,7 @@
 			:expanded="expanded"
 			show-expand
 			item-value="posa_row_id"
-			class="posa-cart-table elevation-2 pos-themed-card"
+			class="posa-cart-table pos-themed-card"
 			:class="tableClasses"
 			:items-per-page="virtualScrollConfig.itemsPerPage"
 			:item-height="virtualScrollConfig.itemHeight"

@@ -903,7 +903,7 @@ export const useItemsStore = defineStore("items", () => {
 		cachedPagination.value.offset = safePage.length;
 	};
 
-	const updatePriceList = async (newPriceList: string) => {
+	const updatePriceList = async (newPriceList: string, options: { skipReload?: boolean } = {}) => {
 		if (!newPriceList || newPriceList === customerPriceList.value) return;
 
 		customerPriceList.value = newPriceList;
@@ -921,7 +921,7 @@ export const useItemsStore = defineStore("items", () => {
 
 			if (priceData && priceData.length > 0) {
 				applyPriceListToItems(priceData);
-			} else {
+			} else if (!options.skipReload) {
 				await loadItems({
 					forceServer: true,
 					priceList: newPriceList,

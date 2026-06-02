@@ -1,5 +1,5 @@
 <template>
-	<div class="pa-0 h-100">
+	<div class="pa-0 h-100 invoice-shell">
 		<v-row class="h-100 ma-0">
 			<!-- Left Column: Purchase Invoice (Sales-style layout) -->
 			<v-col cols="12" md="7" class="h-100 pa-0">
@@ -79,7 +79,7 @@
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading">
 									<h3 class="invoice-section-heading__title">
-										{{ __("Invoice Items") }}
+										{{ __("Purchase Items") }}
 									</h3>
 								</div>
 								<div class="purchase-search-toolbar">
@@ -107,7 +107,21 @@
 										"
 										@update:search="handleItemSearchUpdate"
 										@update:model-value="handleSearchItemPicked"
-									/>
+									>
+										<template #item="{ props: itemProps, item }">
+											<v-list-item v-bind="itemProps" :title="undefined">
+												<v-list-item-title class="purchase-item-option__title">
+													{{ item.raw.item_name }}
+												</v-list-item-title>
+												<v-list-item-subtitle class="purchase-item-option__meta">
+													<span class="purchase-item-option__code">{{ item.raw.item_code }}</span>
+													<span class="purchase-item-option__stock">
+														{{ __("Stock") }}: {{ formatNumber(item.raw.actual_qty || 0) }} {{ item.raw.stock_uom || "" }}
+													</span>
+												</v-list-item-subtitle>
+											</v-list-item>
+										</template>
+									</v-autocomplete>
 								</div>
 								<PurchaseItemsTable
 									:headers="itemHeaders"
@@ -135,19 +149,27 @@
 						</div>
 					</v-card-text>
 
-					<v-card-actions class="pa-3 border-t purchase-invoice-actions">
+					<div class="purchase-bottom-bar">
+						<div class="purchase-bottom-bar__summary">
+							<span class="purchase-bottom-bar__label">{{ __("Purchase Total") }}</span>
+							<strong class="purchase-bottom-bar__amount">
+								{{ currencySymbol(supplierCurrency || pos_profile.currency) }}{{ formatCurrency(totalAmount) }}
+							</strong>
+							<span class="purchase-bottom-bar__meta">
+								{{ purchaseItems.length }} {{ purchaseItems.length === 1 ? __("item") : __("items") }}
+							</span>
+						</div>
 						<v-btn
 							:loading="submitLoading"
-							:disabled="submitLoading || !purchaseItems.length"
+							:disabled="submitLoading"
 							@click="openPaymentDialog"
-							block
 							size="large"
-							color="success"
 							class="text-none purchase-pay-btn"
+							prepend-icon="mdi-credit-card"
 						>
-							{{ __("Pay") }}
+							{{ __("PAY") }}
 						</v-btn>
-					</v-card-actions>
+					</div>
 				</v-card>
 			</v-col>
 
@@ -174,6 +196,30 @@
 			@created="handleSupplierCreated"
 			@error="(msg) => toastStore.show({ title: msg, color: 'error' })"
 		/>
+
+		<!-- Validation Dialog -->
+		<v-dialog v-model="validationDialog" max-width="380" persistent>
+			<v-card class="pos-themed-card pa-2" style="border-radius: 12px;">
+				<v-card-title class="d-flex align-center gap-2 pb-1">
+					<v-icon color="warning" size="24">mdi-alert-circle-outline</v-icon>
+					<span style="font-size: 1rem; font-weight: 700;">{{ __("Cannot Proceed") }}</span>
+				</v-card-title>
+				<v-card-text class="pt-1 pb-2" style="font-size: 0.92rem; color: var(--pos-text-secondary);">
+					{{ validationMessage }}
+				</v-card-text>
+				<v-card-actions class="pt-0">
+					<v-spacer />
+					<v-btn
+						color="primary"
+						variant="flat"
+						style="border-radius: 8px; text-transform: none; font-weight: 600;"
+						@click="validationDialog = false"
+					>
+						{{ __("OK") }}
+					</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
 	</div>
 </template>
 
@@ -241,6 +287,8 @@ export default {
 		const supplierLoading = ref(false);
 		const supplierDialog = ref(false);
 		const paymentDialog = ref(false);
+		const validationDialog = ref(false);
+		const validationMessage = ref("");
 		const supplierGroups = ref([]);
 		const warehouseOptions = ref([]);
 		const warehouseLoading = ref(false);
@@ -361,12 +409,19 @@ export default {
 		};
 
 		const openPaymentDialog = () => {
+			if (!supplier.value && !purchaseItems.value.length) {
+				validationMessage.value = __("Please select a supplier and add at least one item before proceeding.");
+				validationDialog.value = true;
+				return;
+			}
 			if (!supplier.value) {
-				errorMessage.value = __("Supplier is required.");
+				validationMessage.value = __("Please select a supplier before proceeding to payment.");
+				validationDialog.value = true;
 				return;
 			}
 			if (!purchaseItems.value.length) {
-				errorMessage.value = __("Please add at least one item.");
+				validationMessage.value = __("Please add at least one item before proceeding to payment.");
+				validationDialog.value = true;
 				return;
 			}
 			errorMessage.value = "";
@@ -533,7 +588,7 @@ export default {
 				if (val) {
 					const info = await fetchSupplierInfo(val);
 					if (info?.buying_price_list) {
-						await itemsStore.updatePriceList(info.buying_price_list);
+						await itemsStore.updatePriceList(info.buying_price_list, { skipReload: true });
 					}
 					eventBus?.emit?.("update_buying_price_list", {
 						price_list: info?.buying_price_list || null,
@@ -594,6 +649,8 @@ export default {
 			supplierLoading,
 			supplierDialog,
 			paymentDialog,
+			validationDialog,
+			validationMessage,
 			supplierGroups,
 			warehouseOptions,
 			warehouseLoading,
@@ -615,17 +672,15 @@ export default {
 			return !!this.pos_profile?.posa_allow_create_purchase_suppliers;
 		},
 		itemHeaders() {
-			const h = [
-				{ title: __("Item"), key: "item_name", align: "start", width: "35%" },
-				{ title: __("UOM"), key: "uom", align: "center", width: "15%" },
-				{ title: __("Qty"), key: "qty", align: "center", width: "15%" },
-				{ title: __("Rate"), key: "rate", align: "center", width: "15%" },
-			];
-			h.push(
+			return [
+				{ title: __("Item"), key: "item_name", align: "start", width: "28%" },
+				{ title: __("Item Code"), key: "item_code", align: "start", width: "14%" },
+				{ title: __("UOM"), key: "uom", align: "center", width: "13%" },
+				{ title: __("QTY"), key: "qty", align: "center", width: "13%" },
+				{ title: __("Rate"), key: "rate", align: "center", width: "14%" },
 				{ title: __("Amount"), key: "amount", align: "end", width: "10%" },
-				{ title: "", key: "actions", align: "center", width: "50px" },
-			);
-			return h;
+				{ title: __("Actions"), key: "actions", align: "center", width: "50px" },
+			];
 		},
 	},
 	methods: {
@@ -646,8 +701,42 @@ export default {
 	border-radius: var(--pos-radius-md, 18px);
 }
 
-.purchase-invoice-actions {
-	background: var(--pos-card-bg);
+.purchase-bottom-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 12px 16px;
+	background: #2563eb;
+	border-radius: 10px;
+	margin: 8px 12px 12px;
+}
+
+.purchase-bottom-bar__summary {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+}
+
+.purchase-bottom-bar__label {
+	font-size: 0.7rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: rgba(255, 255, 255, 0.72);
+}
+
+.purchase-bottom-bar__amount {
+	font-size: clamp(1.1rem, 2vw, 1.6rem);
+	font-weight: 700;
+	color: #ffffff;
+	line-height: 1.1;
+}
+
+.purchase-bottom-bar__meta {
+	font-size: 0.82rem;
+	color: rgba(255, 255, 255, 0.82);
 }
 
 .outstanding-panel {
@@ -695,14 +784,39 @@ export default {
 }
 
 .purchase-search-toolbar {
-	padding: 8px 16px 0;
+	padding: 8px 16px 12px;
 }
 
 .purchase-pay-btn {
-	background: rgb(var(--v-theme-success)) !important;
-	color: #fff !important;
+	background: #ffffff !important;
+	color: #2563eb !important;
 	font-weight: 700;
 	letter-spacing: 0.02em;
-	box-shadow: 0 8px 20px rgba(34, 197, 94, 0.24);
+	border-radius: 8px !important;
+	min-width: 140px !important;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.purchase-item-option__title {
+	font-weight: 600;
+	line-height: 1.3;
+	white-space: normal;
+}
+
+.purchase-item-option__meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 2px;
+}
+
+.purchase-item-option__code {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.purchase-item-option__stock {
+	font-variant-numeric: tabular-nums;
+	opacity: 0.85;
 }
 </style>

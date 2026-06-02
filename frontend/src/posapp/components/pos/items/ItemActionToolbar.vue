@@ -87,27 +87,40 @@ defineEmits(["update:modelValue", "update:itemsView", "open-offers", "open-coupo
 </script>
 
 <style scoped>
+/* ── Offers / Coupons action buttons ─────────────────────── */
 .action-btn-consistent {
-	height: 36px !important;
+	height: 38px !important;
 	margin-top: var(--dynamic-xs) !important;
-	padding: var(--pos-space-2) var(--pos-space-3) !important;
-	transition: var(--transition-normal) !important;
-	border-radius: var(--pos-radius-sm) !important;
+	padding: 0 var(--pos-space-4) !important;
+	border-radius: 999px !important;
 	text-transform: none !important;
-	font-weight: 600 !important;
+	font-weight: 700 !important;
+	font-size: 0.82rem !important;
+	letter-spacing: 0.02em !important;
+	transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 
 .action-btn-consistent:hover {
-	background-color: rgba(var(--v-theme-primary), 0.1) !important;
-	transform: none !important;
+	transform: translateY(-1px) !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
 }
 
+/* ── List / Card view toggle ─────────────────────────────── */
 .view-toggle-btn {
 	height: 36px;
-	border: 1px solid var(--pos-border-light);
-	border-radius: var(--pos-radius-sm);
+	border: 1.5px solid var(--pos-border, rgba(15,23,42,0.12));
+	border-radius: 999px !important;
+	overflow: hidden;
 }
 
+.view-toggle-btn :deep(.v-btn) {
+	border-radius: 999px !important;
+	font-weight: 600 !important;
+	font-size: 0.8rem !important;
+	text-transform: none !important;
+}
+
+/* ── Toolbar card at the bottom ─────────────────────────── */
 .dynamic-padding {
 	padding: var(--dynamic-sm);
 }
@@ -117,12 +130,12 @@ defineEmits(["update:modelValue", "update:itemsView", "open-offers", "open-coupo
 }
 
 .cards {
-	background-color: var(--pos-surface-muted) !important;
+	background: var(--pos-card-bg, #ffffff) !important;
 	margin-top: var(--dynamic-sm) !important;
 	padding: var(--dynamic-sm) !important;
-	border: 1px solid var(--pos-border-light);
-	border-radius: var(--pos-radius-md) !important;
-	box-shadow: none !important;
+	border: 1.5px solid var(--pos-border, rgba(15,23,42,0.08)) !important;
+	border-radius: var(--pos-radius-md, 16px) !important;
+	box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.06) !important;
 	position: sticky;
 	bottom: 0;
 	z-index: 7;
@@ -154,9 +167,8 @@ defineEmits(["update:modelValue", "update:itemsView", "open-offers", "open-coupo
 	}
 
 	.action-btn-consistent {
-		padding: var(--dynamic-xs) !important;
-		font-size: 0.875rem !important;
 		min-height: 42px !important;
+		font-size: 0.8rem !important;
 	}
 }
 

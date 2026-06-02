@@ -264,6 +264,6 @@ defineExpose({
 }
 
 :deep(.invoice-item-autocomplete .v-field) {
-	border-radius: 16px;
+	border-radius: 12px;
 }
 </style>

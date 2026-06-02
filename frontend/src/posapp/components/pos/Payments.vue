@@ -1969,7 +1969,11 @@ onBeforeUnmount(() => {
 	height: calc(100dvh - 48px);
 	display: flex;
 	flex-direction: column;
-	gap: var(--pos-space-2);
+	gap: 0;
+	background: var(--pos-card-bg);
+	border-radius: 16px;
+	overflow: hidden;
+	box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35);
 }
 
 .payment-card {
@@ -1984,6 +1988,9 @@ onBeforeUnmount(() => {
 	margin-top: 0;
 	display: flex;
 	flex-direction: column;
+	border-radius: 0 !important;
+	border: none !important;
+	box-shadow: none !important;
 }
 
 .payment-scroll {
@@ -2092,11 +2099,13 @@ onBeforeUnmount(() => {
 	bottom: 0;
 	z-index: 8;
 	padding-top: 8px;
-	background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--pos-surface) 30%);
+	background: var(--pos-card-bg);
 }
 
 .payment-footer--dialog {
+	padding: 0;
 	margin-top: 0;
+	border-top: 1px solid var(--pos-border-light);
 }
 
 :deep(.payment-footer--dialog .cards) {

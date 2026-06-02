@@ -3,18 +3,19 @@
 		:headers="headers"
 		:items="items"
 		item-key="line_id"
-		class="elevation-1 border rounded"
+		class="purchase-items-table"
 		density="compact"
 		hide-default-footer
 		:items-per-page="-1"
 	>
 		<template v-slot:item.item_name="{ item }">
-			<div class="py-1">
-				<div class="font-weight-bold">{{ item.item_name }}</div>
-				<div class="text-caption text-medium-emphasis">
-					{{ item.item_code }}
-				</div>
+			<div class="purchase-item-name-cell">
+				<span class="purchase-item-name-cell__name">{{ item.item_name }}</span>
 			</div>
+		</template>
+
+		<template v-slot:item.item_code="{ item }">
+			<span class="purchase-item-code-text">{{ item.item_code }}</span>
 		</template>
 
 		<template v-slot:item.uom="{ item }">
@@ -157,12 +158,16 @@
 			></v-btn>
 		</template>
 
-		<template v-slot:bottom>
-			<div class="d-flex justify-end pa-4 font-weight-bold text-subtitle-1 border-t">
-				<span class="mr-4">{{ __("Total:") }}</span>
-				<span>{{ formatCurrency(totalAmount) }}</span>
+		<template #no-data>
+			<div class="purchase-empty-state">
+				<div class="purchase-empty-state__icon-wrap">
+					<v-icon size="40" class="purchase-empty-state__icon">mdi-cart-outline</v-icon>
+				</div>
+				<div class="purchase-empty-state__title">{{ __("No items in cart") }}</div>
+				<div class="purchase-empty-state__subtitle">{{ __("Search or browse items on the right to add them.") }}</div>
 			</div>
 		</template>
+
 	</v-data-table>
 </template>
 
@@ -231,6 +236,108 @@ export default {
 </script>
 
 <style scoped>
+.purchase-items-table {
+	border: none !important;
+	box-shadow: none !important;
+	background: transparent !important;
+}
+
+.purchase-item-name-cell {
+	display: flex;
+	align-items: center;
+}
+
+.purchase-item-name-cell__name {
+	font-weight: 700;
+	font-size: 0.88rem;
+	color: var(--pos-text-primary);
+	line-height: 1.3;
+}
+
+.purchase-item-code-text {
+	font-size: 0.82rem;
+	color: var(--pos-text-secondary);
+}
+
+.purchase-empty-state {
+	min-height: 220px;
+	padding: 36px 24px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	text-align: center;
+}
+
+.purchase-empty-state__icon-wrap {
+	width: 72px;
+	height: 72px;
+	border-radius: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: color-mix(in srgb, var(--pos-primary, #2563eb) 10%, var(--pos-surface, #fff));
+	border: 1px solid color-mix(in srgb, var(--pos-primary, #2563eb) 18%, var(--pos-border, rgba(0,0,0,0.12)));
+}
+
+.purchase-empty-state__icon {
+	color: var(--pos-primary, #2563eb) !important;
+}
+
+.purchase-empty-state__title {
+	font-size: 1rem;
+	font-weight: 700;
+	color: var(--pos-text-primary);
+}
+
+.purchase-empty-state__subtitle {
+	font-size: 0.88rem;
+	line-height: 1.6;
+	color: var(--pos-text-secondary);
+	max-width: 300px;
+}
+
+.purchase-items-table :deep(.v-table__wrapper) {
+	border-radius: 0 !important;
+}
+
+.purchase-items-table :deep(thead tr th) {
+	background: var(--pos-surface-muted) !important;
+	color: var(--pos-text-secondary) !important;
+	font-size: 0.8rem !important;
+	font-weight: 600 !important;
+	letter-spacing: normal !important;
+	text-transform: none !important;
+	border-bottom: 1px solid var(--pos-border) !important;
+	border-right: 1px solid var(--pos-border-light) !important;
+	padding: 12px !important;
+	height: 48px !important;
+}
+
+.purchase-items-table :deep(thead tr th:last-child) {
+	border-right: none !important;
+}
+
+.purchase-items-table :deep(tbody tr td) {
+	border-bottom: 1px solid var(--pos-border-light) !important;
+	padding: 8px 12px !important;
+	font-size: 0.85rem !important;
+	color: var(--pos-text-primary) !important;
+}
+
+.purchase-items-table :deep(tbody tr:last-child td) {
+	border-bottom: none !important;
+}
+
+.purchase-items-table :deep(tbody tr:hover td) {
+	background: var(--pos-table-row-hover) !important;
+}
+
+.purchase-items-table :deep(.v-data-table-footer) {
+	display: none;
+}
+
 .pos-table__qty-counter {
 	display: flex;
 	align-items: center;

@@ -175,8 +175,9 @@ const showCustomerDisplayButton = computed(() =>
 	transition: all 0.2s ease !important;
 	position: relative;
 	overflow: hidden;
-	min-height: 46px !important;
+	min-height: 44px !important;
 	text-transform: none !important;
+	border-radius: 6px !important;
 }
 
 .summary-btn :deep(.v-btn__content) {
@@ -185,8 +186,8 @@ const showCustomerDisplayButton = computed(() =>
 }
 
 .summary-btn:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+	transform: none;
+	box-shadow: none !important;
 }
 
 .summary-btn:active {
@@ -197,14 +198,14 @@ const showCustomerDisplayButton = computed(() =>
 .pay-btn {
 	font-weight: 600 !important;
 	font-size: 1.1rem !important;
-	background: linear-gradient(135deg, #4caf50, #45a049) !important;
-	box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3) !important;
+	background: #2563eb !important;
+	box-shadow: 0 3px 8px rgba(37, 99, 235, 0.3) !important;
 }
 
 .pay-btn:hover {
-	background: linear-gradient(135deg, #45a049, #3d8b40) !important;
-	box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4) !important;
-	transform: translateY(-2px);
+	background: #1d4ed8 !important;
+	box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35) !important;
+	transform: none;
 }
 
 /* Responsive optimizations */
