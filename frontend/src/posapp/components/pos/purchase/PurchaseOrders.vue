@@ -63,6 +63,7 @@
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
 									<div class="sale-options-body">
 										<v-autocomplete
+											v-if="warehouseOptions.length"
 											v-model="warehouse"
 											:items="warehouseOptions"
 											item-title="warehouse_name"
@@ -368,19 +369,44 @@ export default {
 			warehouseLoading.value = true;
 			try {
 				const { message } = await frappe.call({
-					method: "frappe.client.get_list",
+					method: "bsp_engineering.api.pos_warehouse.get_pos_warehouses",
 					args: {
-						doctype: "Warehouse",
-						fields: ["name", "warehouse_name"],
-						filters: { company: pos_profile.value.company, is_group: 0, disabled: 0 },
+						company: pos_profile.value?.company,
+						pos_profile: pos_profile.value
+							? JSON.stringify(pos_profile.value)
+							: null,
 					},
 				});
 				warehouseOptions.value = message || [];
+				const permitted = (warehouseOptions.value || []).map(
+					(row) => row.name,
+				);
+				let defaultWh = pos_profile.value?.warehouse || null;
+				if (
+					defaultWh &&
+					permitted.length &&
+					!permitted.includes(defaultWh)
+				) {
+					defaultWh = permitted[0];
+				}
+				if (!defaultWh && warehouseOptions.value.length) {
+					defaultWh = warehouseOptions.value[0].name;
+				}
+				if (defaultWh) {
+					warehouse.value = defaultWh;
+				}
 			} catch (error) {
 				console.error("Failed to load warehouses:", error);
-			} finally {
-				warehouseLoading.value = false;
+				warehouseOptions.value = [];
 			}
+			if (!warehouseOptions.value.length && pos_profile.value?.warehouse) {
+				const profileWh = pos_profile.value.warehouse;
+				warehouseOptions.value = [
+					{ name: profileWh, warehouse_name: profileWh },
+				];
+				warehouse.value = profileWh;
+			}
+			warehouseLoading.value = false;
 		};
 
 		const handleSupplierCreated = (message) => {
@@ -394,7 +420,11 @@ export default {
 			try {
 				const { message } = await frappe.call({
 					method: "posawesome.posawesome.api.purchase_invoices.search_items",
-					args: { search_text: searchText, limit: 20 },
+					args: {
+						search_text: searchText,
+						limit: 20,
+						warehouse: warehouse.value,
+					},
 				});
 				itemSearchResults.value = Array.isArray(message) ? message : [];
 			} catch (error) {
@@ -417,6 +447,14 @@ export default {
 				250,
 			);
 		};
+
+		watch(warehouse, () => {
+			itemSearchResults.value = [];
+			const term = itemSearchQuery.value?.trim();
+			if (term && term.length >= 2) {
+				searchItems(term);
+			}
+		});
 
 		const handleSearchItemPicked = async (itemCode) => {
 			if (!itemCode) return;

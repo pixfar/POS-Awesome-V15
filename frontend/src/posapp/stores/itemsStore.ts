@@ -108,6 +108,7 @@ export const useItemsStore = defineStore("items", () => {
 	const itemGroup = ref("ALL");
 	const lastSearch = ref("");
 	const posProfile = ref<POSProfile | null>(null);
+	const activeSaleWarehouse = ref<string | null>(null);
 	const customer = ref<string | null>(null);
 	const customerPriceList = ref<string | null>(null);
 
@@ -226,13 +227,31 @@ export const useItemsStore = defineStore("items", () => {
 		return true;
 	};
 
+	const getActiveWarehouse = () =>
+		activeSaleWarehouse.value || posProfile.value?.warehouse || "no_warehouse";
+
+	const setActiveSaleWarehouse = (warehouse: string | null) => {
+		activeSaleWarehouse.value =
+			typeof warehouse === "string" && warehouse.trim().length > 0
+				? warehouse.trim()
+				: null;
+	};
+
 	const getCacheScope = () => {
 		const profileName = posProfile.value?.name || "no_profile";
-		const warehouse = posProfile.value?.warehouse || "no_warehouse";
-		return `${profileName}_${warehouse}`;
+		return `${profileName}_${getActiveWarehouse()}`;
 	};
 
 	const getStorageScope = () => getCacheScope();
+
+	const resolveLoadItemsWarehouse = (options: LoadItemsOptions = {}) => {
+		return (
+			options.warehouse ??
+			activeSaleWarehouse.value ??
+			posProfile.value?.warehouse ??
+			null
+		);
+	};
 
 	const setItems = (
 		newItems: Item[],
@@ -480,7 +499,10 @@ export const useItemsStore = defineStore("items", () => {
 				isInitialBootstrapRequest,
 				args,
 			} = buildLoadItemsRequest({
-				options,
+				options: {
+					...options,
+					warehouse: resolveLoadItemsWarehouse(options),
+				},
 				posProfile: posProfile.value,
 				activePriceList: activePriceList.value,
 				customer: customer.value,
@@ -972,11 +994,15 @@ export const useItemsStore = defineStore("items", () => {
 		}
 	};
 
-	const refreshItems = async () => {
+	const refreshItems = async (options: LoadItemsOptions = {}) => {
 		await clearAllCaches();
 		itemsLoaded.value = false;
 		resetCachedPagination();
-		await loadItems({ forceServer: true });
+		await loadItems({
+			forceServer: true,
+			warehouse: resolveLoadItemsWarehouse(options),
+			...options,
+		});
 	};
 
 	const addScannedItem = async (barcode: string) => {
@@ -1151,6 +1177,8 @@ export const useItemsStore = defineStore("items", () => {
 		itemGroup,
 		lastSearch,
 		posProfile,
+		activeSaleWarehouse,
+		setActiveSaleWarehouse,
 		customer,
 		customerPriceList,
 		cacheHealth,

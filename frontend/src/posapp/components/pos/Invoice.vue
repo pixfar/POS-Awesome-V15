@@ -119,7 +119,8 @@
 									/>
 								</div>
 								<v-select
-									v-model="sale_warehouse"
+									v-if="warehouses.length"
+									:model-value="sale_warehouse"
 									:items="warehouses"
 									item-title="label"
 									item-value="value"
@@ -128,6 +129,7 @@
 									density="compact"
 									hide-details
 									class="sale-opt-warehouse mt-2"
+									@update:model-value="onSaleWarehouseUpdate"
 								/>
 							</div>
 						</v-card>
@@ -312,7 +314,7 @@
 			@update_discount_umount="update_discount_umount"
 			@update:sale_update_stock="(val) => (sale_update_stock = val)"
 			@update:sale_is_paid="(val) => (sale_is_paid = val)"
-			@update:sale_warehouse="(val) => (sale_warehouse = val)"
+			@update:sale_warehouse="onSaleWarehouseUpdate"
 			@save-and-clear="save_and_clear_invoice"
 			@load-drafts="get_draft_invoices"
 			@select-order="get_draft_orders"
@@ -348,6 +350,7 @@ import { useInvoiceStore } from "../../stores/invoiceStore.js";
 import { useCustomersStore } from "../../stores/customersStore.js";
 import { useToastStore } from "../../stores/toastStore.js";
 import { useUIStore } from "../../stores/uiStore.js";
+import { useItemsStore } from "../../stores/itemsStore.js";
 import { storeToRefs } from "pinia";
 import stockCoordinator from "../../utils/stockCoordinator";
 import { getCurrentInstance, ref, computed } from "vue";
@@ -381,6 +384,7 @@ export default {
 	setup(props) {
 		const instance = getCurrentInstance();
 		const uiStore = useUIStore();
+		const itemsStore = useItemsStore();
 		const invoiceStore = useInvoiceStore();
 		const customersStore = useCustomersStore();
 		const toastStore = useToastStore();
@@ -425,6 +429,7 @@ export default {
 		return {
 			catalogSearchProp: computed(() => props.catalogSearch),
 			uiStore,
+			itemsStore,
 			activeView,
 			isOnline,
 			toastStore,
@@ -564,6 +569,10 @@ export default {
 				this.invoiceStore.setPostingDate(val);
 			},
 		},
+		canChangePosWarehouse() {
+			const roles = frappe?.boot?.user?.roles || [];
+			return roles.includes("System Manager");
+		},
 		return_discount_meta() {
 			if (!this.isReturnInvoice || !this.return_doc || this.pos_profile?.posa_use_percentage_discount) {
 				return null;
@@ -592,26 +601,64 @@ export default {
 
 	methods: {
 		async fetchWarehouses() {
+			const profileWh = this.pos_profile?.warehouse || null;
 			try {
 				const result = await frappe.call({
-					method: "frappe.client.get_list",
+					method: "bsp_engineering.api.pos_warehouse.get_pos_warehouses",
 					args: {
-						doctype: "Warehouse",
-						fields: ["name", "warehouse_name"],
-						filters: { disabled: 0, is_group: 0 },
-						limit: 500,
+						company: this.pos_profile?.company,
+						pos_profile: this.pos_profile
+							? JSON.stringify(this.pos_profile)
+							: null,
 					},
 				});
 				this.warehouses = (result.message || []).map((w) => ({
 					value: w.name,
 					label: w.warehouse_name || w.name,
 				}));
-				// Set default to POS profile warehouse if not already overridden
-				if (!this.sale_warehouse && this.pos_profile?.warehouse) {
-					this.sale_warehouse = this.pos_profile.warehouse;
+				const permitted = this.warehouses.map((w) => w.value);
+				let defaultWh = profileWh;
+				if (defaultWh && permitted.length && !permitted.includes(defaultWh)) {
+					defaultWh = permitted[0];
+				}
+				if (!defaultWh && this.warehouses.length) {
+					defaultWh = this.warehouses[0].value;
+				}
+				if (defaultWh) {
+					this.sale_warehouse = defaultWh;
+					this.itemsStore?.setActiveSaleWarehouse?.(defaultWh);
 				}
 			} catch (e) {
 				console.error("Failed to fetch warehouses", e);
+				this.warehouses = [];
+			}
+			if (!this.warehouses.length && profileWh) {
+				this.warehouses = [
+					{ value: profileWh, label: profileWh },
+				];
+				this.sale_warehouse = profileWh;
+				this.itemsStore?.setActiveSaleWarehouse?.(profileWh);
+			}
+		},
+		onSaleWarehouseUpdate(val) {
+			if (!val || val === this.sale_warehouse) {
+				return;
+			}
+			this.sale_warehouse = val;
+			this.handleSaleWarehouseChange(val);
+		},
+		async handleSaleWarehouseChange(warehouse) {
+			if (!warehouse) {
+				return;
+			}
+			const canRefresh =
+				this.canChangePosWarehouse || (this.warehouses?.length || 0) > 1;
+			this.itemsStore?.setActiveSaleWarehouse?.(warehouse);
+			if (
+				canRefresh &&
+				typeof this.itemsStore?.refreshItems === "function"
+			) {
+				await this.itemsStore.refreshItems({ warehouse });
 			}
 		},
 		formatDateForDisplay(date) {
@@ -835,7 +882,11 @@ export default {
 			if (!this.sale_warehouse && data.pos_profile?.warehouse) {
 				this.sale_warehouse = data.pos_profile.warehouse;
 			}
+			if (this.sale_warehouse) {
+				this.itemsStore?.setActiveSaleWarehouse?.(this.sale_warehouse);
+			}
 
+			this.fetchWarehouses();
 			this.fetch_price_lists();
 			this.update_price_list();
 			this.fetch_available_currencies();

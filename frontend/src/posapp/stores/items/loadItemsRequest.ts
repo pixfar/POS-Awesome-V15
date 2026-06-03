@@ -7,6 +7,7 @@ export interface LoadItemsOptions {
 	groupFilter?: string;
 	priceList?: string | null;
 	limit?: number | null;
+	warehouse?: string | null;
 }
 
 export interface BuildLoadItemsRequestInput {
@@ -49,6 +50,7 @@ export const buildLoadItemsRequest = ({
 		groupFilter = "ALL",
 		priceList = null,
 		limit = null,
+		warehouse = null,
 	} = options;
 
 	const searchValue =
@@ -90,6 +92,13 @@ export const buildLoadItemsRequest = ({
 
 	const requestProfile = JSON.parse(JSON.stringify(posProfile));
 	const effectivePriceList = priceList || activePriceList;
+	const activeWarehouse =
+		typeof warehouse === "string" && warehouse.trim().length > 0
+			? warehouse.trim()
+			: null;
+	if (activeWarehouse) {
+		requestProfile.warehouse = activeWarehouse;
+	}
 	if (forceServer) {
 		requestProfile.posa_use_server_cache = 0;
 		requestProfile.posa_force_reload_items = 1;
@@ -107,6 +116,9 @@ export const buildLoadItemsRequest = ({
 
 	if (typeof resolvedLimit === "number" && resolvedLimit > 0) {
 		args.limit = resolvedLimit;
+	}
+	if (activeWarehouse) {
+		args.warehouse = activeWarehouse;
 	}
 
 	return {
