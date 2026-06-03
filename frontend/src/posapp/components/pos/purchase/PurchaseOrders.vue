@@ -300,6 +300,7 @@ export default {
 			updateItemReceivedQty,
 			removeItem,
 			resetForm,
+			syncPurchaseItemsWarehouse,
 		} = usePurchaseOrder({
 			posProfile: pos_profile,
 			receiveNow: receiveNow,
@@ -448,7 +449,10 @@ export default {
 			);
 		};
 
-		watch(warehouse, () => {
+		watch(warehouse, (nextWarehouse) => {
+			if (nextWarehouse) {
+				syncPurchaseItemsWarehouse(nextWarehouse);
+			}
 			itemSearchResults.value = [];
 			const term = itemSearchQuery.value?.trim();
 			if (term && term.length >= 2) {
@@ -601,7 +605,10 @@ export default {
 						conversion_factor: item.conversion_factor,
 						qty: item.qty,
 						rate: item.rate,
-						warehouse: warehouse.value || item.warehouse,
+						warehouse:
+							warehouse.value ||
+							item.warehouse ||
+							pos_profile.value?.warehouse,
 					})),
 				};
 				const { message } = await frappe.call({

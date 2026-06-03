@@ -33,7 +33,8 @@ export function useItemBundles() {
 				uom: comp.uom,
 				rate: 0,
 				child_qty_per_bundle: comp.qty,
-				warehouse: context.pos_profile.warehouse,
+				warehouse:
+					context.sale_warehouse || context.pos_profile?.warehouse,
 				is_stock_item: isStockItem ? 1 : 0,
 				has_batch_no: comp.is_batch,
 				has_serial_no: comp.is_serial,

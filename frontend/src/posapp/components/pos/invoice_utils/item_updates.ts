@@ -190,7 +190,10 @@ export async function _performItemDetailUpdate(
 		const response = await frappe.call({
 			method: "posawesome.posawesome.api.items.get_item_detail",
 			args: {
-				warehouse: item.warehouse || context.pos_profile.warehouse,
+				warehouse:
+					context.sale_warehouse ||
+					item.warehouse ||
+					context.pos_profile?.warehouse,
 				doc: currentDoc,
 				price_list: context.get_price_list
 					? context.get_price_list()
@@ -263,7 +266,8 @@ export function _applyItemDetailPayload(
 	const preserveLockedPrice = item?.locked_price === true || lockReturnPricing;
 
 	if (!item.warehouse) {
-		item.warehouse = context.pos_profile.warehouse;
+		item.warehouse =
+			context.sale_warehouse || context.pos_profile?.warehouse;
 	}
 	if (data.price_list_currency) {
 		context.price_list_currency = data.price_list_currency;

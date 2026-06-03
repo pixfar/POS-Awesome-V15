@@ -4,6 +4,7 @@ import {
 	isOffline,
 } from "../../../../offline/index";
 import { _getPlcConversionRate } from "./currency";
+import { resolvePosWarehouse } from "./warehouse";
 
 declare const flt: (_value: unknown, _precision?: number) => number;
 declare const frappe: any;
@@ -267,6 +268,26 @@ export function get_invoice_doc(context: any) {
 	// Calculate amounts in selected currency
 	const items = get_invoice_items(context);
 	doc.items = items;
+
+	const sourceWarehouse = resolvePosWarehouse(context);
+	if (
+		sourceWarehouse &&
+		(doc.doctype === "Sales Invoice" || doc.doctype === "POS Invoice")
+	) {
+		doc.set_warehouse = sourceWarehouse;
+		if (Array.isArray(doc.items)) {
+			doc.items.forEach((row: { is_stock_item?: number; warehouse?: string }) => {
+				if (row?.is_stock_item) {
+					row.warehouse = sourceWarehouse;
+				}
+			});
+		}
+		if (Array.isArray(doc.packed_items)) {
+			doc.packed_items.forEach((row: { warehouse?: string }) => {
+				row.warehouse = sourceWarehouse;
+			});
+		}
+	}
 	doc.packed_items = (context.packed_items || []).map((pi) => ({
 		parent_item: pi.parent_item,
 		item_code: pi.item_code,
@@ -533,6 +554,8 @@ export function get_invoice_items(context: any) {
 		? resolveOrderDeliveryDate(context, context.invoice_doc || {})
 		: null;
 
+	const activeWarehouse = resolvePosWarehouse(context);
+
 	context.items.forEach((item) => {
 		if (omitFreebies && item && item.auto_free_source) {
 			return;
@@ -550,8 +573,9 @@ export function get_invoice_items(context: any) {
 			// Fallback to item_code if item_name is not available
 			item_name: item.item_name || item.item_code,
 			name_overridden: item.name_overridden ? 1 : 0,
-			// Warehouse: user-selected override > item-level > POS profile default
-			warehouse: context.sale_warehouse || item.warehouse || context.pos_profile?.warehouse,
+			warehouse: activeWarehouse
+				? activeWarehouse
+				: item.warehouse || context.pos_profile?.warehouse,
 			posa_row_id: item.posa_row_id,
 			posa_offers: item.posa_offers,
 			posa_offer_applied: item.posa_offer_applied,

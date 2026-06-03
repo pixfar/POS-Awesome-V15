@@ -20,6 +20,7 @@ export interface PurchaseItem {
 	standard_rate: number;
 	received_qty: number;
 	receivedQtyManual: boolean;
+	warehouse?: string | null;
 	_isEditingQty?: boolean;
 	_editingQtyValue?: string;
 	_isEditingRate?: boolean;
@@ -164,6 +165,8 @@ export function usePurchaseOrder(options: {
 				rate: rate,
 				stock_uom_rate: rate,
 				standard_rate: item.standard_rate || 0,
+				warehouse:
+					warehouse.value || posProfile.value?.warehouse || null,
 				received_qty: receiveNow.value ? 1 : 0,
 				receivedQtyManual: false,
 			};
@@ -238,6 +241,15 @@ export function usePurchaseOrder(options: {
 		);
 	};
 
+	const syncPurchaseItemsWarehouse = (targetWarehouse: string | null) => {
+		if (!targetWarehouse) {
+			return;
+		}
+		purchaseItems.value.forEach((row) => {
+			row.warehouse = targetWarehouse;
+		});
+	};
+
 	const resetForm = () => {
 		supplier.value = null;
 		supplierPriceList.value = null;
@@ -278,6 +290,7 @@ export function usePurchaseOrder(options: {
 		updateItemReceivedQty,
 		removeItem,
 		resetForm,
+		syncPurchaseItemsWarehouse,
 		generateLineId,
 	};
 }

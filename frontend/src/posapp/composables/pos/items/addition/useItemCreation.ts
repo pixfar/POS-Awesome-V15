@@ -13,7 +13,8 @@ export function useItemCreation() {
 		new_item._needs_update = false; // Will be set to true if added fresh
 
 		if (!new_item.warehouse) {
-			new_item.warehouse = context.pos_profile.warehouse;
+			new_item.warehouse =
+				context.sale_warehouse || context.pos_profile?.warehouse;
 		}
 		if (!item.qty) {
 			item.qty = 1;

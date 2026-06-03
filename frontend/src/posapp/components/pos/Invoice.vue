@@ -647,10 +647,26 @@ export default {
 			this.sale_warehouse = val;
 			this.handleSaleWarehouseChange(val);
 		},
+		syncCartWarehouse(warehouse) {
+			if (!warehouse || !Array.isArray(this.items)) {
+				return;
+			}
+			let changed = false;
+			this.items.forEach((item) => {
+				if (item && item.warehouse !== warehouse) {
+					item.warehouse = warehouse;
+					changed = true;
+				}
+			});
+			if (changed) {
+				this.invoiceStore.setItems([...this.items]);
+			}
+		},
 		async handleSaleWarehouseChange(warehouse) {
 			if (!warehouse) {
 				return;
 			}
+			this.syncCartWarehouse(warehouse);
 			const canRefresh =
 				this.canChangePosWarehouse || (this.warehouses?.length || 0) > 1;
 			this.itemsStore?.setActiveSaleWarehouse?.(warehouse);
