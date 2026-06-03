@@ -20,6 +20,7 @@ import {
 	type LoadItemsOptions,
 } from "./items/loadItemsRequest";
 import { sortItemsForSearchTerm } from "../utils/itemSearchSort.js";
+import { isPosWarehouseSwitcher } from "../utils/posWarehouseAccess";
 
 export const useItemsStore = defineStore("items", () => {
 	type OfflineModule = Record<string, any>;
@@ -245,6 +246,9 @@ export const useItemsStore = defineStore("items", () => {
 	const getStorageScope = () => getCacheScope();
 
 	const resolveLoadItemsWarehouse = (options: LoadItemsOptions = {}) => {
+		if (!isPosWarehouseSwitcher()) {
+			return posProfile.value?.warehouse ?? null;
+		}
 		return (
 			options.warehouse ??
 			activeSaleWarehouse.value ??

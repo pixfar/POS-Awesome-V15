@@ -63,7 +63,7 @@
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
 									<div class="sale-options-body">
 										<v-autocomplete
-											v-if="warehouseOptions.length"
+											v-if="canChangePosWarehouse && warehouseOptions.length"
 											v-model="warehouse"
 											:items="warehouseOptions"
 											item-title="warehouse_name"
@@ -74,6 +74,18 @@
 											color="primary"
 											hide-details
 											:loading="warehouseLoading"
+											class="pos-themed-input mb-2"
+										/>
+										<v-text-field
+											v-else-if="warehouse"
+											:model-value="warehouseLabel || warehouse"
+											:label="frappe._('Warehouse')"
+											density="compact"
+											variant="outlined"
+											color="primary"
+											hide-details
+											readonly
+											prepend-inner-icon="mdi-warehouse"
 											class="pos-themed-input mb-2"
 										/>
 										<div class="sale-options-toggles">
@@ -258,7 +270,8 @@ import PurchasePaymentDialog from "./PurchasePaymentDialog.vue";
 import SupplierDialog from "../dialogs/purchase/SupplierDialog.vue";
 import PurchaseHeader from "./PurchaseHeader.vue";
 import PurchaseItemsTable from "./PurchaseItemsTable.vue";
-import { ref, watch, onMounted, onBeforeUnmount, inject } from "vue";
+import { ref, watch, onMounted, onBeforeUnmount, inject, computed } from "vue";
+import { isPosWarehouseSwitcher } from "../../../utils/posWarehouseAccess";
 
 export default {
 	mixins: [format],
@@ -316,6 +329,8 @@ export default {
 		const supplierGroups = ref([]);
 		const warehouseOptions = ref([]);
 		const warehouseLoading = ref(false);
+		const warehouseLabel = ref(null);
+		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
 		const payments = ref([]);
 		const itemSearchQuery = ref("");
 		const selectedSearchItemCode = ref(null);
@@ -366,8 +381,43 @@ export default {
 			}
 		};
 
+		const loadActiveWarehouseLabel = async () => {
+			try {
+				const { message } = await frappe.call({
+					method: "bsp_engineering.api.pos_warehouse.get_pos_active_warehouse",
+					args: {
+						company: pos_profile.value?.company,
+						pos_profile: pos_profile.value
+							? JSON.stringify(pos_profile.value)
+							: null,
+					},
+				});
+				const row = message || {};
+				if (row.name) {
+					warehouse.value = row.name;
+					warehouseLabel.value = row.warehouse_name || row.name;
+					syncPurchaseItemsWarehouse(row.name);
+				}
+			} catch (error) {
+				console.error("Failed to load active warehouse:", error);
+				const profileWh = pos_profile.value?.warehouse || null;
+				if (profileWh) {
+					warehouse.value = profileWh;
+					warehouseLabel.value = profileWh;
+					syncPurchaseItemsWarehouse(profileWh);
+				}
+			}
+		};
+
 		const loadWarehouses = async () => {
 			warehouseLoading.value = true;
+			const profileWh = pos_profile.value?.warehouse || null;
+			if (!canChangePosWarehouse.value) {
+				warehouseOptions.value = [];
+				await loadActiveWarehouseLabel();
+				warehouseLoading.value = false;
+				return;
+			}
 			try {
 				const { message } = await frappe.call({
 					method: "bsp_engineering.api.pos_warehouse.get_pos_warehouses",
@@ -450,6 +500,9 @@ export default {
 		};
 
 		watch(warehouse, (nextWarehouse) => {
+			if (!canChangePosWarehouse.value) {
+				return;
+			}
 			if (nextWarehouse) {
 				syncPurchaseItemsWarehouse(nextWarehouse);
 			}
@@ -583,10 +636,15 @@ export default {
 						? supplier.value.name || supplier.value.supplier_name || ""
 						: supplier.value;
 
+				const txnWarehouse =
+					canChangePosWarehouse.value
+						? warehouse.value
+						: pos_profile.value?.warehouse;
+
 				const payload = {
 					supplier: resolvedSupplier,
 					company: pos_profile.value.company,
-					warehouse: warehouse.value,
+					warehouse: txnWarehouse,
 					currency: supplierCurrency.value,
 					posting_date,
 					posting_time,
@@ -606,8 +664,7 @@ export default {
 						qty: item.qty,
 						rate: item.rate,
 						warehouse:
-							warehouse.value ||
-							item.warehouse ||
+							txnWarehouse ||
 							pos_profile.value?.warehouse,
 					})),
 				};
@@ -690,9 +747,11 @@ export default {
 		return {
 			pos_profile,
 			receiveNow,
+			canChangePosWarehouse,
 			purchaseItems,
 			supplier,
 			warehouse,
+			warehouseLabel,
 			postingDateTime,
 			updateStock,
 			customIsPaid,

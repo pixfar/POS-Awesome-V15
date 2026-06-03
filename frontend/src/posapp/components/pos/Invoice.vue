@@ -119,7 +119,7 @@
 									/>
 								</div>
 								<v-select
-									v-if="warehouses.length"
+									v-if="canChangePosWarehouse && warehouses.length"
 									:model-value="sale_warehouse"
 									:items="warehouses"
 									item-title="label"
@@ -130,6 +130,17 @@
 									hide-details
 									class="sale-opt-warehouse mt-2"
 									@update:model-value="onSaleWarehouseUpdate"
+								/>
+								<v-text-field
+									v-else-if="sale_warehouse"
+									:model-value="sale_warehouse_label || sale_warehouse"
+									:label="__('Warehouse')"
+									variant="outlined"
+									density="compact"
+									hide-details
+									readonly
+									prepend-inner-icon="mdi-warehouse"
+									class="sale-opt-warehouse mt-2"
 								/>
 							</div>
 						</v-card>
@@ -492,6 +503,7 @@ export default {
 			sale_update_stock: true,
 			sale_is_paid: true,
 			sale_warehouse: null,
+			sale_warehouse_label: null,
 			warehouses: [],
 		};
 	},
@@ -600,8 +612,43 @@ export default {
 	},
 
 	methods: {
+		async loadActiveWarehouseLabel() {
+			try {
+				const result = await frappe.call({
+					method: "bsp_engineering.api.pos_warehouse.get_pos_active_warehouse",
+					args: {
+						company: this.pos_profile?.company,
+						pos_profile: this.pos_profile
+							? JSON.stringify(this.pos_profile)
+							: null,
+					},
+				});
+				const row = result.message || {};
+				if (row.name) {
+					this.sale_warehouse = row.name;
+					this.sale_warehouse_label =
+						row.warehouse_name || row.name;
+					this.itemsStore?.setActiveSaleWarehouse?.(row.name);
+					this.syncCartWarehouse(row.name);
+				}
+			} catch (e) {
+				console.error("Failed to load active warehouse", e);
+				const profileWh = this.pos_profile?.warehouse || null;
+				if (profileWh) {
+					this.sale_warehouse = profileWh;
+					this.sale_warehouse_label = profileWh;
+					this.itemsStore?.setActiveSaleWarehouse?.(profileWh);
+					this.syncCartWarehouse(profileWh);
+				}
+			}
+		},
 		async fetchWarehouses() {
 			const profileWh = this.pos_profile?.warehouse || null;
+			if (!this.canChangePosWarehouse) {
+				this.warehouses = [];
+				await this.loadActiveWarehouseLabel();
+				return;
+			}
 			try {
 				const result = await frappe.call({
 					method: "bsp_engineering.api.pos_warehouse.get_pos_warehouses",
@@ -641,6 +688,9 @@ export default {
 			}
 		},
 		onSaleWarehouseUpdate(val) {
+			if (!this.canChangePosWarehouse) {
+				return;
+			}
 			if (!val || val === this.sale_warehouse) {
 				return;
 			}
@@ -663,12 +713,11 @@ export default {
 			}
 		},
 		async handleSaleWarehouseChange(warehouse) {
-			if (!warehouse) {
+			if (!this.canChangePosWarehouse || !warehouse) {
 				return;
 			}
 			this.syncCartWarehouse(warehouse);
-			const canRefresh =
-				this.canChangePosWarehouse || (this.warehouses?.length || 0) > 1;
+			const canRefresh = this.canChangePosWarehouse;
 			this.itemsStore?.setActiveSaleWarehouse?.(warehouse);
 			if (
 				canRefresh &&
