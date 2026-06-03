@@ -32,9 +32,8 @@ export function useItemsSelectorPriceListSync({
 
 		if (activePriceList.value !== nextPriceList) {
 			await updatePriceList(nextPriceList);
+			await getItems(true);
 		}
-
-		await getItems(true);
 	};
 
 	return {

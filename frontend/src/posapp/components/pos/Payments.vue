@@ -1872,6 +1872,17 @@ onMounted(() => {
 
 			const initializedPayment = ensurePaymentLinesInitialized(doc);
 
+			// Is Paid = OFF: force credit-sale mode so validation is bypassed, zero all amounts
+			if (doc.is_paid === 0) {
+				is_credit_sale.value = true;
+				if (Array.isArray(doc.payments)) {
+					doc.payments.forEach((p) => {
+						p.amount = 0;
+						if (p.base_amount !== undefined) p.base_amount = 0;
+					});
+				}
+			}
+
 			if (doc.is_return) {
 				is_return.value = true;
 				is_credit_return.value = false;

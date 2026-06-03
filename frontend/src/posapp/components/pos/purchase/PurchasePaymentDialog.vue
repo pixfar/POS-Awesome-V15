@@ -173,7 +173,7 @@
 							class="submit-btn"
 							@click="submit(false)"
 							:loading="loading"
-							:disabled="loading || !isPaymentValid"
+							:disabled="loading || (!isPaid ? false : !isPaymentValid)"
 						>
 							{{ __("Submit") }}
 						</v-btn>
@@ -186,7 +186,7 @@
 							theme="dark"
 							@click="submit(true)"
 							:loading="loading"
-							:disabled="loading || !isPaymentValid"
+							:disabled="loading || (!isPaid ? false : !isPaymentValid)"
 						>
 							{{ __("Submit & Print") }}
 						</v-btn>
@@ -233,6 +233,10 @@ const props = defineProps({
 	posProfile: {
 		type: Object,
 		required: true,
+	},
+	isPaid: {
+		type: Boolean,
+		default: true,
 	},
 });
 
@@ -292,7 +296,7 @@ watch(
 watch(
 	() => props.totalAmount,
 	() => {
-		if (!props.modelValue) return;
+		if (!props.modelValue || !props.isPaid) return;
 		const hasAnyAmount = paymentLines.value.some(
 			(p) => (parseFloat(p.amount) || 0) > 0,
 		);
@@ -347,9 +351,12 @@ function initializePayments() {
 		type: m.type,
 	}));
 
-	const defaultMode = paymentLines.value.find((p) => p.default) || paymentLines.value[0];
-	if (defaultMode) {
-		defaultMode.amount = props.totalAmount;
+	// Only pre-fill the default payment when Is Paid is ON
+	if (props.isPaid) {
+		const defaultMode = paymentLines.value.find((p) => p.default) || paymentLines.value[0];
+		if (defaultMode) {
+			defaultMode.amount = props.totalAmount;
+		}
 	}
 }
 

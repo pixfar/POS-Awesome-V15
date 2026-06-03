@@ -6,39 +6,25 @@
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3">
 						<div class="invoice-sections">
-							<div class="invoice-top-grid">
+							<div class="invoice-top-grid purchase-top-grid">
+								<!-- Col 1: Supplier Details -->
 								<v-card flat class="invoice-section-card pos-themed-card">
-									<div class="invoice-section-heading d-flex align-center">
+									<div class="invoice-section-heading">
 										<h3 class="invoice-section-heading__title">
 											{{ __("Supplier Details") }}
 										</h3>
-										<v-spacer></v-spacer>
-										<v-btn
-											icon="mdi-delete-outline"
-											variant="text"
-											size="small"
-											color="error"
-											@click="resetForm"
-											:title="__('Clear All')"
-											:aria-label="__('Clear all purchase invoice items')"
-										></v-btn>
 									</div>
 									<PurchaseHeader
 										v-model:supplier="supplier"
-										v-model:warehouse="warehouse"
-										v-model:postingDateTime="postingDateTime"
-										v-model:updateStock="updateStock"
-										v-model:customIsPaid="customIsPaid"
 										:supplierOptions="supplierOptions"
 										:supplierLoading="supplierLoading"
-										:warehouseOptions="warehouseOptions"
-										:warehouseLoading="warehouseLoading"
 										:allowCreateSupplier="allowCreateSupplier"
 										@search-supplier="handleSupplierSearch"
 										@create-supplier="supplierDialog = true"
 									/>
 								</v-card>
 
+								<!-- Col 2: Supplier Outstanding -->
 								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
 									<div class="outstanding-panel__inner">
 										<div class="outstanding-panel__label">
@@ -60,9 +46,7 @@
 										</div>
 										<v-icon
 											v-if="supplier"
-											:color="
-												supplierOutstanding > 0 ? 'error' : 'success'
-											"
+											:color="supplierOutstanding > 0 ? 'error' : 'success'"
 											size="22"
 											class="outstanding-panel__icon"
 										>
@@ -72,6 +56,43 @@
 													: "mdi-check-circle"
 											}}
 										</v-icon>
+									</div>
+								</v-card>
+
+								<!-- Col 3: Purchase Options (Warehouse, Date, Toggles) -->
+								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
+									<div class="sale-options-body">
+										<v-autocomplete
+											v-model="warehouse"
+											:items="warehouseOptions"
+											item-title="warehouse_name"
+											item-value="name"
+											:label="frappe._('Warehouse')"
+											density="compact"
+											variant="outlined"
+											color="primary"
+											hide-details
+											:loading="warehouseLoading"
+											class="pos-themed-input mb-2"
+										/>
+										<div class="sale-options-toggles">
+											<v-switch
+												v-model="updateStock"
+												density="compact"
+												hide-details
+												color="primary"
+												:label="__('Update Stock')"
+												class="sale-opt-switch"
+											/>
+											<v-switch
+												v-model="customIsPaid"
+												density="compact"
+												hide-details
+												color="primary"
+												:label="__('Is Paid')"
+												class="sale-opt-switch"
+											/>
+										</div>
 									</div>
 								</v-card>
 							</div>
@@ -185,6 +206,7 @@
 			:total-amount="totalAmount"
 			:currency="supplierCurrency"
 			:pos-profile="pos_profile"
+			:is-paid="customIsPaid"
 			@submit="handlePaymentSubmit"
 		/>
 
@@ -591,7 +613,6 @@ export default {
 						await itemsStore.updatePriceList(info.buying_price_list, { skipReload: true });
 					}
 					eventBus?.emit?.("update_buying_price_list", {
-						price_list: info?.buying_price_list || null,
 						supplier: val,
 					});
 				} else {
@@ -696,6 +717,65 @@ export default {
 
 <style scoped>
 @import "../invoice-shared-styles.css";
+
+/* 3-column top grid matching Sales layout */
+.purchase-top-grid {
+	grid-template-columns: 2.5fr 1fr 2fr !important;
+	align-items: stretch;
+	gap: 12px !important;
+	margin-bottom: 12px;
+}
+
+/* Force every card in the top grid to fill the row height */
+.purchase-top-grid > .invoice-section-card {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Outstanding panel fills height and centers its content */
+.purchase-top-grid > .outstanding-panel {
+	justify-content: center;
+}
+
+@media (max-width: 768px) {
+	.purchase-top-grid {
+		grid-template-columns: 1fr !important;
+	}
+	.purchase-top-grid > .invoice-section-card {
+		height: auto;
+	}
+}
+
+/* Purchase Options card (col 3) */
+.sale-options-card {
+	display: flex;
+	flex-direction: column;
+}
+
+.sale-options-body {
+	padding: 8px 14px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	flex: 1 1 auto;
+}
+
+.sale-options-toggles {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-top: 4px;
+}
+
+.sale-opt-switch {
+	flex: 0 0 auto;
+}
+
+.purchase-date-picker {
+	width: 100%;
+}
 
 .purchase-invoice-card {
 	border-radius: var(--pos-radius-md, 18px);

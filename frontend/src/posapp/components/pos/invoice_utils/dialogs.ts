@@ -116,6 +116,11 @@ export async function show_payment(context: any) {
 
 		invoice_doc.payments = context.get_payments ? context.get_payments() : [];
 
+		// When Is Paid is OFF, flag the doc so the payment dialog shows 0 and skips payment validation
+		if (context.sale_is_paid === false) {
+			invoice_doc.is_paid = 0;
+		}
+
 		if ((context.isReturnInvoice || invoice_doc.is_return) && invoice_doc.payments.length) {
 			invoice_doc.payments.forEach((payment) => {
 				if (payment.amount > 0) payment.amount = -Math.abs(payment.amount);

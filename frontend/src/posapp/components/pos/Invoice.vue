@@ -96,6 +96,41 @@
 								"
 							/>
 						</v-card>
+
+						<!-- Sale Options: Update Stock, Is Paid, Warehouse -->
+						<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
+							<div class="sale-options-body">
+								<div class="sale-options-toggles">
+									<v-switch
+										v-model="sale_update_stock"
+										:label="__('Update Stock')"
+										color="primary"
+										density="compact"
+										hide-details
+										class="sale-opt-switch"
+									/>
+									<v-switch
+										v-model="sale_is_paid"
+										:label="__('Is Paid')"
+										color="primary"
+										density="compact"
+										hide-details
+										class="sale-opt-switch"
+									/>
+								</div>
+								<v-select
+									v-model="sale_warehouse"
+									:items="warehouses"
+									item-title="label"
+									item-value="value"
+									:label="__('Warehouse')"
+									variant="outlined"
+									density="compact"
+									hide-details
+									class="sale-opt-warehouse mt-2"
+								/>
+							</div>
+						</v-card>
 					</div>
 
 					<div class="invoice-meta-grid">
@@ -268,9 +303,16 @@
 			:discount_percentage_offer_name="discount_percentage_offer_name"
 			:isNumber="isNumber"
 			:return_discount_meta="return_discount_meta"
+			:sale_update_stock="sale_update_stock"
+			:sale_is_paid="sale_is_paid"
+			:sale_warehouse="sale_warehouse"
+			:warehouses="warehouses"
 			@update:additional_discount="(val) => (additional_discount = val)"
 			@update:additional_discount_percentage="(val) => (additional_discount_percentage = val)"
 			@update_discount_umount="update_discount_umount"
+			@update:sale_update_stock="(val) => (sale_update_stock = val)"
+			@update:sale_is_paid="(val) => (sale_is_paid = val)"
+			@update:sale_warehouse="(val) => (sale_warehouse = val)"
 			@save-and-clear="save_and_clear_invoice"
 			@load-drafts="get_draft_invoices"
 			@select-order="get_draft_orders"
@@ -441,6 +483,11 @@ export default {
 			price_list_rate_dialog_initial_rate: "",
 			price_list_rate_dialog_item_label: "",
 			price_list_rate_dialog_resolver: null,
+			// Sales flags — shown in the bottom dock so the user can toggle before paying
+			sale_update_stock: true,
+			sale_is_paid: true,
+			sale_warehouse: null,
+			warehouses: [],
 		};
 	},
 
@@ -544,6 +591,29 @@ export default {
 	},
 
 	methods: {
+		async fetchWarehouses() {
+			try {
+				const result = await frappe.call({
+					method: "frappe.client.get_list",
+					args: {
+						doctype: "Warehouse",
+						fields: ["name", "warehouse_name"],
+						filters: { disabled: 0, is_group: 0 },
+						limit: 500,
+					},
+				});
+				this.warehouses = (result.message || []).map((w) => ({
+					value: w.name,
+					label: w.warehouse_name || w.name,
+				}));
+				// Set default to POS profile warehouse if not already overridden
+				if (!this.sale_warehouse && this.pos_profile?.warehouse) {
+					this.sale_warehouse = this.pos_profile.warehouse;
+				}
+			} catch (e) {
+				console.error("Failed to fetch warehouses", e);
+			}
+		},
 		formatDateForDisplay(date) {
 			if (!date) return "";
 			const parts = date.split("-");
@@ -760,6 +830,11 @@ export default {
 			this.stock_settings = data.stock_settings;
 
 			this.invoiceType = this.pos_profile.posa_default_sales_order ? "Order" : "Invoice";
+
+			// Seed warehouse from POS profile if user hasn't picked one yet
+			if (!this.sale_warehouse && data.pos_profile?.warehouse) {
+				this.sale_warehouse = data.pos_profile.warehouse;
+			}
 
 			this.fetch_price_lists();
 			this.update_price_list();
@@ -980,6 +1055,7 @@ export default {
 		this.setUpdateItemDetail(this.update_item_detail);
 		this.loadColumnPreferences();
 		this.loadInvoiceHeight();
+		this.fetchWarehouses();
 
 		this.$watch(
 			() => this.uiStore.posProfile,
@@ -1320,9 +1396,20 @@ export default {
 
 .invoice-top-grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: 2.5fr 1fr 2fr;
 	gap: var(--dynamic-sm);
 	flex: 0 0 auto;
+	align-items: stretch;
+}
+
+.invoice-top-grid > .invoice-section-card {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.invoice-top-grid > .outstanding-panel {
+	justify-content: center;
 }
 
 .invoice-meta-grid {
@@ -1538,5 +1625,33 @@ export default {
 :deep(.column-switch .v-label) {
 	opacity: 0.9;
 	font-size: 0.95rem;
+}
+
+.sale-options-card {
+	display: flex;
+	flex-direction: column;
+}
+
+.sale-options-body {
+	padding: 8px 14px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	flex: 1 1 auto;
+}
+
+.sale-options-toggles {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.sale-opt-switch {
+	flex: 0 0 auto;
+}
+
+.sale-opt-warehouse {
+	width: 100%;
 }
 </style>

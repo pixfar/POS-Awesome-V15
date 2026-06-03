@@ -216,12 +216,19 @@ const props = defineProps({
 	discount_percentage_offer_name: [String, Number],
 	isNumber: Function,
 	return_discount_meta: Object,
+	sale_update_stock: { type: Boolean, default: true },
+	sale_is_paid: { type: Boolean, default: true },
+	sale_warehouse: { type: String, default: null },
+	warehouses: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits([
 	"update:additional_discount",
 	"update:additional_discount_percentage",
 	"update_discount_umount",
+	"update:sale_update_stock",
+	"update:sale_is_paid",
+	"update:sale_warehouse",
 	"save-and-clear",
 	"load-drafts",
 	"select-order",
@@ -689,4 +696,5 @@ defineExpose({
 		margin-bottom: calc(var(--bottom-safe-space) + 8px);
 	}
 }
+
 </style>

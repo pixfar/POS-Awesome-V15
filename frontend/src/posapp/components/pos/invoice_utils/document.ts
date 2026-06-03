@@ -175,6 +175,7 @@ export function get_invoice_doc(context: any) {
 
 	// Keep stock update explicit for invoice doctypes so submit-time checks are predictable.
 	if (doc.doctype === "Sales Invoice" || doc.doctype === "POS Invoice") {
+		const manualUpdateStock = context.sale_update_stock;
 		const explicitFlowUpdateStock = context.flowContext?.update_stock;
 		const profileUpdateStock = context.pos_profile?.update_stock;
 		const defaultUpdateStock =
@@ -186,12 +187,24 @@ export function get_invoice_doc(context: any) {
 		const isOrderInvoiceFlow =
 			context.invoiceType === "Order" &&
 			!context.pos_profile?.posa_create_only_sales_order;
-		doc.update_stock =
-			explicitFlowUpdateStock === 0 || explicitFlowUpdateStock === 1
-				? explicitFlowUpdateStock
-				: isOrderInvoiceFlow
-					? 0
-					: defaultUpdateStock;
+		// Manual user toggle takes highest priority
+		if (manualUpdateStock !== undefined && manualUpdateStock !== null) {
+			doc.update_stock = manualUpdateStock ? 1 : 0;
+		} else {
+			doc.update_stock =
+				explicitFlowUpdateStock === 0 || explicitFlowUpdateStock === 1
+					? explicitFlowUpdateStock
+					: isOrderInvoiceFlow
+						? 0
+						: defaultUpdateStock;
+		}
+		// custom_is_paid flag + standard is_paid
+		if (context.sale_is_paid !== undefined && context.sale_is_paid !== null) {
+			doc.custom_is_paid = context.sale_is_paid ? 1 : 0;
+			if (!context.sale_is_paid) {
+				doc.is_paid = 0;
+			}
+		}
 	}
 
 	// Currency related fields
@@ -537,6 +550,8 @@ export function get_invoice_items(context: any) {
 			// Fallback to item_code if item_name is not available
 			item_name: item.item_name || item.item_code,
 			name_overridden: item.name_overridden ? 1 : 0,
+			// Warehouse: user-selected override > item-level > POS profile default
+			warehouse: context.sale_warehouse || item.warehouse || context.pos_profile?.warehouse,
 			posa_row_id: item.posa_row_id,
 			posa_offers: item.posa_offers,
 			posa_offer_applied: item.posa_offer_applied,
