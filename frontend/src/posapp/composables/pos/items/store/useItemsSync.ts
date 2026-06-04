@@ -210,6 +210,7 @@ export function useItemsSync() {
 			groupFilter?: string;
 			searchValue?: string;
 			initialBatch?: Item[];
+			warehouse?: string | null;
 		} = {},
 		posProfile: POSProfile | null,
 		activePriceList: string,
@@ -227,6 +228,7 @@ export function useItemsSync() {
 			groupFilter = "",
 			searchValue = "",
 			initialBatch = [],
+			warehouse = null,
 		} = options;
 
 		if (!shouldPersistItems) {
@@ -291,6 +293,13 @@ export function useItemsSync() {
 			) {
 				// Clone posProfile and disable caching for this specific request
 				const requestProfile = JSON.parse(JSON.stringify(posProfile));
+				const activeWarehouse =
+					typeof warehouse === "string" && warehouse.trim().length > 0
+						? warehouse.trim()
+						: requestProfile.warehouse || null;
+				if (activeWarehouse) {
+					requestProfile.warehouse = activeWarehouse;
+				}
 				if (reset) {
 					requestProfile.posa_use_server_cache = 0;
 					requestProfile.posa_force_reload_items = 1;

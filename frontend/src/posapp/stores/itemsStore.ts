@@ -232,10 +232,17 @@ export const useItemsStore = defineStore("items", () => {
 		activeSaleWarehouse.value || posProfile.value?.warehouse || "no_warehouse";
 
 	const setActiveSaleWarehouse = (warehouse: string | null) => {
-		activeSaleWarehouse.value =
+		const resolved =
 			typeof warehouse === "string" && warehouse.trim().length > 0
 				? warehouse.trim()
 				: null;
+		activeSaleWarehouse.value = resolved;
+		if (posProfile.value && resolved) {
+			posProfile.value = {
+				...posProfile.value,
+				warehouse: resolved,
+			};
+		}
 	};
 
 	const getCacheScope = () => {
@@ -246,9 +253,6 @@ export const useItemsStore = defineStore("items", () => {
 	const getStorageScope = () => getCacheScope();
 
 	const resolveLoadItemsWarehouse = (options: LoadItemsOptions = {}) => {
-		if (!isPosWarehouseSwitcher()) {
-			return posProfile.value?.warehouse ?? null;
-		}
 		return (
 			options.warehouse ??
 			activeSaleWarehouse.value ??
@@ -460,8 +464,12 @@ export const useItemsStore = defineStore("items", () => {
 		if (!shouldPersistItems()) return;
 		if (backgroundSyncState.value.running) return;
 
+		const activeWarehouse = resolveLoadItemsWarehouse();
 		syncBackgroundSyncItems(
-			options,
+			{
+				...options,
+				warehouse: activeWarehouse,
+			},
 			posProfile.value,
 			activePriceList.value,
 			getStorageScope(),

@@ -500,10 +500,7 @@ export default {
 		};
 
 		watch(warehouse, (nextWarehouse) => {
-			if (!canChangePosWarehouse.value) {
-				return;
-			}
-			if (nextWarehouse) {
+			if (nextWarehouse && canChangePosWarehouse.value) {
 				syncPurchaseItemsWarehouse(nextWarehouse);
 			}
 			itemSearchResults.value = [];

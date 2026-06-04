@@ -615,15 +615,19 @@ export function useScanProcessor(context: ScanProcessorContext) {
 		// If not found locally, attempt to fetch from server using processed code
 		try {
 			let newItem: any = null;
+			const stockProfile = JSON.stringify(pos_profile.value || {});
 			if (qtyFromBarcode !== null) {
 				// Scale barcodes use a direct, faster lookup
 				const res = await frappe.call({
 					method: "posawesome.posawesome.api.items.get_item_detail",
 					args: {
-						item: JSON.stringify({ item_code: searchCode }),
-						warehouse: pos_profile.value.warehouse,
+						item: JSON.stringify({
+							item_code: searchCode,
+							pos_profile: pos_profile.value?.name,
+						}),
+						warehouse: pos_profile.value?.warehouse,
 						price_list: active_price_list.value,
-						company: pos_profile.value.company,
+						company: pos_profile.value?.company,
 					},
 				});
 				if (res && res.message) {
@@ -634,9 +638,10 @@ export function useScanProcessor(context: ScanProcessorContext) {
 				const res = await frappe.call({
 					method: "posawesome.posawesome.api.items.get_items",
 					args: {
-						pos_profile: pos_profile.value,
+						pos_profile: stockProfile,
 						price_list: active_price_list.value,
 						search_value: searchCode,
+						warehouse: pos_profile.value?.warehouse,
 					},
 				});
 

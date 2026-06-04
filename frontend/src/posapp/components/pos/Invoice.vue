@@ -630,6 +630,7 @@ export default {
 						row.warehouse_name || row.name;
 					this.itemsStore?.setActiveSaleWarehouse?.(row.name);
 					this.syncCartWarehouse(row.name);
+					await this.reloadItemsForWarehouse(row.name);
 				}
 			} catch (e) {
 				console.error("Failed to load active warehouse", e);
@@ -639,8 +640,15 @@ export default {
 					this.sale_warehouse_label = profileWh;
 					this.itemsStore?.setActiveSaleWarehouse?.(profileWh);
 					this.syncCartWarehouse(profileWh);
+					await this.reloadItemsForWarehouse(profileWh);
 				}
 			}
+		},
+		async reloadItemsForWarehouse(warehouse) {
+			if (!warehouse || typeof this.itemsStore?.refreshItems !== "function") {
+				return;
+			}
+			await this.itemsStore.refreshItems({ warehouse, forceServer: true });
 		},
 		async fetchWarehouses() {
 			const profileWh = this.pos_profile?.warehouse || null;
