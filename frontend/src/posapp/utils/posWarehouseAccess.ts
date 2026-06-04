@@ -7,12 +7,12 @@ export function resolveTransactionWarehouse(
 	selected: string | null | undefined,
 	profileWarehouse: string | null | undefined,
 ): string | null {
+	const trimmed =
+		typeof selected === 'string' && selected.trim().length > 0
+			? selected.trim()
+			: null;
 	if (isPosWarehouseSwitcher()) {
-		const trimmed =
-			typeof selected === 'string' && selected.trim().length > 0
-				? selected.trim()
-				: null;
 		return trimmed || profileWarehouse || null;
 	}
-	return profileWarehouse || null;
+	return trimmed || profileWarehouse || null;
 }
