@@ -381,6 +381,25 @@ export default {
 			}
 		};
 
+		const refreshCatalogForWarehouse = async (wh) => {
+			if (!wh) {
+				return;
+			}
+			itemsStore.setActiveSaleWarehouse(wh);
+			if (pos_profile.value) {
+				pos_profile.value = {
+					...pos_profile.value,
+					warehouse: wh,
+				};
+			}
+			if (typeof itemsStore.refreshItems === "function") {
+				await itemsStore.refreshItems({
+					warehouse: wh,
+					forceServer: true,
+				});
+			}
+		};
+
 		const loadActiveWarehouseLabel = async () => {
 			try {
 				const { message } = await frappe.call({
@@ -397,6 +416,7 @@ export default {
 					warehouse.value = row.name;
 					warehouseLabel.value = row.warehouse_name || row.name;
 					syncPurchaseItemsWarehouse(row.name);
+					await refreshCatalogForWarehouse(row.name);
 				}
 			} catch (error) {
 				console.error("Failed to load active warehouse:", error);
@@ -405,6 +425,7 @@ export default {
 					warehouse.value = profileWh;
 					warehouseLabel.value = profileWh;
 					syncPurchaseItemsWarehouse(profileWh);
+					await refreshCatalogForWarehouse(profileWh);
 				}
 			}
 		};
@@ -445,6 +466,7 @@ export default {
 				}
 				if (defaultWh) {
 					warehouse.value = defaultWh;
+					await refreshCatalogForWarehouse(defaultWh);
 				}
 			} catch (error) {
 				console.error("Failed to load warehouses:", error);
@@ -456,6 +478,7 @@ export default {
 					{ name: profileWh, warehouse_name: profileWh },
 				];
 				warehouse.value = profileWh;
+				await refreshCatalogForWarehouse(profileWh);
 			}
 			warehouseLoading.value = false;
 		};
@@ -499,10 +522,14 @@ export default {
 			);
 		};
 
-		watch(warehouse, (nextWarehouse) => {
-			if (nextWarehouse && canChangePosWarehouse.value) {
+		watch(warehouse, async (nextWarehouse) => {
+			if (!nextWarehouse) {
+				return;
+			}
+			if (canChangePosWarehouse.value) {
 				syncPurchaseItemsWarehouse(nextWarehouse);
 			}
+			await refreshCatalogForWarehouse(nextWarehouse);
 			itemSearchResults.value = [];
 			const term = itemSearchQuery.value?.trim();
 			if (term && term.length >= 2) {
