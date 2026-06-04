@@ -222,6 +222,7 @@ import { useCustomersStore } from "../../../stores/customersStore.js";
 import { useUIStore } from "../../../stores/uiStore.js";
 import { useToastStore } from "../../../stores/toastStore.js";
 import { getValidCachedOpeningForCurrentUser } from "../../../utils/openingCache";
+import { refreshRegisterPosProfile } from "../../../../utils/pos_profile";
 
 // Composables
 import { usePosPayData } from "../../../composables/pos/payments/usePosPayData";
@@ -701,19 +702,24 @@ export default {
 
 		const applyOpeningData = async (data) => {
 			if (!data) {
-				return;
+				return null;
 			}
-			pos_profile.value = data.pos_profile;
-			pos_opening_shift.value = data.pos_opening_shift;
-			company.value = data.company?.name || data.pos_profile?.company || "";
-			companyCurrency.value = data.company?.default_currency || data.pos_profile?.currency || null;
-			uiStore.setRegisterData(data);
-			proxy?.eventBus?.emit("payments_register_pos_profile", data);
+			const registerData = await refreshRegisterPosProfile(data);
+			pos_profile.value = registerData.pos_profile;
+			pos_opening_shift.value = registerData.pos_opening_shift;
+			company.value = registerData.company?.name || registerData.pos_profile?.company || "";
+			companyCurrency.value =
+				registerData.company?.default_currency ||
+				registerData.pos_profile?.currency ||
+				null;
+			uiStore.setRegisterData(registerData);
+			proxy?.eventBus?.emit("payments_register_pos_profile", registerData);
 			set_payment_methods();
 			await loadPaymentMethodCurrencies();
 			payment_methods_list.value = Array.isArray(pos_profile.value?.payments)
 				? pos_profile.value.payments.map((p) => p.mode_of_payment)
 				: [];
+			return registerData;
 		};
 
 		const check_opening_entry = async () => {
@@ -731,8 +737,10 @@ export default {
 					user: frappe.session.user,
 				});
 				if (r.message) {
-					await applyOpeningData(r.message);
-					setOpeningStorage(r.message);
+					const registerData = await applyOpeningData(r.message);
+					if (registerData) {
+						setOpeningStorage(registerData);
+					}
 				} else {
 					clearOpeningStorage();
 				}

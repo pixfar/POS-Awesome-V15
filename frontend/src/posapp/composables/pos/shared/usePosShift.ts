@@ -15,6 +15,7 @@ import {
 } from "../../../../offline/index";
 import { getValidCachedOpeningForCurrentUser } from "../../../utils/openingCache";
 import { createBootstrapSnapshotFromRegisterData } from "../../../../offline/bootstrapSnapshot";
+import { refreshRegisterPosProfile } from "../../../../utils/pos_profile";
 
 declare const __BUILD_VERSION__: string;
 declare const frappe: any;
@@ -126,9 +127,10 @@ export function usePosShift(openDialog?: () => void) {
 			.call("posawesome.posawesome.api.shifts.check_opening_shift", {
 				user: frappe.session.user,
 			})
-			.then((r: any) => {
+			.then(async (r: any) => {
 				if (r.message) {
-					applyRegisterData(r.message);
+					const registerData = await refreshRegisterPosProfile(r.message);
+					applyRegisterData(registerData);
 					if (pos_profile.value.taxes_and_charges) {
 						frappe.call({
 							method: "frappe.client.get",
@@ -148,7 +150,7 @@ export function usePosShift(openDialog?: () => void) {
 					}
 					console.info("LoadPosProfile");
 					try {
-						setOpeningStorage(r.message);
+						setOpeningStorage(registerData);
 					} catch (e) {
 						console.error("Failed to cache opening data", e);
 					}

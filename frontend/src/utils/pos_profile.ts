@@ -50,6 +50,7 @@ function hasProfileChanged(currentProfile: any, nextProfile: any) {
 	if (currentProfile.modified && nextProfile.modified) {
 		return currentProfile.modified !== nextProfile.modified;
 	}
+	if (currentProfile.warehouse !== nextProfile.warehouse) return true;
 	return false;
 }
 
@@ -68,64 +69,53 @@ function updateOpeningStorageProfile(profile: any) {
 	}
 }
 
-export async function ensurePosProfile() {
-	const bootProfile = frappe?.boot?.pos_profile;
-	if (
-		bootProfile &&
-		bootProfile.warehouse &&
-		bootProfile.selling_price_list
-	) {
-		await cachePrintTemplateAndTerms(bootProfile);
-		if (navigator.onLine) {
-			try {
-				const res = await frappe.call({
-					method: "posawesome.posawesome.api.utils.get_active_pos_profile",
-					args: { user: frappe.session.user },
-				});
-				if (
-					res.message &&
-					hasProfileChanged(bootProfile, res.message)
-				) {
+export async function ensurePosProfile(forceRefresh = false) {
+	if (typeof frappe === "undefined") {
+		const cached = getOpeningStorage() as any;
+		return cached?.pos_profile || null;
+	}
+
+	if (navigator.onLine) {
+		try {
+			const res = await frappe.call({
+				method: "posawesome.posawesome.api.utils.get_active_pos_profile",
+				args: { user: frappe.session.user },
+			});
+			if (res.message) {
+				const current =
+					frappe.boot?.pos_profile ||
+					(getOpeningStorage() as any)?.pos_profile;
+				if (forceRefresh || hasProfileChanged(current, res.message)) {
 					frappe.boot.pos_profile = res.message;
 					updateOpeningStorageProfile(res.message);
 					await cachePrintTemplateAndTerms(res.message);
-					return res.message;
 				}
-			} catch (e) {
-				console.error("Failed to refresh active POS profile", e);
+				return res.message;
 			}
+		} catch (e) {
+			console.error("Failed to refresh active POS profile", e);
 		}
+	}
+
+	const bootProfile = frappe?.boot?.pos_profile;
+	if (bootProfile) {
+		await cachePrintTemplateAndTerms(bootProfile);
 		return bootProfile;
 	}
-	try {
-		const res = await frappe.call({
-			method: "posawesome.posawesome.api.utils.get_active_pos_profile",
-			args: { user: frappe.session.user },
-		});
-		if (res.message) {
-			frappe.boot.pos_profile = res.message;
-			updateOpeningStorageProfile(res.message);
-			setBootstrapSnapshot(
-				createBootstrapSnapshotFromRegisterData(
-					{
-						pos_profile: res.message,
-						pos_opening_shift: (getOpeningStorage() as any)?.pos_opening_shift,
-					},
-					getBootstrapSnapshot(),
-					{ buildVersion: BUILD_VERSION },
-				),
-			);
-			await cachePrintTemplateAndTerms(res.message);
-			return res.message;
-		}
-	} catch (e) {
-		console.error("Failed to fetch active POS profile", e);
-	}
+
 	const cached = getOpeningStorage() as any;
-	if (cached && cached.pos_profile) {
+	if (cached?.pos_profile) {
 		await cachePrintTemplateAndTerms(cached.pos_profile);
 		return cached.pos_profile;
 	}
-	await cachePrintTemplateAndTerms(bootProfile);
-	return bootProfile || null;
+
+	return null;
+}
+
+export async function refreshRegisterPosProfile(registerData: any) {
+	const profile = await ensurePosProfile(true);
+	if (!profile || !registerData) {
+		return registerData;
+	}
+	return { ...registerData, pos_profile: profile };
 }
