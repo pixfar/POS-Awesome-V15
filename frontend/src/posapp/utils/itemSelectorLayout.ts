@@ -3,16 +3,15 @@
  */
 
 /**
- * Calculates the number of columns based on container width.
+ * Calculates the number of columns based on the ITEMS PANEL container width
+ * (not window width). Thresholds are tuned so each card stays at least 120px wide.
  */
-export const getCardColumns = (width: number): number => {
-    if (width <= 768) {
-        return 1;
-    }
-    if (width <= 1200) {
-        return 2;
-    }
-    return 3;
+export const getCardColumns = (containerWidth: number): number => {
+    if (containerWidth <= 250) return 1;
+    if (containerWidth <= 420) return 2;
+    if (containerWidth <= 620) return 3;
+    if (containerWidth <= 820) return 4;
+    return 5;
 };
 
 /**

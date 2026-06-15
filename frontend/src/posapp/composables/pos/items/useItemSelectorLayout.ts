@@ -18,7 +18,7 @@ type SelectorLayoutOptions = {
 export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 	const {
 		resizeDebounce = 100,
-		loadVisibleItems, // Method to load more items on scroll (pagination)
+		loadVisibleItems,
 	} = options;
 
 	// State
@@ -27,49 +27,65 @@ export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 	const itemsContainerRef = ref<any>(null);
 	const scrollThrottle = ref<number | null>(null);
 
-	// Computed Metrics
-	const cardColumns = computed(() => getCardColumns(windowWidth.value));
+	// Track the actual pixel width of the items panel via ResizeObserver.
+	// Falls back to an estimate (55 % of window) when the element isn't bound yet.
+	const observedContainerWidth = ref(0);
+	let _resizeObserver: ResizeObserver | null = null;
+
+	const setContainerElement = (el: HTMLElement | null) => {
+		if (_resizeObserver) {
+			_resizeObserver.disconnect();
+			_resizeObserver = null;
+		}
+		if (!el) {
+			observedContainerWidth.value = 0;
+			return;
+		}
+		observedContainerWidth.value = el.clientWidth;
+		_resizeObserver = new ResizeObserver((entries) => {
+			if (entries[0]) {
+				observedContainerWidth.value = entries[0].contentRect.width;
+			}
+		});
+		_resizeObserver.observe(el);
+	};
+
+	// Use observed width when available, fall back to 55 % window estimate
+	// (items panel is roughly that fraction of the full screen in POS layout).
+	const cardContainerWidth = computed(() => {
+		if (observedContainerWidth.value > 0) return observedContainerWidth.value;
+		if (itemsContainerRef.value?.$el) return itemsContainerRef.value.$el.clientWidth;
+		return windowWidth.value * 0.55;
+	});
+
+	// Computed Metrics — all driven by actual container width
+	const cardColumns = computed(() => getCardColumns(cardContainerWidth.value));
 	const cardGap = computed(() => getCardGap(windowWidth.value));
 	const cardPadding = computed(() => getCardPadding(windowWidth.value));
 
+	// Row heights = image + text content + padding, with a small equal buffer top/bottom.
 	const cardRowHeight = computed(() => {
-		if (windowWidth.value <= 768) {
-			return 260;
-		}
-		if (windowWidth.value <= 1200) {
-			return 280;
-		}
-		return 300;
+		const cols = cardColumns.value;
+		if (cols >= 5) return 158;
+		if (cols === 4) return 178;
+		if (cols === 3) return 210;
+		return 225;
 	});
 
 	const cardSlotHeight = computed(() => cardRowHeight.value + cardGap.value);
 	const cardSlotWidth = computed(() => cardColumnWidth.value + cardGap.value);
 
-	const cardContainerWidth = computed(() => {
-		// If we have a reference to the container, try to get its width
-		// Otherwise fallback to an estimated width based on window
-		if (itemsContainerRef.value && itemsContainerRef.value.$el) {
-			return itemsContainerRef.value.$el.clientWidth;
-		}
-		// Fallback estimation (e.g. 5 columns of regular grid)
-		// This is just a safe default until mounted
-		return windowWidth.value * 0.4; // Approx 40% of screen for items selector usually
-	});
-
 	const cardColumnWidth = computed(() => {
 		const columns = Math.max(1, cardColumns.value);
-		// Note: We might need a more robust way to get container width if it's dynamic
-		// Ideally pass a ref to the container element
 		const containerWidth = cardContainerWidth.value || 0;
-		if (!containerWidth) {
-			return 240; // Safe default
-		}
+		if (!containerWidth) return 180;
 
 		const gapTotal = cardGap.value * (columns - 1);
 		const paddingTotal = cardPadding.value * 2;
 		const available = Math.max(0, containerWidth - gapTotal - paddingTotal);
 		const width = Math.floor(available / columns);
-		return Math.max(180, width);
+		// Allow cards as narrow as 120 px to support 5-column layout
+		return Math.max(120, width);
 	});
 
 	// Actions
@@ -79,16 +95,14 @@ export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 
 	const scheduleCardMetricsUpdate = _.debounce(() => {
 		updateWindowWidth();
-		// Force re-evaluation of container width if needed by accessing ref
 		if (itemsContainerRef.value) {
-			// Trigger reactivity if needed, though windowWidth usually drives computed props
+			// legacy ref path — update observed width if bound
 		}
 		checkItemContainerOverflow();
 	}, resizeDebounce);
 
 	const getItemsContainerElement = (): HTMLElement | null => {
 		if (!itemsContainerRef.value) return null;
-		// Handle both Vue component ref and raw element
 		return (itemsContainerRef.value.$el ||
 			itemsContainerRef.value) as HTMLElement | null;
 	};
@@ -114,14 +128,10 @@ export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 		const headerHeight = stickyHeader ? stickyHeader.offsetHeight : 0;
 		const availableHeight = containerHeight - headerHeight;
 
-		// Only apply if calculated height is valid
 		if (availableHeight > 0) {
 			el.style.maxHeight = `${availableHeight}px`;
 			isOverflowing.value = el.scrollHeight > availableHeight;
 		}
-
-		// Also schedule metrics update as this might affect layout
-		// But be careful of infinite loops; separate updateWindowWidth logic if needed
 	};
 
 	const onListScroll = (event: Event) => {
@@ -132,9 +142,7 @@ export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 				const el = event.target as HTMLElement | null;
 				if (!el) return;
 				if (el.scrollTop + el.clientHeight >= el.scrollHeight - 50) {
-					// Trigger pagination via callback
 					if (typeof loadVisibleItems === "function") {
-						// We need access to currentPage logic, but usually loadVisibleItems handles the "next/more" logic
 						loadVisibleItems();
 					}
 				}
@@ -161,13 +169,20 @@ export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 			cancelAnimationFrame(scrollThrottle.value);
 		}
 		scheduleCardMetricsUpdate.cancel();
+		if (_resizeObserver) {
+			_resizeObserver.disconnect();
+			_resizeObserver = null;
+		}
 	});
 
 	return {
 		// Refs
 		windowWidth,
 		isOverflowing,
-		itemsContainerRef, // Bind this to the container in template
+		itemsContainerRef,
+
+		// Methods
+		setContainerElement,
 
 		// Computed
 		cardColumns,

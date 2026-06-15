@@ -179,6 +179,7 @@ import {
 	getCurrentInstance,
 	onMounted,
 	onBeforeUnmount,
+	nextTick,
 	ref,
 	computed,
 	watch,
@@ -594,10 +595,15 @@ const {
 	checkItemContainerOverflow,
 	scheduleCardMetricsUpdate,
 	onListScroll: handleListScroll,
+	setContainerElement,
 } = useItemSelectorLayout({
 	resizeDebounce: 100,
 	loadVisibleItems: () => itemsLoader.loadVisibleItems(),
 });
+
+// Template ref for the ItemsSelectorCards component — used to measure the actual
+// container width so cardColumns is based on the panel width, not the full window.
+const itemsContainer = ref<any>(null);
 
 const itemSelectorLayoutLifecycle = useItemsSelectorLayoutLifecycle({
 	displayedItems,
@@ -941,6 +947,13 @@ onMounted(async () => {
 		revealItemSearchView,
 		requestForegroundItemSearchFocus,
 		appendSearchCharacter,
+	});
+
+	// Bind the actual items panel element so cardColumns is computed from real
+	// container width instead of a window-width estimate.
+	nextTick(() => {
+		const el = itemsContainer.value?.$el || itemsContainer.value;
+		setContainerElement(el instanceof HTMLElement ? el : null);
 	});
 });
 

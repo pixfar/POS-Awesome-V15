@@ -13,6 +13,14 @@
 			>
 				{{ formattedBadgeStock }} {{ __("In Stock") }}
 			</div>
+			<div v-if="showRateInfo" class="info-btn-overlay" @click.stop>
+				<ItemRateInfoMenu
+					:rate-info="rateInfo"
+					:currency-symbol="currencySymbol"
+					:format-currency="formatCurrency"
+					:rate-precision="ratePrecision"
+				/>
+			</div>
 			<v-img
 				:src="item.image || placeholderImage"
 				class="card-item-image"
@@ -40,13 +48,6 @@
 						<span class="price-amount">
 							{{ formatCurrency(primaryRate, primaryCurrency, primaryPrecision) }}
 						</span>
-						<ItemRateInfoMenu
-							v-if="showRateInfo"
-							:rate-info="rateInfo"
-							:currency-symbol="currencySymbol"
-							:format-currency="formatCurrency"
-							:rate-precision="ratePrecision"
-						/>
 					</div>
 					<div v-if="showSecondaryPrice" class="secondary-price">
 						<span class="currency-symbol">
@@ -67,7 +68,6 @@
 					>
 						{{ formattedActualQty }}
 					</span>
-					<span class="stock-uom">{{ item.stock_uom || "" }}</span>
 				</div>
 			</div>
 		</div>
@@ -196,6 +196,9 @@ const onDragEnd = (event) => {
 	backface-visibility: hidden;
 	transform: translate3d(0, 0, 0);
 	position: relative;
+	/* Enable CSS container queries so child elements can adapt to card width */
+	container-type: inline-size;
+	container-name: item-card;
 }
 
 .card-item-card:hover {
@@ -213,10 +216,19 @@ const onDragEnd = (event) => {
 
 .card-item-image-container {
 	position: relative;
-	height: 132px;
+	height: 100px;
 	flex-shrink: 0;
 	overflow: hidden;
 	background: #f9fafb;
+}
+
+/* "i" info button pinned to top-left of the image */
+.info-btn-overlay {
+	position: absolute;
+	top: 4px;
+	left: 6px;
+	z-index: 3;
+	line-height: 0;
 }
 
 .stock-badge {
@@ -261,12 +273,12 @@ const onDragEnd = (event) => {
 }
 
 .card-item-content {
-	padding: var(--pos-space-3);
+	padding: 7px 10px;
 	display: flex;
 	flex-direction: column;
 	flex-grow: 1;
-	justify-content: space-between;
-	gap: var(--pos-space-2);
+	justify-content: flex-start;
+	gap: 4px;
 }
 
 .card-item-header {
@@ -302,7 +314,6 @@ const onDragEnd = (event) => {
 	display: flex;
 	justify-content: space-between;
 	align-items: flex-start;
-	margin-top: auto; /* Push to bottom */
 	gap: var(--pos-space-2);
 }
 
@@ -355,21 +366,86 @@ const onDragEnd = (event) => {
 	text-transform: uppercase;
 }
 
-@media (max-width: 768px) {
+/* ── Medium card (160 px – 220 px wide, e.g. 4-column layout) ── */
+@container item-card (max-width: 220px) {
 	.card-item-image-container {
-		height: 112px;
+		height: 80px;
 	}
 
 	.card-item-content {
-		padding: var(--pos-space-2);
+		padding: 8px 10px;
+		gap: 4px;
 	}
 
 	.card-item-name {
-		font-size: 0.85rem;
+		font-size: 0.8rem;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 	}
 
 	.card-item-code {
-		font-size: 0.7rem;
+		font-size: 0.65rem;
+	}
+
+	.primary-price {
+		font-size: 1rem;
+	}
+
+	.card-item-stock {
+		font-size: 0.65rem;
+		padding: 3px 5px;
+		gap: 4px;
+	}
+
+	.stock-badge {
+		font-size: 9px;
+		padding: 2px 5px;
+	}
+}
+
+/* ── Compact card (≤ 160 px wide, e.g. 5-column layout) ── */
+@container item-card (max-width: 160px) {
+	.card-item-image-container {
+		height: 64px;
+	}
+
+	.card-item-content {
+		padding: 6px 8px;
+		gap: 3px;
+	}
+
+	.card-item-name {
+		font-size: 0.72rem;
+		-webkit-line-clamp: 1;
+		line-clamp: 1;
+	}
+
+	.card-item-code {
+		font-size: 0.6rem;
+	}
+
+	.card-item-details {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 3px;
+	}
+
+	.primary-price {
+		font-size: 0.88rem;
+		gap: 2px;
+	}
+
+	.card-item-stock {
+		font-size: 0.6rem;
+		padding: 2px 4px;
+		gap: 3px;
+	}
+
+	.stock-badge {
+		font-size: 8px;
+		padding: 1px 4px;
+		top: 5px;
+		right: 5px;
 	}
 }
 </style>
