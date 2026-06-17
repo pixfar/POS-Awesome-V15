@@ -236,9 +236,9 @@ const onDragEnd = (event) => {
 	top: 8px;
 	right: 8px;
 	z-index: 2;
-	font-size: 10px;
+	font-size: 13px;
 	font-weight: 700;
-	padding: 2px 6px;
+	padding: 3px 8px;
 	border-radius: 6px;
 	border: 1px solid transparent;
 }
@@ -398,8 +398,8 @@ const onDragEnd = (event) => {
 	}
 
 	.stock-badge {
-		font-size: 9px;
-		padding: 2px 5px;
+		font-size: 11px;
+		padding: 2px 6px;
 	}
 }
 
@@ -442,8 +442,8 @@ const onDragEnd = (event) => {
 	}
 
 	.stock-badge {
-		font-size: 8px;
-		padding: 1px 4px;
+		font-size: 10px;
+		padding: 2px 5px;
 		top: 5px;
 		right: 5px;
 	}

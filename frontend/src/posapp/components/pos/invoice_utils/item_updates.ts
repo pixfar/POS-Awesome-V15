@@ -17,6 +17,8 @@ export async function update_items_details(context: any, items: any[]) {
 	);
 
 	try {
+		const activeWarehouse =
+			context.sale_warehouse || context.pos_profile?.warehouse || null;
 		const response = await frappe.call({
 			method: "posawesome.posawesome.api.items.get_items_details",
 			args: {
@@ -25,6 +27,7 @@ export async function update_items_details(context: any, items: any[]) {
 				price_list: context.get_price_list
 					? context.get_price_list()
 					: null,
+				warehouse: activeWarehouse,
 			},
 		});
 

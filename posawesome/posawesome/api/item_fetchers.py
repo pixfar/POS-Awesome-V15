@@ -555,13 +555,14 @@ class ItemDetailAggregator:
         pos_profile: Dict[str, Any],
         price_list: Optional[str] = None,
         customer: Optional[str] = None,
+        warehouse: Optional[str] = None,
     ) -> None:
         self.pos_profile = pos_profile
         self.customer = customer
         self.price_list = price_list or pos_profile.get("selling_price_list")
         self.cache_ttl = self._resolve_ttl()
         self.today = nowdate()
-        self.warehouse = pos_profile.get("warehouse")
+        self.warehouse = warehouse or pos_profile.get("warehouse")
         self.price_list_currency = self._determine_price_list_currency()
         self.exchange_rate = self._compute_exchange_rate()
 

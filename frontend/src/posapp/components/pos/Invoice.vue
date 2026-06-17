@@ -667,12 +667,15 @@ export default {
 							: null,
 					},
 				});
-				this.warehouses = (result.message || []).map((w) => ({
+				const msg = result.message || {};
+				const warehouseList = Array.isArray(msg) ? msg : (msg.warehouses || []);
+				const suggestedDefault = Array.isArray(msg) ? null : (msg.default_warehouse || null);
+				this.warehouses = warehouseList.map((w) => ({
 					value: w.name,
 					label: w.warehouse_name || w.name,
 				}));
 				const permitted = this.warehouses.map((w) => w.value);
-				let defaultWh = profileWh;
+				let defaultWh = suggestedDefault || profileWh;
 				if (defaultWh && permitted.length && !permitted.includes(defaultWh)) {
 					defaultWh = permitted[0];
 				}

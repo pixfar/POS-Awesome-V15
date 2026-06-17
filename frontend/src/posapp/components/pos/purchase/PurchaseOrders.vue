@@ -62,32 +62,6 @@
 								<!-- Col 3: Purchase Options (Warehouse, Date, Toggles) -->
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
 									<div class="sale-options-body">
-										<v-autocomplete
-											v-if="canChangePosWarehouse && warehouseOptions.length"
-											v-model="warehouse"
-											:items="warehouseOptions"
-											item-title="warehouse_name"
-											item-value="name"
-											:label="frappe._('Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											:loading="warehouseLoading"
-											class="pos-themed-input mb-2"
-										/>
-										<v-text-field
-											v-else-if="warehouse"
-											:model-value="warehouseLabel || warehouse"
-											:label="frappe._('Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											prepend-inner-icon="mdi-warehouse"
-											class="pos-themed-input mb-2"
-										/>
 										<div class="sale-options-toggles">
 											<v-switch
 												v-model="updateStock"
@@ -106,6 +80,32 @@
 												class="sale-opt-switch"
 											/>
 										</div>
+										<v-autocomplete
+											v-if="canChangePosWarehouse && warehouseOptions.length"
+											v-model="warehouse"
+											:items="warehouseOptions"
+											item-title="warehouse_name"
+											item-value="name"
+											:label="frappe._('Warehouse')"
+											density="compact"
+											variant="outlined"
+											color="primary"
+											hide-details
+											:loading="warehouseLoading"
+											class="pos-themed-input mt-2"
+										/>
+										<v-text-field
+											v-else-if="warehouse"
+											:model-value="warehouseLabel || warehouse"
+											:label="frappe._('Warehouse')"
+											density="compact"
+											variant="outlined"
+											color="primary"
+											hide-details
+											readonly
+											prepend-inner-icon="mdi-warehouse"
+											class="pos-themed-input mt-2"
+										/>
 									</div>
 								</v-card>
 							</div>
@@ -318,6 +318,7 @@ export default {
 			posProfile: pos_profile,
 			receiveNow: receiveNow,
 			formatFloat: (val, prec) => format.methods.formatFloat.call({ currency_precision: 2 }, val, prec),
+			eventBus,
 		});
 
 		const supplierOptions = ref([]);
@@ -449,11 +450,12 @@ export default {
 							: null,
 					},
 				});
-				warehouseOptions.value = message || [];
-				const permitted = (warehouseOptions.value || []).map(
-					(row) => row.name,
-				);
-				let defaultWh = pos_profile.value?.warehouse || null;
+				const msg = message || {};
+				const warehouseList = Array.isArray(msg) ? msg : (msg.warehouses || []);
+				const suggestedDefault = Array.isArray(msg) ? null : (msg.default_warehouse || null);
+				warehouseOptions.value = warehouseList;
+				const permitted = warehouseList.map((row) => row.name);
+				let defaultWh = suggestedDefault || pos_profile.value?.warehouse || null;
 				if (
 					defaultWh &&
 					permitted.length &&

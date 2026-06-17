@@ -32,8 +32,9 @@ export function usePurchaseOrder(options: {
 	posProfile: Ref<any>;
 	receiveNow: Ref<boolean>;
 	formatFloat: (_val: any, _prec?: number) => number;
+	eventBus?: any;
 }) {
-	const { posProfile, receiveNow } = options;
+	const { posProfile, receiveNow, eventBus } = options;
 	const itemsStore = useItemsStore();
 
 	const purchaseItems = ref<PurchaseItem[]>([]);
@@ -64,6 +65,17 @@ export function usePurchaseOrder(options: {
 
 	const generateLineId = () => {
 		return `pi_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+	};
+
+	const emitPurchaseCartQuantities = () => {
+		if (!eventBus) return;
+		const totals: Record<string, number> = {};
+		purchaseItems.value.forEach((item) => {
+			if (!item.item_code) return;
+			const stockQty = item.qty * (item.conversion_factor || 1);
+			totals[item.item_code] = (totals[item.item_code] || 0) + stockQty;
+		});
+		eventBus.emit("cart_quantities_updated", totals);
 	};
 
 	const fetchSupplierInfo = async (supplierName: string) => {
@@ -177,6 +189,7 @@ export function usePurchaseOrder(options: {
 				updateItemUom(newItem, newItem.uom);
 			}
 		}
+		emitPurchaseCartQuantities();
 	};
 
 	const updateItemUom = async (item: PurchaseItem, value: string) => {
@@ -222,6 +235,7 @@ export function usePurchaseOrder(options: {
 		if (receiveNow.value && !item.receivedQtyManual) {
 			item.received_qty = item.qty;
 		}
+		emitPurchaseCartQuantities();
 	};
 
 	const updateItemRate = (item: PurchaseItem, value: any) => {
@@ -239,6 +253,7 @@ export function usePurchaseOrder(options: {
 		purchaseItems.value = purchaseItems.value.filter(
 			(row) => row.line_id !== item.line_id,
 		);
+		emitPurchaseCartQuantities();
 	};
 
 	const syncPurchaseItemsWarehouse = (targetWarehouse: string | null) => {
@@ -265,6 +280,7 @@ export function usePurchaseOrder(options: {
 		receiveNow.value = false;
 		updateStock.value = true;
 		customIsPaid.value = true;
+		emitPurchaseCartQuantities();
 	};
 
 	return {
