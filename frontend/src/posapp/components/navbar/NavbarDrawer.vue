@@ -27,20 +27,51 @@
 				<v-divider />
 
 				<v-list density="compact" nav v-model:selected="activeItem" selected-class="active-item">
-					<v-list-item
-						v-for="(item, index) in items"
-						:key="item.text"
-						:value="index"
-						:to="item.to"
-						@click="handleItemClick"
-						class="drawer-item"
-						active-class="active-item"
-					>
-						<template v-slot:prepend>
-							<v-icon class="drawer-icon">{{ item.icon }}</v-icon>
-						</template>
-						<v-list-item-title class="drawer-item-title">{{ item.text }}</v-list-item-title>
-					</v-list-item>
+					<template v-for="(item, index) in items" :key="item.text">
+						<!-- Item with sub-menu -->
+						<v-list-group v-if="item.children && item.children.length" :value="item.text">
+							<template v-slot:activator="{ props: groupProps }">
+								<v-list-item
+									v-bind="groupProps"
+									class="drawer-item"
+									active-class="active-item"
+								>
+									<template v-slot:prepend>
+										<v-icon class="drawer-icon">{{ item.icon }}</v-icon>
+									</template>
+									<v-list-item-title class="drawer-item-title">{{ item.text }}</v-list-item-title>
+								</v-list-item>
+							</template>
+							<v-list-item
+								v-for="child in item.children"
+								:key="child.text"
+								:to="child.to"
+								@click="handleItemClick"
+								class="drawer-item drawer-item--child"
+								active-class="active-item"
+							>
+								<template v-slot:prepend>
+									<v-icon class="drawer-icon" size="18">{{ child.icon }}</v-icon>
+								</template>
+								<v-list-item-title class="drawer-item-title">{{ child.text }}</v-list-item-title>
+							</v-list-item>
+						</v-list-group>
+
+						<!-- Plain item -->
+						<v-list-item
+							v-else
+							:value="index"
+							:to="item.to"
+							@click="handleItemClick"
+							class="drawer-item"
+							active-class="active-item"
+						>
+							<template v-slot:prepend>
+								<v-icon class="drawer-icon">{{ item.icon }}</v-icon>
+							</template>
+							<v-list-item-title class="drawer-item-title">{{ item.text }}</v-list-item-title>
+						</v-list-item>
+					</template>
 				</v-list>
 				<!-- Sport section, hidden by default -->
 				<div v-if="showSport">

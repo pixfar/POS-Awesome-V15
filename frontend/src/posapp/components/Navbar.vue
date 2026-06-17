@@ -299,6 +299,14 @@ export default {
 			baseItems: [
 				{ text: "POS", icon: "mdi-network-pos", to: "/pos" },
 				{ text: "Purchase Invoice", icon: "mdi-cart-plus", to: "/orders" },
+				{
+					text: "Payment",
+					icon: "mdi-cash-multiple",
+					children: [
+						{ text: "Customer", icon: "mdi-account", to: "/payments/customer" },
+						{ text: "Supplier", icon: "mdi-truck-delivery", to: "/payments/supplier" },
+					],
+				},
 			],
 			items: [],
 			company: "POS Awesome",

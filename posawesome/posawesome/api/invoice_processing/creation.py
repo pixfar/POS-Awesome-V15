@@ -647,6 +647,52 @@ def _get_mutable_invoice_doc(data, doctype):
     return invoice_doc
 
 
+def _resolve_territory_for_warehouse(warehouse):
+    """Return the Territory name that best represents a given warehouse.
+
+    Lookup order:
+    1. custom_territory field on the Warehouse document (admin-configured).
+    2. Exact match: Territory whose name equals the warehouse name.
+    3. Exact match: Territory whose name equals the warehouse_name (without company suffix).
+    """
+    if not warehouse:
+        return None
+    wh_data = frappe.db.get_value(
+        "Warehouse", warehouse, ["custom_territory", "warehouse_name"], as_dict=True
+    )
+    if not wh_data:
+        return None
+    # 1. Admin-configured mapping
+    if wh_data.custom_territory:
+        return wh_data.custom_territory
+    # 2. Exact match on the full warehouse name
+    if frappe.db.exists("Territory", warehouse):
+        return warehouse
+    # 3. Exact match on warehouse_name (strips " - ABBR" company suffix)
+    wh_name = (wh_data.warehouse_name or "").strip()
+    if wh_name and frappe.db.exists("Territory", wh_name):
+        return wh_name
+    return None
+
+
+def _set_territory_from_warehouse(invoice_doc, pos_profile=None):
+    """Populate territory from the warehouse used in this invoice.
+
+    Priority: POS profile warehouse → invoice set_warehouse → first item warehouse.
+    """
+    warehouse = None
+    if pos_profile:
+        warehouse = frappe.get_cached_value("POS Profile", pos_profile, "warehouse")
+    if not warehouse:
+        warehouse = invoice_doc.get("set_warehouse")
+    if not warehouse and invoice_doc.items:
+        first = invoice_doc.items[0]
+        warehouse = first.get("warehouse") if isinstance(first, dict) else getattr(first, "warehouse", None)
+    territory = _resolve_territory_for_warehouse(warehouse)
+    if territory:
+        invoice_doc.territory = territory
+
+
 def _save_draft_with_latest_timestamp(invoice_doc, retries=2):
     attempts = 0
 
@@ -817,6 +863,9 @@ def update_invoice(data):
     invoice_doc.set_missing_values()
     if effective_price_list:
         invoice_doc.selling_price_list = effective_price_list
+
+    # Override territory with the warehouse name (so invoices are attributed to their warehouse)
+    _set_territory_from_warehouse(invoice_doc, pos_profile)
 
     _set_return_valid_upto(invoice_doc, return_validity_enabled, default_validity_days)
 

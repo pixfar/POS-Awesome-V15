@@ -34,19 +34,16 @@
 								class="pay-mode-toggle pay-mode-toggle--party"
 							>
 								<v-btn
-									v-for="option in allowedPartyTypes"
-									:key="option"
-									:value="option"
-									:class="[
-										'pay-mode-btn',
-										option === 'Customer'
-											? 'pay-mode-btn--customer'
-											: option === 'Supplier'
-												? 'pay-mode-btn--supplier'
-												: 'pay-mode-btn--employee',
-									]"
+									value="Customer"
+									class="pay-mode-btn pay-mode-btn--customer"
 								>
-									{{ __(option) }}
+									{{ __("Customer") }}
+								</v-btn>
+								<v-btn
+									value="Supplier"
+									class="pay-mode-btn pay-mode-btn--supplier"
+								>
+									{{ __("Supplier") }}
 								</v-btn>
 							</v-btn-toggle>
 						</div>
@@ -1000,6 +997,13 @@ export default {
 		watch(
 			partyType,
 			(newVal, oldVal) => {
+				// Auto-derive payment direction: Supplier → Pay, Customer → Receive
+				const impliedPaymentType = newVal === "Supplier" ? "Pay" : "Receive";
+				if (paymentEntryType.value !== impliedPaymentType) {
+					paymentEntryType.value = impliedPaymentType;
+					if (newVal !== "Customer") handlePartySearch("");
+					return; // paymentEntryType watch will reset context
+				}
 				const normalized = normalizePartyTypeForPaymentType(paymentEntryType.value, newVal);
 				if (normalized !== newVal) {
 					partyType.value = normalized;

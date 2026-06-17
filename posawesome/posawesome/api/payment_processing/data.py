@@ -159,6 +159,11 @@ def get_outstanding_invoices(
         pos_profile = _coerce_text_filter(pos_profile, _("POS Profile"))
         include_all_currencies = _coerce_bool(include_all_currencies, default=False)
 
+        if not company:
+            company = (
+                frappe.defaults.get_user_default("Company")
+                or frappe.defaults.get_global_default("Company")
+            )
         if not customer or not company:
             return []
 

@@ -31,8 +31,19 @@ const routes = [
 	},
 	{
 		path: "/payments",
-		component: () => import("../components/pos/shell/PayView.vue"),
-		meta: { title: "Payments", layout: "default", loadingMessage: "Loading payments..." },
+		redirect: "/payments/customer",
+	},
+	{
+		path: "/payments/customer",
+		component: () => import("../components/pos/payment/PaymentView.vue"),
+		meta: { title: "Customer Payment", layout: "default", loadingMessage: "Loading customer payment..." },
+		props: { partyType: "Customer" },
+	},
+	{
+		path: "/payments/supplier",
+		component: () => import("../components/pos/payment/PaymentView.vue"),
+		meta: { title: "Supplier Payment", layout: "default", loadingMessage: "Loading supplier payment..." },
+		props: { partyType: "Supplier" },
 	},
 	{
 		path: "/gift-cards",

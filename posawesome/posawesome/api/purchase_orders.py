@@ -10,6 +10,7 @@ from erpnext.accounts.party import get_party_account
 
 
 from .utils import get_active_pos_profile, get_default_warehouse
+from .invoice_processing.creation import _resolve_territory_for_warehouse
 
 
 def _resolve_pos_profile(pos_profile):
@@ -737,6 +738,11 @@ def _create_purchase_invoice_from_pos(payload):
     if not invoice.items:
         frappe.throw(_("Purchase Invoice requires at least one item with quantity."))
 
+    # Set territory from warehouse (so invoices are attributed to their warehouse)
+    territory = _resolve_territory_for_warehouse(warehouse)
+    if territory:
+        invoice.territory = territory
+
     payments = payload.get("payments") or []
     meaningful_payments = [
         pay for pay in payments if flt(pay.get("amount")) > 0
@@ -746,6 +752,12 @@ def _create_purchase_invoice_from_pos(payload):
     invoice.flags.ignore_permissions = True
     frappe.flags.ignore_account_permission = True
     invoice.save()
+    # Suppress "Expense Head Changed" toast — expected when update_stock=1 and the
+    # item's default expense account differs from the warehouse valuation account.
+    frappe.local.message_log[:] = [
+        m for m in frappe.local.message_log
+        if "Expense Head" not in (m.get("title", "") if isinstance(m, dict) else str(m))
+    ]
 
     # Purchase Invoices always support partial payment from POS.
     total_paid = sum(flt(pay.get("amount")) for pay in meaningful_payments)
@@ -754,12 +766,13 @@ def _create_purchase_invoice_from_pos(payload):
         resolved_is_paid = _resolve_purchase_invoice_custom_is_paid(
             payload, meaningful_payments, invoice.grand_total
         )
-        if pos_handles_payment:
-            # POS records payment after submit; avoid duplicate PE on submit.
-            invoice.custom_is_paid = 0
-        else:
-            invoice.custom_is_paid = resolved_is_paid
-        invoice.save()
+        # Use db-level write to avoid re-running validate() (which would cause
+        # "Cannot Update After Submit" on the is_paid field in edge cases where
+        # ERPNext has already set is_paid=1 internally during the first save).
+        initial_is_paid = 0 if pos_handles_payment else resolved_is_paid
+        frappe.db.set_value(
+            "Purchase Invoice", invoice.name, "custom_is_paid", initial_is_paid, update_modified=False
+        )
 
     frappe.db.commit()
 
@@ -771,6 +784,11 @@ def _create_purchase_invoice_from_pos(payload):
                 invoice.submit()
             finally:
                 frappe.flags.skip_purchase_invoice_auto_payment = False
+            # Suppress "Expense Head Changed" again — validate() re-runs during submit.
+            frappe.local.message_log[:] = [
+                m for m in frappe.local.message_log
+                if "Expense Head" not in (m.get("title", "") if isinstance(m, dict) else str(m))
+            ]
 
         payment_names = []
         if pos_handles_payment:

@@ -68,14 +68,8 @@ export function usePurchaseOrder(options: {
 	};
 
 	const emitPurchaseCartQuantities = () => {
-		if (!eventBus) return;
-		const totals: Record<string, number> = {};
-		purchaseItems.value.forEach((item) => {
-			if (!item.item_code) return;
-			const stockQty = item.qty * (item.conversion_factor || 1);
-			totals[item.item_code] = (totals[item.item_code] || 0) + stockQty;
-		});
-		eventBus.emit("cart_quantities_updated", totals);
+		// Purchase cart items are incoming stock, not reservations — do not emit
+		// cart_quantities_updated here as that would subtract from displayed availability.
 	};
 
 	const fetchSupplierInfo = async (supplierName: string) => {
