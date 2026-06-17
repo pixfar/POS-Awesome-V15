@@ -749,6 +749,11 @@ def _create_purchase_invoice_from_pos(payload):
     ]
     pos_handles_payment = bool(meaningful_payments)
 
+    if _purchase_invoice_has_custom_is_paid():
+        # Override custom field default (1) — POS uses custom_is_paid, not is_paid.
+        invoice.is_paid = 0
+        invoice.custom_is_paid = 0
+
     invoice.flags.ignore_permissions = True
     frappe.flags.ignore_account_permission = True
     invoice.save()
@@ -766,13 +771,13 @@ def _create_purchase_invoice_from_pos(payload):
         resolved_is_paid = _resolve_purchase_invoice_custom_is_paid(
             payload, meaningful_payments, invoice.grand_total
         )
-        # Use db-level write to avoid re-running validate() (which would cause
-        # "Cannot Update After Submit" on the is_paid field in edge cases where
-        # ERPNext has already set is_paid=1 internally during the first save).
         initial_is_paid = 0 if pos_handles_payment else resolved_is_paid
-        frappe.db.set_value(
-            "Purchase Invoice", invoice.name, "custom_is_paid", initial_is_paid, update_modified=False
-        )
+        # Keep in-memory doc aligned with DB before submit. db_set alone left
+        # custom_is_paid=1 (field default) on the object while the DB had 0,
+        # which caused post-submit is_paid / custom_is_paid validation errors.
+        invoice.is_paid = 0
+        invoice.custom_is_paid = initial_is_paid
+        invoice.save()
 
     frappe.db.commit()
 
@@ -799,10 +804,14 @@ def _create_purchase_invoice_from_pos(payload):
 
         if _purchase_invoice_has_custom_is_paid():
             invoice.reload()
-            if flt(invoice.outstanding_amount) <= 0.001:
-                invoice.db_set("custom_is_paid", 1, update_modified=False)
-            else:
-                invoice.db_set("custom_is_paid", 0, update_modified=False)
+            paid_flag = 1 if flt(invoice.outstanding_amount) <= 0.001 else 0
+            frappe.db.set_value(
+                "Purchase Invoice",
+                invoice.name,
+                "custom_is_paid",
+                paid_flag,
+                update_modified=False,
+            )
 
         return {
             "purchase_invoice": invoice.name,

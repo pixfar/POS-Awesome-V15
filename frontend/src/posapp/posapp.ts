@@ -34,6 +34,7 @@ import {
 } from "./utils/chunkLoadRecovery";
 import { finalizePendingBundleActivation } from "./utils/bundleVersionActivation";
 import { reconcileBuildChangeOnStartup } from "./utils/buildCacheReconciler";
+import { ONLINE_ONLY_MODE } from "./config/runtime";
 import { initPromise, isOffline } from "../offline";
 import App from "./App.vue";
 // @ts-ignore
@@ -59,10 +60,16 @@ if (typeof frappe === "undefined") {
 }
 
 export async function initPosStorage() {
+	if (ONLINE_ONLY_MODE) {
+		return;
+	}
 	await initPromise;
 }
 
 export async function runPosBootSync() {
+	if (ONLINE_ONLY_MODE) {
+		return;
+	}
 	const buildVersion =
 		typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : null;
 	await reconcileBuildChangeOnStartup({

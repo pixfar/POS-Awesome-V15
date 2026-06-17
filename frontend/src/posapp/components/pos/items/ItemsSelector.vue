@@ -408,14 +408,14 @@ const isReturnInvoice = computed(() => {
 });
 
 const blockSaleBeyondAvailableQty = computed(() => {
-	if (props.context === "purchase" || invoiceTypeDefersStockValidation.value) {
+	if (props.context === "purchase" || props.context === "requisition" || props.context === "material_transfer" || invoiceTypeDefersStockValidation.value) {
 		return false;
 	}
 	return parseBooleanSetting(pos_profile.value?.posa_block_sale_beyond_available_qty);
 });
 
 const deferStockValidationToPayment = computed(
-	() => props.context === "purchase" || invoiceTypeDefersStockValidation.value,
+	() => props.context === "purchase" || props.context === "requisition" || props.context === "material_transfer" || invoiceTypeDefersStockValidation.value,
 );
 const forceCustomerPriceList = computed(() =>
 	parseBooleanSetting(pos_profile.value?.posa_force_price_from_customer_price_list),
@@ -571,7 +571,7 @@ const { getLastBuyingRate, scheduleLastBuyingRateRefresh, clearLastBuyingRateCac
 });
 
 const getLastRateForContext = (item: any) => {
-	if (props.context === "purchase") {
+	if (props.context === "purchase" || props.context === "requisition" || props.context === "material_transfer") {
 		return getLastBuyingRate(item);
 	}
 	return getLastInvoiceRate(item);

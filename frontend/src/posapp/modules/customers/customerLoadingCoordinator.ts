@@ -1,3 +1,5 @@
+import { ONLINE_ONLY_MODE } from "../../config/runtime";
+
 type CustomerProfile = {
 	name?: string | null;
 	modified?: string | null;
@@ -44,6 +46,10 @@ export async function ensureCustomersReady({
 	}
 
 	setProfile(profile as CustomerProfile);
+
+	if (ONLINE_ONLY_MODE) {
+		return false;
+	}
 
 	if (!online || manualOffline) {
 		return false;

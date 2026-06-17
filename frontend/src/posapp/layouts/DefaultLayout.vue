@@ -152,6 +152,7 @@ import {
 	resolveBootstrapWarningUiState,
 	shouldLiftBootstrapWarningStartupGate,
 } from "../utils/bootstrapWarningVisibility";
+import { ONLINE_ONLY_MODE } from "../config/runtime";
 
 /**
  * Frappe Desk UI selectors to hide in POS view.
@@ -290,7 +291,13 @@ let removeBootstrapSnapshotListener = null;
 const eventBus = instance?.proxy?.eventBus;
 
 // Initialize loading sources immediately in setup so watchers can mark them 100%
-initLoadingSources(["init", "items", "customers"]);
+initLoadingSources(
+	ONLINE_ONLY_MODE ? ["init"] : ["init", "items", "customers"],
+);
+if (ONLINE_ONLY_MODE) {
+	markSourceLoaded("items");
+	markSourceLoaded("customers");
+}
 
 const bootSync = useBootSync({
 	offlineSyncRuntime,
@@ -325,6 +332,12 @@ const customerReadiness = useCustomerReadiness({
 	setProfile: customersStore.setPosProfile,
 	load: customersStore.get_customer_names,
 	onProfileReady: () => {
+		if (ONLINE_ONLY_MODE) {
+			if (navigator.onLine && !getIsManualOffline()) {
+				void refreshTaxInclusiveSetting();
+			}
+			return;
+		}
 		void scheduleBootCriticalWarmSync();
 		if (navigator.onLine && !getIsManualOffline()) {
 			void refreshTaxInclusiveSetting();
@@ -412,6 +425,33 @@ function buildBootstrapConfirmationMessage(validation) {
 }
 
 function evaluateBootstrapSnapshot(options = {}) {
+	if (ONLINE_ONLY_MODE) {
+		const validation = {
+			mode: "normal",
+			reasons: [],
+			missingPrerequisites: [],
+			capabilities: {},
+			capabilitySummaries: [],
+		};
+		const decision = {
+			mode: "normal",
+			limitedMode: false,
+			requiresConfirmation: false,
+			warningCodes: [],
+			capabilities: {},
+			capabilitySummaries: [],
+			primaryWarning: {
+				active: false,
+				title: "",
+				messages: [],
+				severity: "info",
+				capabilityId: "snapshot",
+			},
+		};
+		persistBootstrapRuntime(validation, decision);
+		return decision;
+	}
+
 	const allowPrompt = !!options.allowPrompt;
 	const snapshot = ensureBootstrapSnapshotIsCurrent();
 	const validation = validateBootstrapSnapshot(snapshot, buildCurrentBootstrapValidationInput());
@@ -614,6 +654,10 @@ const bootstrapWarningTitle = computed(() => {
 	return "";
 });
 const bootstrapWarningMessages = computed(() => {
+	if (ONLINE_ONLY_MODE) {
+		return [];
+	}
+
 	if (!shouldShowBootstrapBanner(bootstrapStatus.value)) {
 		return [];
 	}
@@ -715,7 +759,8 @@ watch(
 			areWarningsReady &&
 			isNetworkOnline &&
 			isServerOnline &&
-			!isServerConnecting
+			!isServerConnecting &&
+			!ONLINE_ONLY_MODE
 		) {
 			void runStartupOfflineDataWarmup("post_load_online");
 		}
@@ -726,6 +771,9 @@ watch(
 watch(
 	loadProgress,
 	(progress) => {
+		if (ONLINE_ONLY_MODE) {
+			return;
+		}
 		setSourceProgress("customers", progress);
 	},
 	{ immediate: true },
@@ -774,7 +822,7 @@ watch(
 watch(
 	customersLoaded,
 	(loaded) => {
-		if (loaded) {
+		if (loaded && !ONLINE_ONLY_MODE) {
 			markSourceLoaded("customers");
 		}
 	},
@@ -784,6 +832,9 @@ watch(
 watch(
 	itemsLoadProgress,
 	(progress) => {
+		if (ONLINE_ONLY_MODE) {
+			return;
+		}
 		setSourceProgress("items", progress);
 	},
 	{ immediate: true },
@@ -792,7 +843,7 @@ watch(
 watch(
 	itemsLoaded,
 	(loaded) => {
-		if (loaded) {
+		if (loaded && !ONLINE_ONLY_MODE) {
 			markSourceLoaded("items");
 		}
 	},
@@ -866,12 +917,15 @@ const pollForFrappeNav = (maxAttempts = 50, interval = 100) => {
 };
 
 const initializeData = async () => {
-	await initPromise;
-	await memoryInitPromise;
-	await ensureOfflineQueueReady();
-	await hydrateOfflineSyncResourceStates();
-	checkDbHealth().catch(() => {});
-	// Offline-first bootstrap: hydrate register state from IndexedDB before server checks.
+	if (!ONLINE_ONLY_MODE) {
+		await initPromise;
+		await memoryInitPromise;
+		await ensureOfflineQueueReady();
+		await hydrateOfflineSyncResourceStates();
+		checkDbHealth().catch(() => {});
+	}
+
+	// Hydrate register state from cache when available (opening shift only).
 	const openingData = getValidCachedOpeningForCurrentUser(getOpeningStorage(), frappe?.session?.user);
 	if (openingData) {
 		uiStore.setRegisterData(openingData);
@@ -880,17 +934,19 @@ const initializeData = async () => {
 		}
 	}
 
-	if (queueHealthCheck()) {
-		alert("Offline queue is too large. Old entries will be purged.");
-		purgeOldQueueEntries();
+	if (!ONLINE_ONLY_MODE) {
+		if (queueHealthCheck()) {
+			alert("Offline queue is too large. Old entries will be purged.");
+			purgeOldQueueEntries();
+		}
+
+		await syncStore.updatePendingCount();
+		syncTotals.value = getLastSyncTotals();
+
+		void checkCacheCapacity(90, () => {
+			alert("Local cache nearing capacity. Consider going online to sync.");
+		});
 	}
-
-	await syncStore.updatePendingCount();
-	syncTotals.value = getLastSyncTotals();
-
-	void checkCacheCapacity(90, () => {
-		alert("Local cache nearing capacity. Consider going online to sync.");
-	});
 
 	// Check if running on IP host
 	isIpHost.value = /^\d+\.\d+\.\d+\.\d+/.test(window.location.hostname);
@@ -902,14 +958,20 @@ const initializeData = async () => {
 		serverOnline.value = false;
 		window.serverOnline = false;
 	}
-	evaluateBootstrapSnapshot({
-		allowPrompt: manualOffline.value || !navigator.onLine,
-	});
-	await scheduleBootCriticalWarmSync();
-	await refreshOfflinePricingRules();
-	evaluateBootstrapSnapshot({ allowPrompt: false });
-	initialBootstrapSyncSettled.value = true;
-	void runStartupOfflineDataWarmup("initial_load");
+
+	if (!ONLINE_ONLY_MODE) {
+		evaluateBootstrapSnapshot({
+			allowPrompt: manualOffline.value || !navigator.onLine,
+		});
+		await scheduleBootCriticalWarmSync();
+		await refreshOfflinePricingRules();
+		evaluateBootstrapSnapshot({ allowPrompt: false });
+		initialBootstrapSyncSettled.value = true;
+		void runStartupOfflineDataWarmup("initial_load");
+	} else {
+		initialBootstrapSyncSettled.value = true;
+		startupBootstrapWarningsReady.value = true;
+	}
 
 	markSourceLoaded("init");
 };

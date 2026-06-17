@@ -76,8 +76,9 @@ export function usePosPaySelection({
 			selected_invoices.value.splice(index, 1);
 		} else {
 			selected_invoices.value.push(item);
-			if (item.customer && !customerName.value && onCustomerSelected) {
-				onCustomerSelected(item.customer);
+			const party = item.party || item.customer;
+			if (party && !customerName.value && onCustomerSelected) {
+				onCustomerSelected(party);
 			}
 		}
 	}

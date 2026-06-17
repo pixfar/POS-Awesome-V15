@@ -20,6 +20,54 @@ const routes = [
 		meta: { title: "POS", layout: "default", loadingMessage: "Loading POS..." },
 	},
 	{
+		path: "/requisitions",
+		redirect: "/requisitions/list",
+	},
+	{
+		path: "/requisitions/list",
+		component: () =>
+			import("../components/pos/requisition/RequisitionList.vue"),
+		meta: {
+			title: "Requisitions",
+			layout: "default",
+			loadingMessage: "Loading requisitions...",
+		},
+	},
+	{
+		path: "/requisitions/new",
+		component: () =>
+			import("../components/pos/requisition/RequisitionNew.vue"),
+		meta: {
+			title: "New Requisition",
+			layout: "default",
+			loadingMessage: "Loading new requisition...",
+		},
+	},
+	{
+		path: "/material-transfers",
+		redirect: "/material-transfers/list",
+	},
+	{
+		path: "/material-transfers/list",
+		component: () =>
+			import("../components/pos/material_transfer/MaterialTransferList.vue"),
+		meta: {
+			title: "Material Transfers",
+			layout: "default",
+			loadingMessage: "Loading material transfers...",
+		},
+	},
+	{
+		path: "/material-transfers/new",
+		component: () =>
+			import("../components/pos/material_transfer/MaterialTransferNew.vue"),
+		meta: {
+			title: "New Material Transfer",
+			layout: "default",
+			loadingMessage: "Loading new material transfer...",
+		},
+	},
+	{
 		path: "/orders",
 		component: () =>
 			import("../components/pos/purchase/PurchaseOrders.vue"),

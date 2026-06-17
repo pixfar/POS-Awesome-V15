@@ -13,6 +13,7 @@ import {
 	customerMatchesSearchTerm,
 	normalizeCustomerSearchTerm,
 } from "./customers/customerSearch";
+import { ONLINE_ONLY_MODE } from "../config/runtime";
 // @ts-ignore
 import {
 	db,
@@ -207,6 +208,9 @@ export const useCustomersStore = defineStore("customers", () => {
 	);
 
 	async function ensureDatabase() {
+		if (ONLINE_ONLY_MODE) {
+			return;
+		}
 		await memoryInitPromise;
 		await checkDbHealth();
 		if (!db.isOpen()) {
@@ -272,6 +276,9 @@ export const useCustomersStore = defineStore("customers", () => {
 	function setCustomerInfo(info: CustomerInfo) {
 		customerInfo.value = info || {};
 		upsertCustomerSummaryFromInfo(customerInfo.value);
+		if (ONLINE_ONLY_MODE) {
+			return;
+		}
 		const customerName =
 			getStringField(customerInfo.value, "name") ||
 			getStringField(customerInfo.value, "customer");
@@ -335,7 +342,43 @@ export const useCustomersStore = defineStore("customers", () => {
 		syncBootstrapCustomerReadiness(0);
 	}
 
+	async function performSearchOnline({ append = false } = {}) {
+		const serializedProfile = getSerializedProfile(posProfile.value);
+		if (!serializedProfile) {
+			return 0;
+		}
+
+		const offset = append ? customers.value.length : 0;
+		const response = await (frappe.call as any)({
+			method: "posawesome.posawesome.api.customers.search_customers",
+			args: {
+				pos_profile: serializedProfile,
+				search_text: searchTerm.value || null,
+				limit: PAGE_SIZE,
+				offset,
+			},
+		});
+		const results: CustomerSummary[] = response.message || [];
+
+		if (append) {
+			customers.value = [...customers.value, ...results];
+		} else {
+			customers.value = results;
+		}
+
+		hasMore.value = results.length === PAGE_SIZE;
+		if (hasMore.value) {
+			page.value += 1;
+		}
+
+		return results.length;
+	}
+
 	async function performSearch({ append = false } = {}) {
+		if (ONLINE_ONLY_MODE) {
+			return performSearchOnline({ append });
+		}
+
 		await ensureDatabase();
 
 		let collection = db.table("customers");
@@ -386,6 +429,9 @@ export const useCustomersStore = defineStore("customers", () => {
 	async function loadMoreCustomers() {
 		if (loadingCustomers.value) {
 			return 0;
+		}
+		if (ONLINE_ONLY_MODE) {
+			return performSearchOnline({ append: true });
 		}
 		const count = await performSearch({ append: true });
 		if (count === PAGE_SIZE) {
@@ -578,6 +624,14 @@ export const useCustomersStore = defineStore("customers", () => {
 			console.debug("Customer fetch skipped: POS Profile not ready");
 			return;
 		}
+
+		if (ONLINE_ONLY_MODE) {
+			customersLoaded.value = true;
+			loadProgress.value = 100;
+			loadingCustomers.value = false;
+			return;
+		}
+
 		await ensureCustomerScopeIsolation();
 		const serializedProfile = getSerializedProfile(posProfile.value);
 		if (!serializedProfile) {
@@ -694,8 +748,10 @@ export const useCustomersStore = defineStore("customers", () => {
 		} else {
 			customers.value = [...customers.value, customer];
 		}
-		await setCustomerStorage([customer]);
-		syncBootstrapCustomerReadiness(Math.max(customers.value.length, 1));
+		if (!ONLINE_ONLY_MODE) {
+			await setCustomerStorage([customer]);
+			syncBootstrapCustomerReadiness(Math.max(customers.value.length, 1));
+		}
 		setSelectedCustomer(customer.name);
 		requestCustomerRefresh();
 	}

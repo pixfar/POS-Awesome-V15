@@ -80,6 +80,9 @@ after_migrate = [
     "posawesome.patches.add_submission_ledger_to_workspace.execute",
     "posawesome.patches.migrate_pos_supervisor_to_role.execute",
     "posawesome.patches.remove_item_barcode_posa_uom.execute",
+    "posawesome.patches.add_requisition_support.execute",
+    "posawesome.patches.add_material_transfer_support.execute",
+    "posawesome.patches.add_warehouse_doc_permissions.execute",
 ]
 
 # Desk Notifications
@@ -92,13 +95,27 @@ after_migrate = [
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+permission_query_conditions = {
+    "Requisition": (
+        "posawesome.posawesome.utils.warehouse_doc_permissions"
+        ".get_requisition_permission_query"
+    ),
+    "Material Transfer": (
+        "posawesome.posawesome.utils.warehouse_doc_permissions"
+        ".get_material_transfer_permission_query"
+    ),
+}
+
+has_permission = {
+    "Requisition": (
+        "posawesome.posawesome.utils.warehouse_doc_permissions"
+        ".has_requisition_permission"
+    ),
+    "Material Transfer": (
+        "posawesome.posawesome.utils.warehouse_doc_permissions"
+        ".has_material_transfer_permission"
+    ),
+}
 
 # Document Events
 # ---------------
@@ -124,6 +141,23 @@ doc_events = {
     "Bin": {
         "after_insert": "posawesome.posawesome.stock_realtime.publish_bin_stock_change",
         "on_update": "posawesome.posawesome.stock_realtime.publish_bin_stock_change",
+    },
+    "Stock Entry": {
+        "after_insert": (
+            "posawesome.doc_events.stock_entry.update_requisition_status"
+            ".sync_requisition_transfer_status"
+        ),
+        "on_submit": (
+            "posawesome.doc_events.stock_entry.update_requisition_status"
+            ".sync_requisition_transfer_status"
+        ),
+        "on_cancel": (
+            "posawesome.doc_events.stock_entry.update_requisition_status"
+            ".sync_requisition_transfer_status"
+        ),
+        "before_workflow_action": (
+            "posawesome.doc_events.stock_entry.workflow_guard.guard_confirm_receipt"
+        ),
     },
 }
 

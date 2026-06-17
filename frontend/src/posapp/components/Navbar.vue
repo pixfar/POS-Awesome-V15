@@ -300,6 +300,22 @@ export default {
 				{ text: "POS", icon: "mdi-network-pos", to: "/pos" },
 				{ text: "Purchase Invoice", icon: "mdi-cart-plus", to: "/orders" },
 				{
+					text: "Material Transfer",
+					icon: "mdi-truck-fast-outline",
+					children: [
+						{ text: "New Transfer", icon: "mdi-plus-circle-outline", to: "/material-transfers/new" },
+						{ text: "Transfers", icon: "mdi-format-list-bulleted", to: "/material-transfers/list" },
+					],
+				},
+				{
+					text: "Requisition",
+					icon: "mdi-clipboard-list-outline",
+					children: [
+						{ text: "New Requisition", icon: "mdi-plus-circle-outline", to: "/requisitions/new" },
+						{ text: "Requisitions", icon: "mdi-format-list-bulleted", to: "/requisitions/list" },
+					],
+				},
+				{
 					text: "Payment",
 					icon: "mdi-cash-multiple",
 					children: [

@@ -473,5 +473,46 @@ def make_address(args):
 
 
 @frappe.whitelist()
+def search_customers(pos_profile, search_text=None, limit=20, offset=0):
+    """Search customers for online POS (no local IndexedDB cache)."""
+    pos_profile = json.loads(pos_profile) if isinstance(pos_profile, str) else pos_profile
+    filters = {"disabled": 0}
+    customer_groups = get_customer_groups(pos_profile)
+    if customer_groups:
+        filters["customer_group"] = ["in", customer_groups]
+
+    or_filters = None
+    search_text = cstr(search_text or "").strip()
+    if search_text:
+        like = f"%{search_text}%"
+        or_filters = [
+            ["name", "like", like],
+            ["customer_name", "like", like],
+            ["mobile_no", "like", like],
+            ["email_id", "like", like],
+        ]
+
+    limit = max(1, min(int(limit or 20), 100))
+    offset = max(0, int(offset or 0))
+
+    return frappe.get_list(
+        "Customer",
+        filters=filters,
+        or_filters=or_filters,
+        fields=[
+            "name",
+            "customer_name",
+            "mobile_no",
+            "email_id",
+            "tax_id",
+            "primary_address",
+        ],
+        order_by="customer_name asc, name asc",
+        limit_start=offset,
+        limit_page_length=limit,
+    )
+
+
+@frappe.whitelist()
 def get_sales_person_names(pos_profile=None):
     return fetch_sales_person_names(pos_profile=pos_profile)

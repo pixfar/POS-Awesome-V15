@@ -212,6 +212,7 @@ import { useOnlineStatus } from "../../../composables/core/useOnlineStatus";
 import { useToastStore } from "../../../stores/toastStore.js";
 import { useUIStore } from "../../../stores/uiStore.js";
 import { ensureCustomersReady } from "../../../modules/customers/customerLoadingCoordinator";
+import { ONLINE_ONLY_MODE } from "../../../config/runtime";
 
 export default {
 	props: {
@@ -248,9 +249,16 @@ export default {
 
 		const effectiveReadonly = computed(() => readonlyState.value && networkOnline.value);
 		const showCustomerLoadProgress = computed(
-			() => loadingCustomers.value || isCustomerBackgroundLoading.value,
+			() =>
+				!ONLINE_ONLY_MODE &&
+				(loadingCustomers.value || isCustomerBackgroundLoading.value),
 		);
-		const isCustomerSearchLocked = computed(() => loadingCustomers.value && customers.value.length === 0);
+		const isCustomerSearchLocked = computed(
+			() =>
+				!ONLINE_ONLY_MODE &&
+				loadingCustomers.value &&
+				customers.value.length === 0,
+		);
 		const customerLoadPercent = computed(() =>
 			Math.max(0, Math.min(100, Math.round(loadProgress.value || 0))),
 		);

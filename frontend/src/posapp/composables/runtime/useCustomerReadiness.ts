@@ -1,7 +1,6 @@
 import type { Ref } from "vue";
 import { watch } from "vue";
 import { ensureCustomersReady as defaultEnsureCustomersReady } from "../../modules/customers/customerLoadingCoordinator";
-
 type CustomerProfile = {
 	name?: string | null;
 	modified?: string | null;

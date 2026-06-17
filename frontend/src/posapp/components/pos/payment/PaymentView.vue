@@ -1,44 +1,47 @@
 <template>
-	<div class="pa-0 h-100 payment-shell">
+	<div class="pa-0 h-100 payment-shell invoice-shell">
 		<v-row class="h-100 ma-0">
 
-			<!-- ═══════════════════════════════════════════════════════
-			     LEFT: Party selector · Outstanding invoices · History
-			     ═══════════════════════════════════════════════════════ -->
+			<!-- LEFT: Party selector · Outstanding invoices · History -->
 			<v-col cols="12" md="7" class="h-100 pa-0">
-				<v-card class="h-100 d-flex flex-column pos-themed-card" flat>
-					<v-card-text class="flex-grow-1 overflow-y-auto pa-3">
-						<div class="invoice-sections">
+				<v-card class="h-100 d-flex flex-column pos-themed-card payment-invoice-card" flat>
+					<v-card-text class="flex-grow-1 d-flex flex-column pa-3 payment-main-body">
+						<div class="payment-content">
 
-							<!-- 3-column top grid -->
 							<div class="invoice-top-grid payment-top-grid">
 
 								<!-- Party selector -->
 								<v-card flat class="invoice-section-card pos-themed-card">
 									<div class="invoice-section-heading">
 										<h3 class="invoice-section-heading__title">
-											{{ partyType === "Customer" ? __("Customer") : __("Supplier") }}
+											{{ partyType === "Customer"
+												? __("Customer Details")
+												: __("Supplier Details") }}
 										</h3>
 									</div>
-									<Customer v-if="partyType === 'Customer'" />
-									<v-autocomplete
-										v-else
-										v-model="partyName"
-										v-model:search="partySearchText"
-										:items="partyOptions"
-										:loading="partyLoading"
-										item-title="supplier_name"
-										item-value="name"
-										:label="__('Search Supplier')"
-										density="compact"
-										variant="outlined"
-										color="primary"
-										hide-details
-										clearable
-										no-filter
-										class="pos-themed-input"
-										@update:search="onPartySearch"
-									/>
+									<div class="payment-party-body">
+										<Customer v-if="partyType === 'Customer'" />
+										<v-autocomplete
+											v-else
+											v-model="partyName"
+											v-model:search="partySearchText"
+											:items="partyOptions"
+											:loading="partyLoading"
+											item-title="supplier_name"
+											item-value="name"
+											:label="__('Supplier')"
+											density="comfortable"
+											variant="solo"
+											color="primary"
+											hide-details
+											clearable
+											no-filter
+											:custom-filter="() => true"
+											class="sleek-field pos-themed-input"
+											@update:search="onPartySearch"
+											@update:model-value="onSupplierSelected"
+										/>
+									</div>
 								</v-card>
 
 								<!-- Outstanding badge -->
@@ -65,7 +68,7 @@
 								</v-card>
 
 								<!-- Date + auto-allocate -->
-								<v-card flat class="invoice-section-card pos-themed-card">
+								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
 									<div class="sale-options-body">
 										<VueDatePicker
 											v-model="postingDateDisplay"
@@ -88,14 +91,19 @@
 								</v-card>
 							</div>
 
+							<div class="payment-tables-stack">
+
 							<!-- Outstanding invoices table -->
-							<v-card flat class="invoice-section-card pos-themed-card mt-2">
-								<div class="invoice-section-heading">
+							<v-card flat class="invoice-section-card pos-themed-card payment-table-card payment-table-card--split">
+								<div class="invoice-section-heading invoice-section-heading--toolbar">
 									<h3 class="invoice-section-heading__title">
 										{{ __("Outstanding Invoices") }}
 									</h3>
 									<div class="invoice-section-heading__actions">
-										<span v-if="selected_invoices.length" class="text-caption text-primary mr-2">
+										<span
+											v-if="selected_invoices.length"
+											class="text-caption text-primary mr-2"
+										>
 											{{ selected_invoices.length }} {{ __("selected") }}
 											· {{ currencySymbol() }}{{ formatAmt(total_selected_invoices) }}
 										</span>
@@ -106,15 +114,27 @@
 											color="error"
 											@click="clearSelections"
 										>{{ __("Clear") }}</v-btn>
+										<v-btn
+											variant="text"
+											size="small"
+											color="primary"
+											:loading="invoices_loading"
+											prepend-icon="mdi-sync"
+											@click="syncData"
+										>{{ __("Sync") }}</v-btn>
 									</div>
 								</div>
+								<div
+									ref="invoicesScrollRef"
+									class="payment-table-scroll payment-table-body"
+									@scroll="onInvoicesScroll"
+								>
 								<v-data-table
 									:headers="invoiceHeaders"
 									:items="outstanding_invoices"
 									:loading="invoices_loading"
 									density="compact"
 									fixed-header
-									:height="230"
 									hide-default-footer
 									:items-per-page="-1"
 									:no-data-text="__('No outstanding invoices')"
@@ -150,20 +170,38 @@
 										</strong>
 									</template>
 								</v-data-table>
+								<div v-if="invoicesLoadingMore" class="text-center py-2 text-caption">
+									<v-progress-circular indeterminate size="16" width="2" />
+								</div>
+								</div>
 							</v-card>
 
 							<!-- Payment entry history -->
-							<v-card flat class="invoice-section-card pos-themed-card mt-2">
-								<div class="invoice-section-heading">
+							<v-card flat class="invoice-section-card pos-themed-card payment-table-card payment-table-card--split">
+								<div class="invoice-section-heading invoice-section-heading--toolbar">
 									<h3 class="invoice-section-heading__title">{{ __("Payment History") }}</h3>
+									<div class="invoice-section-heading__actions">
+										<v-btn
+											variant="text"
+											size="small"
+											color="primary"
+											:loading="historyLoading"
+											prepend-icon="mdi-sync"
+											@click="syncData"
+										>{{ __("Sync") }}</v-btn>
+									</div>
 								</div>
+								<div
+									ref="historyScrollRef"
+									class="payment-table-scroll payment-table-body"
+									@scroll="onHistoryScroll"
+								>
 								<v-data-table
 									:headers="historyHeaders"
 									:items="paymentHistory"
 									:loading="historyLoading"
 									density="compact"
 									fixed-header
-									:height="190"
 									hide-default-footer
 									:items-per-page="-1"
 									:no-data-text="partyName
@@ -177,16 +215,30 @@
 									<template #item.paid_amount="{ item }">
 										<strong>{{ currencySymbol() }}{{ formatAmt(item.paid_amount) }}</strong>
 									</template>
-									<template #item.unallocated_amount="{ item }">
-										<span :class="Number(item.unallocated_amount) > 0 ? 'text-warning' : 'text-success'">
-											{{ currencySymbol() }}{{ formatAmt(item.unallocated_amount) }}
+									<template #item.allocated_amount="{ item }">
+										<span class="text-caption">
+											{{ currencySymbol() }}{{ formatAmt(item.allocated_amount) }}
+										</span>
+									</template>
+									<template #item.payment_type="{ item }">
+										<span class="text-caption">{{ item.payment_type }}</span>
+									</template>
+									<template #item.reference_no="{ item }">
+										<span class="text-caption text-truncate payment-ref-no">
+											{{ item.reference_no || "—" }}
 										</span>
 									</template>
 									<template #item.name="{ item }">
 										<span class="text-caption text-primary">{{ item.name }}</span>
 									</template>
 								</v-data-table>
+								<div v-if="historyLoadingMore" class="text-center py-2 text-caption">
+									<v-progress-circular indeterminate size="16" width="2" />
+								</div>
+								</div>
 							</v-card>
+
+							</div>
 
 						</div>
 					</v-card-text>
@@ -218,15 +270,14 @@
 				</v-card>
 			</v-col>
 
-			<!-- ═══════════════════════════════════════════════════════
-			     RIGHT: Summary · Payment methods · Reference · Submit
-			     ═══════════════════════════════════════════════════════ -->
+			<!-- RIGHT: Summary · Payment methods · Submit -->
 			<v-col cols="12" md="5" class="h-100 pa-0 border-s">
 				<v-card class="h-100 d-flex flex-column pos-themed-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3">
+						<div class="invoice-sections">
 
 						<!-- Summary -->
-						<v-card flat class="invoice-section-card pos-themed-card mb-2">
+						<v-card flat class="invoice-section-card pos-themed-card">
 							<div class="invoice-section-heading">
 								<h3 class="invoice-section-heading__title">{{ __("Summary") }}</h3>
 							</div>
@@ -267,14 +318,14 @@
 						</v-card>
 
 						<!-- Payment methods -->
-						<v-card flat class="invoice-section-card pos-themed-card mb-2">
+						<v-card flat class="invoice-section-card pos-themed-card">
 							<div class="invoice-section-heading">
 								<h3 class="invoice-section-heading__title">{{ __("Payment Methods") }}</h3>
 							</div>
-							<div v-if="!payment_methods.length" class="text-caption text-medium-emphasis pa-2">
+							<div v-if="!payment_methods.length" class="text-caption text-medium-emphasis payment-methods-list">
 								{{ __("Enable payment methods in POS Profile settings") }}
 							</div>
-							<div class="payment-methods-list">
+							<div v-else class="payment-methods-list">
 								<div
 									v-for="method in payment_methods"
 									:key="method.mode_of_payment"
@@ -295,31 +346,7 @@
 							</div>
 						</v-card>
 
-						<!-- Reference -->
-						<v-card flat class="invoice-section-card pos-themed-card mb-2">
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Reference") }}</h3>
-							</div>
-							<v-text-field
-								v-model="referenceNo"
-								:label="__('Reference No')"
-								density="compact"
-								variant="outlined"
-								hide-details
-								class="pos-themed-input mb-2"
-								prepend-inner-icon="mdi-identifier"
-							/>
-							<VueDatePicker
-								v-model="referenceDateDisplay"
-								model-type="format"
-								format="dd-MM-yyyy"
-								auto-apply
-								teleport
-								:placeholder="__('Reference Date')"
-								class="sleek-field pos-themed-input"
-							/>
-						</v-card>
-
+						</div>
 					</v-card-text>
 
 					<!-- Submit panel -->
@@ -392,6 +419,7 @@ import {
 import { printDocumentViaQz } from "../../../services/qzTray";
 import { refreshRegisterPosProfile } from "../../../../utils/pos_profile";
 import { usePosPaySelection } from "../../../composables/pos/payments/usePosPaySelection";
+import { ONLINE_ONLY_MODE } from "../../../config/runtime";
 
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
@@ -439,10 +467,18 @@ export default {
 		const partyLoading = ref(false);
 		const postingDate = ref(getTodayDate());
 		const autoAllocate = ref(true);
-		const referenceNo = ref("");
-		const referenceDate = ref("");
 		const paymentHistory = ref([]);
 		const historyLoading = ref(false);
+		const PAGE_SIZE = 10;
+		const invoicesPageStart = ref(0);
+		const invoicesHasMore = ref(true);
+		const invoicesLoadingMore = ref(false);
+		const historyPageStart = ref(0);
+		const historyHasMore = ref(true);
+		const historyLoadingMore = ref(false);
+		const invoicesScrollRef = ref(null);
+		const historyScrollRef = ref(null);
+		let refreshTimer = null;
 
 		// ── Format helpers ───────────────────────────────────────────
 		const formatAmt = (val) => {
@@ -468,10 +504,6 @@ export default {
 			get: () => fmtDisplayDate(postingDate.value),
 			set: (v) => { postingDate.value = normalizeDateForBackend(v) || getTodayDate(); },
 		});
-		const referenceDateDisplay = computed({
-			get: () => fmtDisplayDate(referenceDate.value),
-			set: (v) => { referenceDate.value = normalizeDateForBackend(v) || ""; },
-		});
 
 		// ── Payment direction derives from party type ────────────────
 		const paymentEntryType = computed(() =>
@@ -490,22 +522,36 @@ export default {
 			(typeof frappe !== "undefined" && frappe.defaults?.get_default?.("company")) ||
 			"";
 
-		const fetchOutstandingInvoices = async () => {
-			invoices_loading.value = true;
+		const fetchOutstandingInvoices = async ({ append = false } = {}) => {
+			if (append) {
+				if (!invoicesHasMore.value || invoicesLoadingMore.value) return;
+				invoicesLoadingMore.value = true;
+			} else {
+				invoices_loading.value = true;
+				invoicesPageStart.value = 0;
+				invoicesHasMore.value = true;
+				if (!append) outstanding_invoices.value = [];
+			}
+
 			try {
+				const pageStart = append ? outstanding_invoices.value.length : 0;
+
 				if (!partyName.value) {
-					// No party selected — show ALL outstanding invoices for the company
 					const result = await frappe.call({
 						method: "posawesome.posawesome.api.payment_entry.get_all_outstanding_invoices",
 						args: {
 							company: resolvedCompany() || null,
 							party_type: props.partyType,
-							page_length: 200,
+							page_start: pageStart,
+							page_length: PAGE_SIZE,
 						},
 					});
-					outstanding_invoices.value = Array.isArray(result.message)
-						? result.message
-						: [];
+					const payload = result.message || {};
+					const rows = Array.isArray(payload.invoices) ? payload.invoices : [];
+					outstanding_invoices.value = append
+						? [...outstanding_invoices.value, ...rows]
+						: rows;
+					invoicesHasMore.value = Boolean(payload.has_more);
 					partyOutstanding.value = 0;
 					return;
 				}
@@ -519,24 +565,34 @@ export default {
 							company: resolvedCompany() || null,
 							pos_profile: null,
 							include_all_currencies: true,
-							page_start: 0,
-							page_length: 300,
+							page_start: pageStart,
+							page_length: PAGE_SIZE,
 						},
 					}),
 					frappe.call({
-						method: "posawesome.posawesome.api.customer.get_customer_outstanding",
-						args: { customer: partyName.value },
+						method: "posawesome.posawesome.api.payment_entry.get_party_outstanding",
+						args: {
+							party: partyName.value,
+							party_type: props.partyType,
+							company: resolvedCompany() || null,
+						},
 					}),
 				]);
-				outstanding_invoices.value = Array.isArray(invResult.message)
-					? invResult.message
-					: [];
+				const rows = Array.isArray(invResult.message) ? invResult.message : [];
+				outstanding_invoices.value = append
+					? [...outstanding_invoices.value, ...rows]
+					: rows;
+				invoicesHasMore.value = rows.length >= PAGE_SIZE;
 				partyOutstanding.value = outResult?.message?.outstanding || 0;
+				if (partyName.value) {
+					setDefaultPaymentAmount(partyOutstanding.value);
+				}
 			} catch (e) {
 				console.error("Failed to fetch outstanding invoices", e);
-				outstanding_invoices.value = [];
+				if (!append) outstanding_invoices.value = [];
 			} finally {
 				invoices_loading.value = false;
+				invoicesLoadingMore.value = false;
 			}
 		};
 
@@ -554,6 +610,15 @@ export default {
 			clearSelections,
 			resetPaymentMethodAmounts,
 		} = usePosPaySelection({ posProfile: pos_profile, currency_filter });
+
+		const setDefaultPaymentAmount = (amount) => {
+			if (!payment_methods.value.length) return;
+			const outstanding = parseFloat(String(amount || 0)) || 0;
+			payment_methods.value = payment_methods.value.map((method, index) => ({
+				...method,
+				amount: index === 0 ? outstanding : 0,
+			}));
+		};
 
 		// ── Populate payment methods (POS profile first, fallback to system) ──
 		const initPaymentMethods = async () => {
@@ -597,17 +662,45 @@ export default {
 		);
 
 		const canSubmit = computed(
-			() =>
-				!!partyName.value &&
-				(total_payment_methods.value > 0 || total_selected_invoices.value > 0),
+			() => !!partyName.value && total_payment_methods.value > 0,
 		);
+
+		const autoSelectInvoicesForAmount = () => {
+			if (!autoAllocate.value || !partyName.value) return;
+			if (total_payment_methods.value <= 0) {
+				clearSelections();
+				return;
+			}
+
+			let budget = total_payment_methods.value;
+			const picks = [];
+			const sorted = [...outstanding_invoices.value].sort((a, b) => {
+				const da = a.due_date || a.posting_date || "";
+				const db = b.due_date || b.posting_date || "";
+				return String(da).localeCompare(String(db));
+			});
+
+			for (const inv of sorted) {
+				if (budget <= 0) break;
+				const outstanding = parseFloat(inv.outstanding_amount) || 0;
+				if (outstanding <= 0) continue;
+				picks.push(inv);
+				budget -= outstanding;
+			}
+
+			selected_invoices.value = picks;
+		};
 
 		// ── Invoice click ────────────────────────────────────────────
 		const handleInvoiceClick = (item) => {
 			if (!partyName.value && item.party) {
-				// Clicking from "all invoices" view — auto-select the party
 				if (props.partyType === "Customer") {
 					customersStore.setSelectedCustomer(item.party);
+				} else {
+					upsertPartyOption({
+						name: item.party,
+						supplier_name: item.party_name || item.party,
+					});
 				}
 				partyName.value = item.party;
 				return;
@@ -621,6 +714,52 @@ export default {
 		};
 
 		// ── Supplier search ──────────────────────────────────────────
+		const upsertPartyOption = (party) => {
+			if (!party?.name) return;
+			const index = partyOptions.value.findIndex((row) => row.name === party.name);
+			if (index >= 0) {
+				const updated = [...partyOptions.value];
+				updated[index] = { ...updated[index], ...party };
+				partyOptions.value = updated;
+				return;
+			}
+			partyOptions.value = [party, ...partyOptions.value];
+		};
+
+		const ensureSupplierResolved = async (supplierId) => {
+			if (!supplierId || props.partyType !== "Supplier") return;
+			const existing = partyOptions.value.find((row) => row.name === supplierId);
+			if (existing?.supplier_name && existing.supplier_name !== supplierId) {
+				return;
+			}
+			try {
+				const result = await frappe.call({
+					method: "posawesome.posawesome.api.purchase_invoices.get_supplier_info",
+					args: { supplier: supplierId },
+				});
+				const info = result.message || {};
+				upsertPartyOption({
+					name: info.supplier || supplierId,
+					supplier_name: info.supplier_name || supplierId,
+				});
+			} catch {
+				upsertPartyOption({
+					name: supplierId,
+					supplier_name: supplierId,
+				});
+			}
+		};
+
+		const onSupplierSelected = (supplierId) => {
+			if (!supplierId) return;
+			const match = partyOptions.value.find((row) => row.name === supplierId);
+			if (match) {
+				upsertPartyOption(match);
+				return;
+			}
+			void ensureSupplierResolved(supplierId);
+		};
+
 		const onPartySearch = async (text = "") => {
 			if (props.partyType !== "Supplier") return;
 			partyLoading.value = true;
@@ -630,6 +769,9 @@ export default {
 					args: { search_text: text || "", limit: 20 },
 				});
 				partyOptions.value = Array.isArray(r.message) ? r.message : [];
+				if (partyName.value) {
+					await ensureSupplierResolved(partyName.value);
+				}
 			} catch {
 				partyOptions.value = [];
 			} finally {
@@ -638,42 +780,82 @@ export default {
 		};
 
 		// ── Payment history ──────────────────────────────────────────
-		const fetchPaymentHistory = async () => {
+		const fetchPaymentHistory = async ({ append = false } = {}) => {
 			if (!partyName.value) {
 				paymentHistory.value = [];
 				return;
 			}
-			historyLoading.value = true;
+			if (append) {
+				if (!historyHasMore.value || historyLoadingMore.value) return;
+				historyLoadingMore.value = true;
+			} else {
+				historyLoading.value = true;
+				historyPageStart.value = 0;
+				historyHasMore.value = true;
+				if (!append) paymentHistory.value = [];
+			}
+
 			try {
-				const filters = [
-					["party_type", "=", props.partyType],
-					["party", "=", partyName.value],
-					["docstatus", "=", 1],
-				];
-				if (company.value) filters.push(["company", "=", company.value]);
+				const pageStart = append ? paymentHistory.value.length : 0;
 				const r = await frappe.call({
-					method: "frappe.client.get_list",
+					method: "posawesome.posawesome.api.payment_entry.get_payment_history",
 					args: {
-						doctype: "Payment Entry",
-						filters,
-						fields: [
-							"name",
-							"posting_date",
-							"mode_of_payment",
-							"paid_amount",
-							"unallocated_amount",
-							"payment_type",
-						],
-						limit_page_length: 30,
-						order_by: "posting_date desc, creation desc",
+						party: partyName.value,
+						party_type: props.partyType,
+						company: resolvedCompany() || null,
+						page_start: pageStart,
+						page_length: PAGE_SIZE,
 					},
 				});
-				paymentHistory.value = Array.isArray(r.message) ? r.message : [];
+				const payload = r.message || {};
+				const rows = Array.isArray(payload.payments) ? payload.payments : [];
+				paymentHistory.value = append
+					? [...paymentHistory.value, ...rows]
+					: rows;
+				historyHasMore.value = Boolean(payload.has_more);
 			} catch (e) {
 				console.error("Failed to fetch payment history", e);
-				paymentHistory.value = [];
+				if (!append) paymentHistory.value = [];
 			} finally {
 				historyLoading.value = false;
+				historyLoadingMore.value = false;
+			}
+		};
+
+		const syncData = async () => {
+			await Promise.all([
+				fetchOutstandingInvoices(),
+				partyName.value ? fetchPaymentHistory() : Promise.resolve(),
+			]);
+			if (autoAllocate.value) autoSelectInvoicesForAmount();
+		};
+
+		const onInvoicesScroll = (event) => {
+			const el = event.target;
+			if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+				fetchOutstandingInvoices({ append: true });
+			}
+		};
+
+		const onHistoryScroll = (event) => {
+			const el = event.target;
+			if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+				fetchPaymentHistory({ append: true });
+			}
+		};
+
+		const startRealtimeRefresh = () => {
+			stopRealtimeRefresh();
+			refreshTimer = setInterval(() => {
+				if (document.hidden || isSubmitting.value) return;
+				syncData();
+			}, 30000);
+		};
+
+		const stopRealtimeRefresh = () => {
+			if (refreshTimer) {
+				clearInterval(refreshTimer);
+				refreshTimer = null;
 			}
 		};
 
@@ -690,8 +872,10 @@ export default {
 		};
 
 		const checkOpeningEntry = async () => {
-			await initPromise;
-			await checkDbHealth();
+			if (!ONLINE_ONLY_MODE) {
+				await initPromise;
+				await checkDbHealth();
+			}
 			const cached = getOpeningStorage();
 			if (cached) await applyOpeningData(cached);
 			try {
@@ -745,9 +929,13 @@ export default {
 				return;
 			}
 			const activeMethods = payment_methods.value.filter((m) => (m.amount || 0) > 0);
-			if (activeMethods.length === 0 && selected_invoices.value.length === 0) {
+			if (activeMethods.length === 0) {
 				frappe.throw(__("Please enter a payment amount"));
 				return;
+			}
+
+			if (autoAllocate.value && !selected_invoices.value.length) {
+				autoSelectInvoicesForAmount();
 			}
 
 			isSubmitting.value = true;
@@ -760,9 +948,8 @@ export default {
 						company: resolvedCompany() || null,
 						payment_methods: activeMethods,
 						selected_invoices: selected_invoices.value,
+						auto_allocate: autoAllocate.value ? 1 : 0,
 						posting_date: postingDate.value || null,
-						reference_no: referenceNo.value || null,
-						reference_date: referenceDate.value || null,
 					},
 					freeze: true,
 					freeze_message: __("Processing Payment..."),
@@ -776,10 +963,8 @@ export default {
 					});
 					clearSelections();
 					resetPaymentMethodAmounts();
-					referenceNo.value = "";
-					referenceDate.value = "";
 					if (printAfter) loadPrintPage(result.message.name);
-					await Promise.all([fetchOutstandingInvoices(), fetchPaymentHistory()]);
+					await syncData();
 				}
 			} catch (err) {
 				console.error("Payment submission failed", err);
@@ -809,10 +994,28 @@ export default {
 			clearSelections();
 			partyOutstanding.value = 0;
 			paymentHistory.value = [];
+			resetPaymentMethodAmounts();
+			if (val && props.partyType === "Supplier") {
+				await ensureSupplierResolved(val);
+			}
 			await Promise.all([
 				fetchOutstandingInvoices(),
 				val ? fetchPaymentHistory() : Promise.resolve(),
 			]);
+			if (autoAllocate.value) autoSelectInvoicesForAmount();
+		});
+
+		watch(
+			() => payment_methods.value.map((m) => m.amount),
+			() => {
+				if (autoAllocate.value) autoSelectInvoicesForAmount();
+			},
+			{ deep: true },
+		);
+
+		watch(autoAllocate, (enabled) => {
+			if (enabled) autoSelectInvoicesForAmount();
+			else clearSelections();
 		});
 
 		// ── Lifecycle ────────────────────────────────────────────────
@@ -822,14 +1025,14 @@ export default {
 				proxy.eventBus.on("network-online", syncPending);
 				proxy.eventBus.on("server-online", syncPending);
 			}
-			// Always fetch invoices on mount — shows all when no party, filtered when party set
 			fetchOutstandingInvoices();
 			if (partyName.value) fetchPaymentHistory();
-			// Refresh opening entry in background for latest profile / payment methods
+			startRealtimeRefresh();
 			nextTick(checkOpeningEntry);
 		});
 
 		onBeforeUnmount(() => {
+			stopRealtimeRefresh();
 			if (proxy?.eventBus) {
 				proxy.eventBus.off("network-online", syncPending);
 				proxy.eventBus.off("server-online", syncPending);
@@ -853,7 +1056,13 @@ export default {
 				{ title: __("Invoice"), key: "voucher_no", sortable: true },
 			];
 			if (!partyName.value) {
-				cols.push({ title: __("Party"), key: "party_name", sortable: true });
+				cols.push({
+					title: props.partyType === "Supplier"
+						? __("Supplier")
+						: __("Customer"),
+					key: "party_name",
+					sortable: true,
+				});
 			}
 			cols.push(
 				{ title: __("Date"), key: "posting_date", sortable: true },
@@ -865,9 +1074,11 @@ export default {
 		const historyHeaders = [
 			{ title: __("Reference"), key: "name", sortable: true },
 			{ title: __("Date"), key: "posting_date", sortable: true },
+			{ title: __("Type"), key: "payment_type", sortable: true },
 			{ title: __("Mode"), key: "mode_of_payment", sortable: true },
 			{ title: __("Amount"), key: "paid_amount", sortable: true, align: "end" },
-			{ title: __("Unallocated"), key: "unallocated_amount", sortable: true, align: "end" },
+			{ title: __("Allocated"), key: "allocated_amount", sortable: true, align: "end" },
+			{ title: __("Ref No"), key: "reference_no", sortable: true, minWidth: "140px" },
 		];
 
 		return {
@@ -876,10 +1087,7 @@ export default {
 			partyOptions,
 			partyLoading,
 			postingDateDisplay,
-			referenceDateDisplay,
 			autoAllocate,
-			referenceNo,
-			referenceDate,
 			outstanding_invoices,
 			invoices_loading,
 			selected_invoices,
@@ -900,25 +1108,133 @@ export default {
 			clearSelections,
 			handleInvoiceClick,
 			onPartySearch,
+			onSupplierSelected,
 			handleSubmit,
 			paymentMethodIcon,
+			syncData,
+			onInvoicesScroll,
+			onHistoryScroll,
+			invoicesLoadingMore,
+			historyLoadingMore,
 		};
 	},
 };
 </script>
 
 <style scoped>
+@import "../invoice-shared-styles.css";
+
 .payment-shell { overflow: hidden; }
 
-/* 3-col top grid */
-.payment-top-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr 1fr;
-	gap: 8px;
-	margin-bottom: 8px;
+.payment-invoice-card {
+	border-radius: var(--pos-radius-md, 18px);
 }
-@media (max-width: 900px) { .payment-top-grid { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 600px) { .payment-top-grid { grid-template-columns: 1fr; } }
+
+.payment-main-body {
+	overflow: hidden;
+	min-height: 0;
+}
+
+.payment-content {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	gap: var(--dynamic-sm);
+}
+
+.payment-top-grid {
+	grid-template-columns: 2.5fr 1fr 2fr !important;
+	align-items: stretch;
+	gap: 12px !important;
+	flex: 0 0 auto;
+}
+
+.payment-top-grid > .invoice-section-card {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.payment-top-grid > .outstanding-panel {
+	justify-content: center;
+}
+
+.payment-party-body {
+	padding: 8px 14px 12px;
+}
+
+.sale-options-card {
+	display: flex;
+	flex-direction: column;
+}
+
+.sale-options-body {
+	padding: 8px 14px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	flex: 1 1 auto;
+}
+
+.payment-tables-stack {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	gap: var(--dynamic-sm);
+}
+
+.invoice-section-heading--toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding-bottom: 4px;
+}
+
+.invoice-section-heading__actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 4px;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.payment-table-card {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.payment-table-card--split {
+	flex: 1 1 0;
+}
+
+.payment-table-body {
+	padding: 0 12px 12px;
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.payment-table-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.payment-ref-no {
+	display: inline-block;
+	max-width: 180px;
+}
+
+.payment-history-table + .text-center,
+.payment-invoices-table + .text-center {
+	border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
 
 /* Selected invoice row highlight */
 .payment-invoices-table :deep(tr.selected-invoice-row) {
@@ -928,12 +1244,24 @@ export default {
 	border-left: 3px solid #2563eb;
 }
 
+.payment-invoices-table,
+.payment-history-table {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.payment-invoices-table :deep(.v-table__wrapper),
+.payment-history-table :deep(.v-table__wrapper) {
+	max-height: 100%;
+	overflow-y: auto;
+}
+
 /* Bottom action bar */
 .payment-bottom-bar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 10px 16px;
+	padding: 12px 16px;
 	border-top: 1px solid rgba(0, 0, 0, 0.08);
 	background: #fff;
 	flex-shrink: 0;
@@ -951,19 +1279,51 @@ export default {
 .payment-pay-btn { min-width: 120px; font-weight: 700; letter-spacing: 0.04em; }
 
 /* Right panel summary */
-.payment-summary-list { display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 8px; }
-.payment-summary-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
+.payment-summary-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 4px 14px 14px;
+}
+.payment-summary-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 0.85rem;
+}
 .payment-summary-row__label { color: #6b7280; }
 .payment-summary-row__val { font-weight: 600; }
 
 /* Payment methods */
-.payment-methods-list { display: flex; flex-direction: column; gap: 8px; padding: 4px 8px 8px; }
+.payment-methods-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 4px 14px 14px;
+}
 
 /* Submit panel */
 .payment-submit-panel {
 	border-top: 1px solid rgba(0, 0, 0, 0.08);
 	flex-shrink: 0;
 	background: #fff;
+	padding: 12px 16px !important;
+}
+
+@media (max-width: 768px) {
+	.payment-top-grid {
+		grid-template-columns: 1fr !important;
+	}
+	.payment-top-grid > .invoice-section-card {
+		height: auto;
+	}
+	.payment-tables-stack {
+		flex: 0 0 auto;
+	}
+	.payment-table-card--split {
+		flex: 0 0 auto;
+		min-height: 280px;
+	}
 }
 
 /* Child drawer items indentation */
