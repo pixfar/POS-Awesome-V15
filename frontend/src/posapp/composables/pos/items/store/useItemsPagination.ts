@@ -4,7 +4,8 @@ import type { POSProfile } from "../../../../types/models";
 import { getStoredItemsCount } from "../../../../../offline/index";
 
 const DEFAULT_PAGE_SIZE = 200;
-const LARGE_CATALOG_THRESHOLD = 5000;
+const INITIAL_BOOTSTRAP_PAGE_SIZE = 80;
+const LARGE_CATALOG_THRESHOLD = 800;
 const LIMIT_SEARCH_FALLBACK = 500;
 
 export interface CachedPagination {
@@ -56,6 +57,16 @@ export function useItemsPagination() {
 		}
 
 		return pageSize;
+	};
+
+	const resolveInitialBootstrapPageSize = (
+		posProfile: POSProfile | null,
+		limitSearchEnabled: boolean,
+	): number => {
+		return Math.min(
+			resolvePageSize(posProfile, limitSearchEnabled),
+			INITIAL_BOOTSTRAP_PAGE_SIZE,
+		);
 	};
 
 	const resetCachedPagination = (
@@ -127,8 +138,10 @@ export function useItemsPagination() {
 	return {
 		cachedPagination,
 		DEFAULT_PAGE_SIZE,
+		INITIAL_BOOTSTRAP_PAGE_SIZE,
 		LARGE_CATALOG_THRESHOLD,
 		resolvePageSize,
+		resolveInitialBootstrapPageSize,
 		resolveLimitSearchSize,
 		resetCachedPagination,
 		updateCachedPaginationFromStorage,

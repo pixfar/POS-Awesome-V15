@@ -118,7 +118,14 @@ export function useItemsLoader() {
 				itemDetailFetcher &&
 				typeof itemDetailFetcher.update_items_details === "function"
 			) {
-				await itemDetailFetcher.update_items_details(pageItems);
+				const refreshDetails = () => {
+					void itemDetailFetcher.update_items_details?.(pageItems);
+				};
+				if (typeof requestIdleCallback === "function") {
+					requestIdleCallback(refreshDetails, { timeout: 1500 });
+				} else {
+					setTimeout(refreshDetails, 0);
+				}
 			}
 
 			const totalItemCount = getCtx<number>("totalItemCount");

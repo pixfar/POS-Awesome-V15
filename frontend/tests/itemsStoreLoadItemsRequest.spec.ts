@@ -21,6 +21,7 @@ describe("buildLoadItemsRequest", () => {
 			totalItemCount: 10,
 			limitSearchEnabled: false,
 			resolvePageSize: vi.fn(() => 50),
+			resolveInitialBootstrapPageSize: vi.fn(() => 50),
 			resolveLimitSearchSize: vi.fn(() => 25),
 		});
 
@@ -64,6 +65,7 @@ describe("buildLoadItemsRequest", () => {
 			totalItemCount: 0,
 			limitSearchEnabled: false,
 			resolvePageSize,
+			resolveInitialBootstrapPageSize: vi.fn(() => 75),
 			resolveLimitSearchSize: vi.fn(() => 25),
 		});
 
@@ -86,6 +88,7 @@ describe("buildLoadItemsRequest", () => {
 
 	it("uses the page-size resolver for non-forced cold bootstrap requests", () => {
 		const resolvePageSize = vi.fn(() => 60);
+		const resolveInitialBootstrapPageSize = vi.fn(() => 60);
 
 		const request = buildLoadItemsRequest({
 			options: {},
@@ -102,17 +105,20 @@ describe("buildLoadItemsRequest", () => {
 			totalItemCount: 0,
 			limitSearchEnabled: false,
 			resolvePageSize,
+			resolveInitialBootstrapPageSize,
 			resolveLimitSearchSize: vi.fn(() => 25),
 		});
 
 		expect(request.isInitialBootstrapRequest).toBe(true);
 		expect(request.resolvedLimit).toBe(60);
 		expect(request.args.limit).toBe(60);
-		expect(resolvePageSize).toHaveBeenCalledTimes(1);
+		expect(resolveInitialBootstrapPageSize).toHaveBeenCalledTimes(1);
+		expect(resolvePageSize).not.toHaveBeenCalled();
 	});
 
 	it("trims whitespace-only group and search values before resolving bootstrap state", () => {
 		const resolvePageSize = vi.fn(() => 60);
+		const resolveInitialBootstrapPageSize = vi.fn(() => 60);
 
 		const request = buildLoadItemsRequest({
 			options: {
@@ -132,6 +138,7 @@ describe("buildLoadItemsRequest", () => {
 			totalItemCount: 0,
 			limitSearchEnabled: false,
 			resolvePageSize,
+			resolveInitialBootstrapPageSize,
 			resolveLimitSearchSize: vi.fn(() => 25),
 		});
 

@@ -162,6 +162,7 @@ export const useItemsStore = defineStore("items", () => {
 		DEFAULT_PAGE_SIZE,
 		LARGE_CATALOG_THRESHOLD,
 		resolvePageSize: paginationResolvePageSize,
+		resolveInitialBootstrapPageSize: paginationResolveInitialBootstrapPageSize,
 		resolveLimitSearchSize,
 		resetCachedPagination: paginationResetCachedPagination,
 		updateCachedPaginationFromStorage,
@@ -201,6 +202,13 @@ export const useItemsStore = defineStore("items", () => {
 			posProfile.value,
 			limitSearchEnabled.value,
 			pageSize,
+		);
+	};
+
+	const resolveInitialBootstrapPageSize = (): number => {
+		return paginationResolveInitialBootstrapPageSize(
+			posProfile.value,
+			limitSearchEnabled.value,
 		);
 	};
 
@@ -380,9 +388,12 @@ export const useItemsStore = defineStore("items", () => {
 		customer.value = cust;
 		customerPriceList.value = priceList;
 
-		await loadItemGroups(posProfile.value);
-		await assessCacheHealth();
-		await loadCachedItems();
+		await Promise.all([
+			loadItemGroups(posProfile.value),
+			loadCachedItems(),
+		]);
+
+		void assessCacheHealth();
 
 		if (!itemsLoaded.value || items.value.length === 0) {
 			await loadItems({ forceServer: false });
@@ -522,6 +533,7 @@ export const useItemsStore = defineStore("items", () => {
 				totalItemCount: totalItemCount.value,
 				limitSearchEnabled: limitSearchEnabled.value,
 				resolvePageSize,
+				resolveInitialBootstrapPageSize,
 				resolveLimitSearchSize: () =>
 					resolveLimitSearchSize(
 						posProfile.value,

@@ -19,7 +19,35 @@ export interface BuildLoadItemsRequestInput {
 	totalItemCount: number;
 	limitSearchEnabled: boolean;
 	resolvePageSize: () => number;
+	resolveInitialBootstrapPageSize: () => number;
 	resolveLimitSearchSize: () => number | null;
+}
+
+function clonePosProfileForRequest(
+	profile: POSProfile,
+	options: { warehouse?: string | null; forceServer?: boolean } = {},
+): string {
+	try {
+		const clone = JSON.parse(JSON.stringify(profile)) as Record<string, unknown>;
+		if (options.warehouse) {
+			clone.warehouse = options.warehouse;
+		}
+		if (options.forceServer) {
+			clone.posa_use_server_cache = 0;
+			clone.posa_force_reload_items = 1;
+		}
+		return JSON.stringify(clone);
+	} catch {
+		const clone: Record<string, unknown> = { ...profile };
+		if (options.warehouse) {
+			clone.warehouse = options.warehouse;
+		}
+		if (options.forceServer) {
+			clone.posa_use_server_cache = 0;
+			clone.posa_force_reload_items = 1;
+		}
+		return JSON.stringify(clone);
+	}
 }
 
 export interface BuiltLoadItemsRequest {
@@ -42,6 +70,7 @@ export const buildLoadItemsRequest = ({
 	totalItemCount,
 	limitSearchEnabled,
 	resolvePageSize,
+	resolveInitialBootstrapPageSize,
 	resolveLimitSearchSize,
 }: BuildLoadItemsRequestInput): BuiltLoadItemsRequest => {
 	const {
@@ -72,7 +101,7 @@ export const buildLoadItemsRequest = ({
 		Number.isFinite(limit) && limit! > 0
 			? limit!
 			: isInitialBootstrapRequest
-				? resolvePageSize()
+				? resolveInitialBootstrapPageSize()
 				: limitSearchEnabled
 					? resolveLimitSearchSize()
 					: null;
@@ -90,22 +119,18 @@ export const buildLoadItemsRequest = ({
 		};
 	}
 
-	const requestProfile = JSON.parse(JSON.stringify(posProfile));
 	const effectivePriceList = priceList || activePriceList;
 	const activeWarehouse =
 		typeof warehouse === "string" && warehouse.trim().length > 0
 			? warehouse.trim()
 			: null;
-	if (activeWarehouse) {
-		requestProfile.warehouse = activeWarehouse;
-	}
-	if (forceServer) {
-		requestProfile.posa_use_server_cache = 0;
-		requestProfile.posa_force_reload_items = 1;
-	}
+	const requestProfile = clonePosProfileForRequest(posProfile, {
+		warehouse: activeWarehouse,
+		forceServer,
+	});
 
 	const args: GetItemsArgs = {
-		pos_profile: JSON.stringify(requestProfile),
+		pos_profile: requestProfile,
 		price_list: effectivePriceList,
 		item_group: normalizedGroup !== "ALL" ? normalizedGroup.toLowerCase() : "",
 		search_value: searchValue || "",

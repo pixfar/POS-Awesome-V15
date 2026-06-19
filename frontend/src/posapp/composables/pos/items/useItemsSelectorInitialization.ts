@@ -40,6 +40,14 @@ function resolveErrorMessage(error: unknown) {
 	return error;
 }
 
+function scheduleDeferredTask(task: () => void, timeout = 1500) {
+	if (typeof requestIdleCallback === "function") {
+		requestIdleCallback(task, { timeout });
+		return;
+	}
+	setTimeout(task, 0);
+}
+
 export function startItemsSelectorInitialization({
 	uiPosProfile,
 	selectedCustomer,
@@ -93,9 +101,11 @@ export function startItemsSelectorInitialization({
 				});
 
 				isInitialized.value = true;
-				startItemWorker();
-				loadItemSettings();
-				startBackgroundSyncScheduler();
+				scheduleDeferredTask(() => {
+					startItemWorker();
+					loadItemSettings();
+					startBackgroundSyncScheduler();
+				});
 			} catch (err: unknown) {
 				console.error("ItemsSelector: Initialization failed", err);
 				initError.value = resolveErrorMessage(err);

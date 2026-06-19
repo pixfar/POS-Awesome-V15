@@ -3,7 +3,7 @@
  * Provides backward compatibility while leveraging new state management
  */
 
-import { computed, watch, onMounted, onUnmounted } from "vue";
+import { computed, onMounted, onUnmounted } from "vue";
 import { useItemsStore } from "../../../stores/itemsStore.js";
 import { storeToRefs } from "pinia";
 
@@ -167,12 +167,6 @@ export function useItemsIntegration(options: IntegrationOptions = {}) {
 			cust as any,
 			priceList as any,
 		);
-
-		// Initialization complete
-		console.log("Items store initialized:", {
-			itemsCount: totalItemCount.value,
-			cacheHealth: cacheHealth.value,
-		});
 	};
 
 	// Performance monitoring
@@ -233,27 +227,6 @@ export function useItemsIntegration(options: IntegrationOptions = {}) {
 
 	onUnmounted(() => {
 		cleanup();
-	});
-
-	// Watch for important changes
-	watch(itemsLoaded, (loaded) => {
-		if (loaded) {
-			console.log("Items loaded:", {
-				count: totalItemCount.value,
-				cached: cacheHealth.value.items === "healthy",
-			});
-		}
-	});
-
-	watch(filteredItems, (newItems) => {
-		console.debug("Filtered items updated:", {
-			count: newItems.length,
-			total: totalItemCount.value,
-		});
-	});
-
-	watch(isLoading, (loading) => {
-		console.debug("Loading state changed:", loading);
 	});
 
 	// Return interface compatible with existing component

@@ -129,6 +129,7 @@ vi.mock("../src/posapp/composables/pos/items/store/useItemsPagination", () => ({
 		DEFAULT_PAGE_SIZE: 50,
 		LARGE_CATALOG_THRESHOLD: 500,
 		resolvePageSize: vi.fn(() => 50),
+		resolveInitialBootstrapPageSize: vi.fn(() => 50),
 		resolveLimitSearchSize: vi.fn(() => 50),
 		resetCachedPagination: vi.fn(),
 		updateCachedPaginationFromStorage: vi.fn(async () => {}),

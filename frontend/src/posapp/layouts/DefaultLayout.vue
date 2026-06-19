@@ -920,8 +920,10 @@ const initializeData = async () => {
 	if (!ONLINE_ONLY_MODE) {
 		await initPromise;
 		await memoryInitPromise;
-		await ensureOfflineQueueReady();
-		await hydrateOfflineSyncResourceStates();
+		await Promise.all([
+			ensureOfflineQueueReady(),
+			hydrateOfflineSyncResourceStates(),
+		]);
 		checkDbHealth().catch(() => {});
 	}
 
@@ -963,11 +965,16 @@ const initializeData = async () => {
 		evaluateBootstrapSnapshot({
 			allowPrompt: manualOffline.value || !navigator.onLine,
 		});
-		await scheduleBootCriticalWarmSync();
-		await refreshOfflinePricingRules();
-		evaluateBootstrapSnapshot({ allowPrompt: false });
 		initialBootstrapSyncSettled.value = true;
-		void runStartupOfflineDataWarmup("initial_load");
+		void (async () => {
+			try {
+				await scheduleBootCriticalWarmSync();
+				await refreshOfflinePricingRules();
+			} finally {
+				evaluateBootstrapSnapshot({ allowPrompt: false });
+				void runStartupOfflineDataWarmup("initial_load");
+			}
+		})();
 	} else {
 		initialBootstrapSyncSettled.value = true;
 		startupBootstrapWarningsReady.value = true;
