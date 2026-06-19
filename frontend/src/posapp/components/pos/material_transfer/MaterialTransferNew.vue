@@ -3,7 +3,7 @@
 		<v-row class="h-100 ma-0">
 			<v-col cols="12" md="7" class="h-100 pa-0">
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
-					<v-card-text class="flex-grow-1 overflow-y-auto pa-3">
+					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
 							<div class="invoice-top-grid purchase-top-grid">
 								<v-card flat class="invoice-section-card pos-themed-card">
@@ -62,7 +62,7 @@
 										</div>
 										<div class="text-caption text-medium-emphasis">
 											{{ transferItems.length }}
-											{{ requisitionItems.length === 1 ? __("item") : __("items") }}
+											{{ transferItems.length === 1 ? __("item") : __("items") }}
 										</div>
 									</div>
 								</v-card>
@@ -114,17 +114,24 @@
 								/>
 							</v-card>
 
-							<v-textarea
-								v-model="notes"
-								:label="__('Notes')"
-								variant="outlined"
-								density="compact"
-								hide-details
-								rows="2"
-								class="pos-themed-input mt-2"
-							/>
+							<v-card flat class="invoice-section-card pos-themed-card notes-section-card">
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">{{ __("Notes") }}</h3>
+								</div>
+								<div class="sale-options-body">
+									<v-textarea
+										v-model="notes"
+										:label="__('Notes')"
+										variant="outlined"
+										density="compact"
+										hide-details
+										rows="2"
+										class="pos-themed-input"
+									/>
+								</div>
+							</v-card>
 
-							<v-alert v-if="errorMessage" type="error" density="compact" class="mt-2">
+							<v-alert v-if="errorMessage" type="error" density="compact">
 								{{ errorMessage }}
 							</v-alert>
 						</div>
@@ -132,8 +139,12 @@
 
 					<div class="purchase-bottom-bar">
 						<div class="purchase-bottom-bar__summary">
-							<span class="purchase-bottom-bar__label">{{ __("Items") }}</span>
+							<span class="purchase-bottom-bar__label">{{ __("Total Qty") }}</span>
 							<strong class="purchase-bottom-bar__amount">{{ totalQty }}</strong>
+							<span class="purchase-bottom-bar__meta">
+								{{ transferItems.length }}
+								{{ transferItems.length === 1 ? __("item") : __("items") }}
+							</span>
 						</div>
 						<v-btn
 							:loading="submitLoading"
@@ -475,26 +486,4 @@ export default {
 
 <style scoped>
 @import '../invoice-shared-styles.css';
-
-.purchase-top-grid {
-	grid-template-columns: 2.5fr 1fr 2fr !important;
-	align-items: stretch;
-	gap: 12px !important;
-}
-
-.purchase-top-grid > .invoice-section-card {
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-}
-
-.sale-options-body {
-	padding: 8px 14px 12px;
-}
-
-@media (max-width: 768px) {
-	.purchase-top-grid {
-		grid-template-columns: 1fr !important;
-	}
-}
 </style>

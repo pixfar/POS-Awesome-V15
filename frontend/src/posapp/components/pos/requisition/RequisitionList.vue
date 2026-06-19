@@ -1,54 +1,129 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell">
-		<v-row class="h-100 ma-0">
-			<v-col cols="12" class="pa-3">
-				<v-card flat class="invoice-section-card pos-themed-card">
-					<div class="invoice-section-heading invoice-section-heading--toolbar">
-						<h3 class="invoice-section-heading__title">{{ __("Requisitions") }}</h3>
-						<div class="invoice-section-heading__actions">
-							<v-switch
-								v-model="mineOnly"
-								density="compact"
-								hide-details
-								color="primary"
-								:label="__('My Requisitions')"
-								class="mr-2"
-								@update:model-value="loadRequisitions"
-							/>
-							<v-btn
-								variant="text"
-								size="small"
-								color="primary"
-								prepend-icon="mdi-sync"
-								:loading="listLoading"
-								@click="loadRequisitions"
-							>{{ __("Sync") }}</v-btn>
-						</div>
-					</div>
-					<v-data-table
-						:headers="listHeaders"
-						:items="requisitionList"
-						:loading="listLoading"
-						density="compact"
-						hide-default-footer
-						:items-per-page="-1"
-						class="requisition-list-table"
-						@click:row="(_, row) => openRequisitionDetail(row.item)"
+	<div class="pa-0 h-100 invoice-shell pos-list-page">
+		<v-card flat class="invoice-section-card pos-themed-card pos-list-card">
+			<div class="pos-list-header">
+				<div class="pos-list-header__main">
+					<p class="pos-list-header__eyebrow">{{ __("Stock Movement") }}</p>
+					<h3 class="pos-list-header__title">{{ __("Requisitions") }}</h3>
+					<p class="pos-list-header__subtitle">
+						{{ __("Track warehouse requisitions, transfers, and receipt confirmations") }}
+					</p>
+				</div>
+				<div class="pos-list-header__actions">
+					<v-btn
+						color="primary"
+						variant="flat"
+						class="text-none"
+						prepend-icon="mdi-plus"
+						@click="goToNew"
 					>
-						<template #item.transfer_status="{ item }">
-							<v-chip size="small" variant="tonal" :color="statusColor(item.transfer_status)">
-								{{ item.transfer_status }}
-							</v-chip>
-						</template>
-						<template #item.actions="{ item }">
+						{{ __("New Requisition") }}
+					</v-btn>
+				</div>
+			</div>
+
+			<div class="pos-list-stats">
+				<div class="pos-list-stat pos-list-stat--primary">
+					<span class="pos-list-stat__label">{{ __("Total") }}</span>
+					<strong class="pos-list-stat__value">{{ stats.total }}</strong>
+				</div>
+				<div class="pos-list-stat pos-list-stat--warning">
+					<span class="pos-list-stat__label">{{ __("Pending Transfer") }}</span>
+					<strong class="pos-list-stat__value">{{ stats.pendingTransfer }}</strong>
+				</div>
+				<div class="pos-list-stat">
+					<span class="pos-list-stat__label">{{ __("In Transit") }}</span>
+					<strong class="pos-list-stat__value">{{ stats.inTransit }}</strong>
+				</div>
+				<div class="pos-list-stat pos-list-stat--success">
+					<span class="pos-list-stat__label">{{ __("Completed") }}</span>
+					<strong class="pos-list-stat__value">{{ stats.completed }}</strong>
+				</div>
+			</div>
+
+			<div class="pos-list-toolbar">
+				<v-text-field
+					v-model="searchQuery"
+					:label="__('Search requisition or warehouse')"
+					density="compact"
+					variant="solo"
+					hide-details
+					clearable
+					prepend-inner-icon="mdi-magnify"
+					class="pos-themed-input pos-list-search"
+				/>
+				<div class="pos-list-toolbar__filters">
+					<v-switch
+						v-model="mineOnly"
+						density="compact"
+						hide-details
+						color="primary"
+						:label="__('My Requisitions')"
+						@update:model-value="loadRequisitions"
+					/>
+					<v-btn
+						variant="tonal"
+						size="small"
+						color="primary"
+						prepend-icon="mdi-sync"
+						:loading="listLoading"
+						class="text-none"
+						@click="loadRequisitions"
+					>
+						{{ __("Sync") }}
+					</v-btn>
+				</div>
+			</div>
+
+			<div v-if="filteredList.length" class="pos-list-table-wrap">
+				<v-data-table
+					:headers="listHeaders"
+					:items="filteredList"
+					:loading="listLoading"
+					density="comfortable"
+					hide-default-footer
+					:items-per-page="-1"
+					class="pos-list-table requisition-list-table"
+					@click:row="(_, row) => openRequisitionDetail(row.item)"
+				>
+					<template #item.name="{ item }">
+						<span class="pos-list-cell-primary">{{ item.name }}</span>
+					</template>
+					<template #item.transaction_date="{ item }">
+						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.transaction_date) }}</span>
+					</template>
+					<template #item.source_warehouse="{ item }">
+						<span class="pos-list-cell-truncate" :title="item.source_warehouse">
+							{{ item.source_warehouse }}
+						</span>
+					</template>
+					<template #item.target_warehouse="{ item }">
+						<span class="pos-list-cell-truncate" :title="item.target_warehouse">
+							{{ item.target_warehouse }}
+						</span>
+					</template>
+					<template #item.transfer_status="{ item }">
+						<v-chip
+							size="small"
+							variant="tonal"
+							:color="statusColor(item.transfer_status)"
+							:class="statusChipClass(item.transfer_status)"
+						>
+							{{ item.transfer_status }}
+						</v-chip>
+					</template>
+					<template #item.actions="{ item }">
+						<div class="d-flex justify-end ga-1 flex-wrap">
 							<v-btn
 								v-if="item.can_transfer"
 								size="small"
 								variant="tonal"
 								color="warning"
-								class="text-none mr-1"
+								class="text-none"
 								@click.stop="transferStock(item.name)"
-							>{{ __("Transfer") }}</v-btn>
+							>
+								{{ __("Transfer") }}
+							</v-btn>
 							<v-btn
 								v-if="item.can_confirm"
 								size="small"
@@ -56,12 +131,38 @@
 								color="primary"
 								class="text-none"
 								@click.stop="openConfirmReceipt(item.name)"
-							>{{ __("Confirm") }}</v-btn>
-						</template>
-					</v-data-table>
-				</v-card>
-			</v-col>
-		</v-row>
+							>
+								{{ __("Confirm") }}
+							</v-btn>
+						</div>
+					</template>
+				</v-data-table>
+			</div>
+
+			<div v-else-if="!listLoading" class="pos-list-empty">
+				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-clipboard-text-outline</v-icon>
+				<h4 class="pos-list-empty__title">{{ __("No requisitions found") }}</h4>
+				<p class="pos-list-empty__subtitle">
+					{{ searchQuery
+						? __("Try a different search term or clear the filter.")
+						: __("Create a new requisition to request stock from another warehouse.") }}
+				</p>
+				<v-btn
+					v-if="!searchQuery"
+					color="primary"
+					variant="flat"
+					class="text-none mt-2"
+					prepend-icon="mdi-plus"
+					@click="goToNew"
+				>
+					{{ __("New Requisition") }}
+				</v-btn>
+			</div>
+
+			<div v-else class="pos-list-empty">
+				<v-progress-circular indeterminate color="primary" />
+			</div>
+		</v-card>
 
 		<ConfirmReceiptDialog
 			v-model="confirmDialog"
@@ -73,7 +174,8 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
 import ConfirmReceiptDialog from './ConfirmReceiptDialog.vue';
@@ -85,10 +187,12 @@ export default {
 		ConfirmReceiptDialog,
 	},
 	setup() {
+		const router = useRouter();
 		const toastStore = useToastStore();
 		const requisitionList = ref([]);
 		const listLoading = ref(false);
 		const mineOnly = ref(false);
+		const searchQuery = ref('');
 		const confirmDialog = ref(false);
 		const confirmItems = ref([]);
 		const confirmLoading = ref(false);
@@ -100,8 +204,44 @@ export default {
 			{ title: __('From'), key: 'source_warehouse', sortable: true },
 			{ title: __('To'), key: 'target_warehouse', sortable: true },
 			{ title: __('Status'), key: 'transfer_status', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '180px' },
 		];
+
+		const filteredList = computed(() => {
+			const q = String(searchQuery.value || '').trim().toLowerCase();
+			if (!q) return requisitionList.value;
+			return requisitionList.value.filter((row) => {
+				const haystack = [
+					row.name,
+					row.source_warehouse,
+					row.target_warehouse,
+					row.transfer_status,
+					row.requested_by,
+				]
+					.filter(Boolean)
+					.join(' ')
+					.toLowerCase();
+				return haystack.includes(q);
+			});
+		});
+
+		const stats = computed(() => {
+			const rows = requisitionList.value;
+			return {
+				total: rows.length,
+				pendingTransfer: rows.filter((row) => row.can_transfer).length,
+				inTransit: rows.filter((row) => row.transfer_status === 'In Transit').length,
+				completed: rows.filter((row) =>
+					['Fully Transferred', 'Over Transferred'].includes(row.transfer_status),
+				).length,
+			};
+		});
+
+		const formatDisplayDate = (value) => {
+			if (!value) return '—';
+			const parts = String(value).split('-');
+			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
+		};
 
 		const loadRequisitions = async () => {
 			listLoading.value = true;
@@ -123,11 +263,22 @@ export default {
 			const map = {
 				'Not Transferred': 'orange',
 				'In Transit': 'blue',
-				'Partially Transferred': 'yellow',
+				'Partially Transferred': 'orange',
 				'Fully Transferred': 'green',
 				'Over Transferred': 'red',
 			};
 			return map[status] || 'grey';
+		};
+
+		const statusChipClass = (status) => {
+			if (status === 'Partially Transferred') {
+				return 'pos-status-chip--partial';
+			}
+			return '';
+		};
+
+		const goToNew = () => {
+			router.push('/requisitions/new');
 		};
 
 		const transferStock = async (requisition) => {
@@ -192,11 +343,17 @@ export default {
 
 		return {
 			requisitionList,
+			filteredList,
+			stats,
 			listLoading,
 			mineOnly,
+			searchQuery,
 			listHeaders,
 			loadRequisitions,
+			formatDisplayDate,
 			statusColor,
+			statusChipClass,
+			goToNew,
 			transferStock,
 			openConfirmReceipt,
 			confirmDialog,
@@ -211,21 +368,4 @@ export default {
 
 <style scoped>
 @import '../invoice-shared-styles.css';
-
-.invoice-section-heading--toolbar {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-}
-
-.invoice-section-heading__actions {
-	display: flex;
-	align-items: center;
-	margin-left: auto;
-}
-
-.requisition-list-table :deep(tbody tr) {
-	cursor: pointer;
-}
 </style>

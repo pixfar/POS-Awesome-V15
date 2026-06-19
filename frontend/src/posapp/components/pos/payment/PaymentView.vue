@@ -5,7 +5,7 @@
 			<!-- LEFT: Party selector · Outstanding invoices · History -->
 			<v-col cols="12" md="7" class="h-100 pa-0">
 				<v-card class="h-100 d-flex flex-column pos-themed-card payment-invoice-card" flat>
-					<v-card-text class="flex-grow-1 d-flex flex-column pa-3 payment-main-body">
+					<v-card-text class="flex-grow-1 d-flex flex-column pa-3 pa-md-4 payment-main-body">
 						<div class="payment-content">
 
 							<div class="invoice-top-grid payment-top-grid">
@@ -244,24 +244,26 @@
 					</v-card-text>
 
 					<!-- Bottom action bar -->
-					<div class="payment-bottom-bar">
-						<div class="payment-bottom-bar__summary">
-							<span class="payment-bottom-bar__label">{{ __("Selected") }}</span>
-							<strong class="payment-bottom-bar__amount">
+					<div class="purchase-bottom-bar">
+						<div class="purchase-bottom-bar__summary">
+							<span class="purchase-bottom-bar__label">{{ __("Selected Total") }}</span>
+							<strong class="purchase-bottom-bar__amount">
 								{{ currencySymbol() }}{{ formatAmt(total_selected_invoices) }}
 							</strong>
-							<span v-if="selected_invoices.length" class="payment-bottom-bar__meta">
-								{{ selected_invoices.length }}
-								{{ selected_invoices.length === 1 ? __("invoice") : __("invoices") }}
+							<span class="purchase-bottom-bar__meta">
+								<template v-if="selected_invoices.length">
+									{{ selected_invoices.length }}
+									{{ selected_invoices.length === 1 ? __("invoice") : __("invoices") }}
+								</template>
+								<template v-else>{{ __("No invoices selected") }}</template>
 							</span>
 						</div>
 						<v-btn
 							:loading="isSubmitting"
 							:disabled="isSubmitting || !canSubmit"
 							size="large"
-							class="text-none payment-pay-btn"
+							class="text-none purchase-pay-btn"
 							prepend-icon="mdi-cash-check"
-							color="primary"
 							@click="handleSubmit(false)"
 						>
 							{{ __("PAY") }}
@@ -272,9 +274,9 @@
 
 			<!-- RIGHT: Summary · Payment methods · Submit -->
 			<v-col cols="12" md="5" class="h-100 pa-0 border-s">
-				<v-card class="h-100 d-flex flex-column pos-themed-card" flat>
-					<v-card-text class="flex-grow-1 overflow-y-auto pa-3">
-						<div class="invoice-sections">
+				<v-card class="h-100 d-flex flex-column pos-themed-card payment-side-card" flat>
+					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
+						<div class="invoice-sections payment-side-sections">
 
 						<!-- Summary -->
 						<v-card flat class="invoice-section-card pos-themed-card">
@@ -350,14 +352,31 @@
 					</v-card-text>
 
 					<!-- Submit panel -->
-					<div class="payment-submit-panel pa-3">
+					<div class="payment-submit-panel">
+						<div class="payment-submit-panel__summary">
+							<div class="payment-submit-panel__row">
+								<span>{{ __("Entered Amount") }}</span>
+								<strong>{{ currencySymbol() }}{{ formatAmt(total_payment_methods) }}</strong>
+							</div>
+							<div
+								class="payment-submit-panel__row"
+								:class="paymentDiff === 0
+									? 'payment-submit-panel__row--clear'
+									: paymentDiff > 0
+										? 'payment-submit-panel__row--excess'
+										: 'payment-submit-panel__row--short'"
+							>
+								<span>{{ paymentDiff >= 0 ? __("Excess") : __("Shortfall") }}</span>
+								<strong>{{ currencySymbol() }}{{ formatAmt(Math.abs(paymentDiff)) }}</strong>
+							</div>
+						</div>
 						<v-btn
 							block
 							size="large"
 							color="primary"
 							:loading="isSubmitting"
 							:disabled="isSubmitting || !canSubmit"
-							class="mb-2 text-none"
+							class="text-none payment-submit-panel__btn"
 							prepend-icon="mdi-check-circle"
 							@click="handleSubmit(false)"
 						>
@@ -370,7 +389,7 @@
 							variant="tonal"
 							:loading="isSubmitting"
 							:disabled="isSubmitting || !canSubmit"
-							class="text-none"
+							class="text-none payment-submit-panel__btn"
 							prepend-icon="mdi-printer"
 							@click="handleSubmit(true)"
 						>
@@ -1124,9 +1143,12 @@ export default {
 <style scoped>
 @import "../invoice-shared-styles.css";
 
-.payment-shell { overflow: hidden; }
+.payment-shell {
+	overflow: hidden;
+}
 
-.payment-invoice-card {
+.payment-invoice-card,
+.payment-side-card {
 	border-radius: var(--pos-radius-md, 18px);
 }
 
@@ -1144,9 +1166,9 @@ export default {
 }
 
 .payment-top-grid {
-	grid-template-columns: 2.5fr 1fr 2fr !important;
+	grid-template-columns: 2.5fr 1fr 2fr;
 	align-items: stretch;
-	gap: 12px !important;
+	gap: var(--dynamic-sm);
 	flex: 0 0 auto;
 }
 
@@ -1164,19 +1186,6 @@ export default {
 	padding: 8px 14px 12px;
 }
 
-.sale-options-card {
-	display: flex;
-	flex-direction: column;
-}
-
-.sale-options-body {
-	padding: 8px 14px 12px;
-	display: flex;
-	flex-direction: column;
-	gap: 0;
-	flex: 1 1 auto;
-}
-
 .payment-tables-stack {
 	display: flex;
 	flex-direction: column;
@@ -1185,12 +1194,16 @@ export default {
 	gap: var(--dynamic-sm);
 }
 
+.payment-side-sections {
+	min-height: 0;
+}
+
 .invoice-section-heading--toolbar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
-	padding-bottom: 4px;
+	padding: 16px 18px 8px;
 }
 
 .invoice-section-heading__actions {
@@ -1213,7 +1226,7 @@ export default {
 }
 
 .payment-table-body {
-	padding: 0 12px 12px;
+	padding: 0 14px 14px;
 	flex: 1 1 auto;
 	min-height: 0;
 	display: flex;
@@ -1233,15 +1246,15 @@ export default {
 
 .payment-history-table + .text-center,
 .payment-invoices-table + .text-center {
-	border-top: 1px solid rgba(0, 0, 0, 0.06);
+	border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 
-/* Selected invoice row highlight */
 .payment-invoices-table :deep(tr.selected-invoice-row) {
 	background: rgba(37, 99, 235, 0.08) !important;
 }
+
 .payment-invoices-table :deep(tr.selected-invoice-row td) {
-	border-left: 3px solid #2563eb;
+	border-left: 3px solid var(--primary-start, #2563eb);
 }
 
 .payment-invoices-table,
@@ -1256,76 +1269,112 @@ export default {
 	overflow-y: auto;
 }
 
-/* Bottom action bar */
-.payment-bottom-bar {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 12px 16px;
-	border-top: 1px solid rgba(0, 0, 0, 0.08);
-	background: #fff;
-	flex-shrink: 0;
-	gap: 12px;
-}
-.payment-bottom-bar__summary {
-	display: flex;
-	align-items: baseline;
-	gap: 8px;
-	flex-wrap: wrap;
-}
-.payment-bottom-bar__label { font-size: 0.8rem; color: #6b7280; }
-.payment-bottom-bar__amount { font-size: 1.25rem; font-weight: 700; color: #1d4ed8; }
-.payment-bottom-bar__meta { font-size: 0.75rem; color: #9ca3af; }
-.payment-pay-btn { min-width: 120px; font-weight: 700; letter-spacing: 0.04em; }
-
-/* Right panel summary */
 .payment-summary-list {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
-	padding: 4px 14px 14px;
+	gap: 10px;
+	padding: 4px 14px 16px;
 }
+
 .payment-summary-row {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	font-size: 0.85rem;
+	gap: 12px;
+	font-size: 0.875rem;
 }
-.payment-summary-row__label { color: #6b7280; }
-.payment-summary-row__val { font-weight: 600; }
 
-/* Payment methods */
+.payment-summary-row__label {
+	color: var(--pos-text-secondary, #6b7280);
+}
+
+.payment-summary-row__val {
+	font-weight: 600;
+	text-align: right;
+}
+
 .payment-methods-list {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
-	padding: 4px 14px 14px;
+	gap: 12px;
+	padding: 4px 14px 16px;
 }
 
-/* Submit panel */
+.payment-method-entry {
+	width: 100%;
+}
+
 .payment-submit-panel {
-	border-top: 1px solid rgba(0, 0, 0, 0.08);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
 	flex-shrink: 0;
-	background: #fff;
-	padding: 12px 16px !important;
+	padding: 16px 18px 18px;
+	border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+	background: var(--pos-card-bg, #fff);
+}
+
+.payment-submit-panel__summary {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px 14px;
+	border-radius: 12px;
+	background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.payment-submit-panel__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	font-size: 0.875rem;
+	color: var(--pos-text-secondary, #6b7280);
+}
+
+.payment-submit-panel__row strong {
+	font-size: 1rem;
+	color: var(--pos-text-primary, #111827);
+}
+
+.payment-submit-panel__row--clear strong {
+	color: rgb(var(--v-theme-success));
+}
+
+.payment-submit-panel__row--excess strong {
+	color: rgb(var(--v-theme-warning));
+}
+
+.payment-submit-panel__row--short strong {
+	color: rgb(var(--v-theme-error));
+}
+
+.payment-submit-panel__btn {
+	min-height: 48px !important;
+	font-weight: 700;
+	border-radius: 10px !important;
 }
 
 @media (max-width: 768px) {
 	.payment-top-grid {
-		grid-template-columns: 1fr !important;
+		grid-template-columns: 1fr;
 	}
+
 	.payment-top-grid > .invoice-section-card {
 		height: auto;
 	}
+
 	.payment-tables-stack {
 		flex: 0 0 auto;
 	}
+
 	.payment-table-card--split {
 		flex: 0 0 auto;
 		min-height: 280px;
 	}
 }
 
-/* Child drawer items indentation */
-:deep(.drawer-item--child .v-list-item__content) { padding-left: 12px; }
+:deep(.drawer-item--child .v-list-item__content) {
+	padding-left: 12px;
+}
 </style>
