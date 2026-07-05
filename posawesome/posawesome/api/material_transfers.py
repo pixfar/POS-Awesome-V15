@@ -13,6 +13,7 @@ from posawesome.posawesome.doctype.material_transfer.material_transfer import (
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_warehouse_doc_read_access,
 	get_warehouse_doc_list_rows,
+	get_warehouse_doc_status_counts,
 )
 
 
@@ -82,9 +83,32 @@ def create_material_transfer(data):
 
 
 @frappe.whitelist()
-def get_material_transfers_list(page_start=0, page_length=20, mine_only=0):
+def get_material_transfers_list(
+	page_start=0,
+	page_length=20,
+	mine_only=0,
+	status=None,
+	from_date=None,
+	to_date=None,
+	item_code=None,
+	item_group=None,
+	warehouse=None,
+	search=None,
+):
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
+
+	shared_filter_args = dict(
+		mine_only=mine_only,
+		date_field='transaction_date',
+		from_date=from_date,
+		to_date=to_date,
+		item_code=item_code,
+		item_group=item_group,
+		warehouse=warehouse,
+		search=search,
+		search_fields=['name', 'from_warehouse', 'to_warehouse', 'requested_by'],
+	)
 
 	rows, total = get_warehouse_doc_list_rows(
 		'Material Transfer',
@@ -101,7 +125,16 @@ def get_material_transfers_list(page_start=0, page_length=20, mine_only=0):
 		],
 		page_start=page_start,
 		page_length=page_length,
-		mine_only=mine_only,
+		extra_filters={'transfer_status': status} if status else None,
+		**shared_filter_args,
+	)
+
+	status_counts = get_warehouse_doc_status_counts(
+		'Material Transfer',
+		'from_warehouse',
+		'to_warehouse',
+		'transfer_status',
+		**shared_filter_args,
 	)
 
 	transfers = [_enrich_list_row(row) for row in rows]
@@ -110,6 +143,7 @@ def get_material_transfers_list(page_start=0, page_length=20, mine_only=0):
 		'transfers': transfers,
 		'total': total,
 		'has_more': (page_start + page_length) < total,
+		'status_counts': status_counts,
 	}
 
 

@@ -142,23 +142,6 @@ doc_events = {
         "after_insert": "posawesome.posawesome.stock_realtime.publish_bin_stock_change",
         "on_update": "posawesome.posawesome.stock_realtime.publish_bin_stock_change",
     },
-    "Stock Entry": {
-        "after_insert": (
-            "posawesome.doc_events.stock_entry.update_requisition_status"
-            ".sync_requisition_transfer_status"
-        ),
-        "on_submit": (
-            "posawesome.doc_events.stock_entry.update_requisition_status"
-            ".sync_requisition_transfer_status"
-        ),
-        "on_cancel": (
-            "posawesome.doc_events.stock_entry.update_requisition_status"
-            ".sync_requisition_transfer_status"
-        ),
-        "before_workflow_action": (
-            "posawesome.doc_events.stock_entry.workflow_guard.guard_confirm_receipt"
-        ),
-    },
 }
 
 # Scheduled Tasks

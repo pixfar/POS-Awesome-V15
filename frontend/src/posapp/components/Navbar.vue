@@ -165,6 +165,7 @@ import { forceClearAllCache } from "../../offline/index";
 import { clearAllCaches } from "../../utils/clearAllCaches";
 import { isOffline } from "../../offline/index";
 import { useRtl } from "../composables/core/useRtl";
+import { isPosWarehouseSwitcher } from "../utils/posWarehouseAccess";
 
 const ServerUsageGadget = defineAsyncComponent(() => import("./navbar/ServerUsageGadget.vue"));
 const DatabaseUsageGadget = defineAsyncComponent(() => import("./navbar/DatabaseUsageGadget.vue"));
@@ -297,8 +298,22 @@ export default {
 			mini: true,
 			item: 0,
 			baseItems: [
-				{ text: "POS", icon: "mdi-network-pos", to: "/pos" },
-				{ text: "Purchase Invoice", icon: "mdi-cart-plus", to: "/orders" },
+				{
+					text: "Sales Invoice",
+					icon: "mdi-receipt-text-outline",
+					children: [
+						{ text: "Create Invoice", icon: "mdi-plus-circle-outline", to: "/sales-invoices/new" },
+						{ text: "Invoice List", icon: "mdi-format-list-bulleted", to: "/sales-invoices/list" },
+					],
+				},
+				{
+					text: "Purchase Invoice",
+					icon: "mdi-cart-plus",
+					children: [
+						{ text: "Create Invoice", icon: "mdi-plus-circle-outline", to: "/purchase-invoices/new" },
+						{ text: "Invoice List", icon: "mdi-format-list-bulleted", to: "/purchase-invoices/list" },
+					],
+				},
 				{
 					text: "Material Transfer",
 					icon: "mdi-truck-fast-outline",
@@ -563,6 +578,16 @@ export default {
 					text: "Cash Movement",
 					icon: "mdi-cash-sync",
 					to: "/cash-movement",
+				});
+			}
+			if (isPosWarehouseSwitcher()) {
+				items.push({
+					text: "Production Plan",
+					icon: "mdi-factory",
+					children: [
+						{ text: "Create Plan", icon: "mdi-plus-circle-outline", to: "/production-plans/new" },
+						{ text: "Plan List", icon: "mdi-format-list-bulleted", to: "/production-plans/list" },
+					],
 				});
 			}
 			this.items = items;

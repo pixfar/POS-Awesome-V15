@@ -3,10 +3,10 @@
 		<v-card flat class="invoice-section-card pos-themed-card pos-list-card">
 			<div class="pos-list-header">
 				<div class="pos-list-header__main">
-					<p class="pos-list-header__eyebrow">{{ __("Stock Movement") }}</p>
-					<h3 class="pos-list-header__title">{{ __("Material Transfers") }}</h3>
+					<p class="pos-list-header__eyebrow">{{ __("Manufacturing") }}</p>
+					<h3 class="pos-list-header__title">{{ __("Production Plans") }}</h3>
 					<p class="pos-list-header__subtitle">
-						{{ __("Track inter-warehouse transfers and confirm received stock") }}
+						{{ __("Track production plans from draft through completion") }}
 					</p>
 				</div>
 				<div class="pos-list-header__actions">
@@ -17,7 +17,7 @@
 						prepend-icon="mdi-plus"
 						@click="goToNew"
 					>
-						{{ __("New Transfer") }}
+						{{ __("Create Plan") }}
 					</v-btn>
 				</div>
 			</div>
@@ -27,24 +27,24 @@
 					<span class="pos-list-stat__label">{{ __("Total") }}</span>
 					<strong class="pos-list-stat__value">{{ total }}</strong>
 				</div>
-				<div class="pos-list-stat">
-					<span class="pos-list-stat__label">{{ __("In Transit") }}</span>
-					<strong class="pos-list-stat__value">{{ statusCounts["In Transit"] || 0 }}</strong>
-				</div>
 				<div class="pos-list-stat pos-list-stat--warning">
-					<span class="pos-list-stat__label">{{ __("Partial") }}</span>
-					<strong class="pos-list-stat__value">{{ statusCounts["Partially Received"] || 0 }}</strong>
+					<span class="pos-list-stat__label">{{ __("Work In Progress") }}</span>
+					<strong class="pos-list-stat__value">{{ statusCounts["Work In Progress"] || 0 }}</strong>
 				</div>
 				<div class="pos-list-stat pos-list-stat--success">
-					<span class="pos-list-stat__label">{{ __("Received") }}</span>
-					<strong class="pos-list-stat__value">{{ statusCounts["Fully Received"] || 0 }}</strong>
+					<span class="pos-list-stat__label">{{ __("Production Complete") }}</span>
+					<strong class="pos-list-stat__value">{{ statusCounts["Production Complete"] || 0 }}</strong>
+				</div>
+				<div class="pos-list-stat">
+					<span class="pos-list-stat__label">{{ __("Cancelled") }}</span>
+					<strong class="pos-list-stat__value">{{ statusCounts["Cancelled"] || 0 }}</strong>
 				</div>
 			</div>
 
 			<div class="pos-list-toolbar">
 				<v-text-field
 					v-model="searchQuery"
-					:label="__('Search transfer or warehouse')"
+					:label="__('Search plan or warehouse')"
 					density="compact"
 					variant="solo"
 					hide-details
@@ -54,14 +54,6 @@
 					@update:model-value="handleSearchUpdate"
 				/>
 				<div class="pos-list-toolbar__filters">
-					<v-switch
-						v-model="mineOnly"
-						density="compact"
-						hide-details
-						color="primary"
-						:label="__('My Transfers')"
-						@update:model-value="resetAndLoad"
-					/>
 					<v-btn
 						variant="tonal"
 						size="small"
@@ -69,7 +61,7 @@
 						prepend-icon="mdi-sync"
 						:loading="listLoading"
 						class="text-none"
-						@click="loadTransfers"
+						@click="loadPlans"
 					>
 						{{ __("Sync") }}
 					</v-btn>
@@ -158,54 +150,48 @@
 				</v-btn>
 			</div>
 
-			<div v-if="transferList.length" class="pos-list-table-wrap">
+			<div v-if="planList.length" class="pos-list-table-wrap">
 				<v-data-table
 					:headers="listHeaders"
-					:items="transferList"
+					:items="planList"
 					:loading="listLoading"
 					density="comfortable"
 					hide-default-footer
 					:items-per-page="-1"
-					class="pos-list-table material-transfer-list-table"
-					@click:row="(_, row) => openTransferDetail(row.item)"
+					class="pos-list-table production-plan-list-table"
+					@click:row="(_, row) => openPlanDetail(row.item)"
 				>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
-					<template #item.transaction_date="{ item }">
-						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.transaction_date) }}</span>
+					<template #item.posting_date="{ item }">
+						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
-					<template #item.from_warehouse="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.from_warehouse">
-							{{ item.from_warehouse }}
+					<template #item.for_warehouse="{ item }">
+						<span class="pos-list-cell-truncate" :title="item.for_warehouse">
+							{{ item.for_warehouse || "—" }}
 						</span>
 					</template>
-					<template #item.to_warehouse="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.to_warehouse">
-							{{ item.to_warehouse }}
-						</span>
+					<template #item.total_planned_qty="{ item }">
+						<span class="pos-list-cell-muted">{{ formatQty(item.total_planned_qty) }}</span>
 					</template>
-					<template #item.transfer_status="{ item }">
-						<v-chip
-							size="small"
-							variant="tonal"
-							:color="statusColor(item.transfer_status)"
-							:class="statusChipClass(item.transfer_status)"
-						>
-							{{ item.transfer_status }}
+					<template #item.workflow_state="{ item }">
+						<v-chip size="small" variant="tonal" :color="statusColor(item.workflow_state)">
+							{{ item.workflow_state }}
 						</v-chip>
 					</template>
 					<template #item.actions="{ item }">
-						<div class="d-flex justify-end">
+						<div class="d-flex justify-end ga-1 flex-wrap">
 							<v-btn
-								v-if="item.can_confirm"
+								v-for="action in item.available_actions"
+								:key="action"
 								size="small"
-								variant="flat"
-								color="primary"
+								variant="tonal"
+								:color="actionColor(action)"
 								class="text-none"
-								@click.stop="openConfirmReceipt(item.name)"
+								@click.stop="advanceStatus(item.name, action)"
 							>
-								{{ __("Confirm") }}
+								{{ __(action) }}
 							</v-btn>
 						</div>
 					</template>
@@ -245,12 +231,12 @@
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
-				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-truck-delivery-outline</v-icon>
-				<h4 class="pos-list-empty__title">{{ __("No material transfers found") }}</h4>
+				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-factory</v-icon>
+				<h4 class="pos-list-empty__title">{{ __("No production plans found") }}</h4>
 				<p class="pos-list-empty__subtitle">
 					{{ hasActiveFilters
 						? __("Try different filters or clear them.")
-						: __("Create a new transfer to move stock between warehouses.") }}
+						: __("Create a new production plan to get started.") }}
 				</p>
 				<v-btn
 					v-if="!hasActiveFilters"
@@ -260,7 +246,7 @@
 					prepend-icon="mdi-plus"
 					@click="goToNew"
 				>
-					{{ __("New Transfer") }}
+					{{ __("Create Plan") }}
 				</v-btn>
 			</div>
 
@@ -268,13 +254,6 @@
 				<v-progress-circular indeterminate color="primary" />
 			</div>
 		</v-card>
-
-		<ConfirmReceiptDialog
-			v-model="confirmDialog"
-			:items="confirmItems"
-			:loading="confirmLoading"
-			@confirm="handleConfirmReceipt"
-		/>
 	</div>
 </template>
 
@@ -283,26 +262,17 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
-import ConfirmReceiptDialog from '../requisition/ConfirmReceiptDialog.vue';
 
 export default {
-	name: 'MaterialTransferList',
+	name: 'ProductionPlanList',
 	mixins: [format],
-	components: {
-		ConfirmReceiptDialog,
-	},
 	setup() {
 		const router = useRouter();
 		const toastStore = useToastStore();
-		const transferList = ref([]);
+		const planList = ref([]);
 		const listLoading = ref(false);
-		const mineOnly = ref(false);
 		const searchQuery = ref('');
 		let searchTimeout = null;
-		const confirmDialog = ref(false);
-		const confirmItems = ref([]);
-		const confirmLoading = ref(false);
-		const confirmTransferName = ref('');
 
 		const page = ref(1);
 		const pageSize = ref(20);
@@ -310,7 +280,7 @@ export default {
 		const hasMore = ref(false);
 		const statusCounts = ref({});
 
-		const statusOptions = ['In Transit', 'Partially Received', 'Fully Received'];
+		const statusOptions = ['Draft', 'Work In Progress', 'Production Complete', 'Cancelled'];
 		const statusFilter = ref(null);
 		const fromDate = ref('');
 		const toDate = ref('');
@@ -327,12 +297,12 @@ export default {
 		const warehouseOptions = ref([]);
 
 		const listHeaders = [
-			{ title: __('Transfer'), key: 'name', sortable: true },
-			{ title: __('Date'), key: 'transaction_date', sortable: true },
-			{ title: __('From'), key: 'from_warehouse', sortable: true },
-			{ title: __('To'), key: 'to_warehouse', sortable: true },
-			{ title: __('Status'), key: 'transfer_status', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
+			{ title: __('Plan'), key: 'name', sortable: true },
+			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Source Warehouse'), key: 'for_warehouse', sortable: true },
+			{ title: __('Planned Qty'), key: 'total_planned_qty', sortable: true, align: 'end' },
+			{ title: __('Status'), key: 'workflow_state', sortable: true },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '260px' },
 		];
 
 		const hasActiveFilters = computed(() =>
@@ -360,15 +330,16 @@ export default {
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 		};
 
-		const loadTransfers = async () => {
+		const formatQty = (value) => Number(value || 0);
+
+		const loadPlans = async () => {
 			listLoading.value = true;
 			try {
 				const { message } = await frappe.call({
-					method: 'posawesome.posawesome.api.material_transfers.get_material_transfers_list',
+					method: 'posawesome.posawesome.api.production_plans.get_production_plans_list',
 					args: {
 						page_start: (page.value - 1) * pageSize.value,
 						page_length: pageSize.value,
-						mine_only: mineOnly.value ? 1 : 0,
 						status: statusFilter.value || undefined,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
@@ -378,15 +349,15 @@ export default {
 						search: searchQuery.value || undefined,
 					},
 				});
-				transferList.value = message?.transfers || [];
+				planList.value = message?.plans || [];
 				total.value = message?.total || 0;
 				hasMore.value = Boolean(message?.has_more);
 				statusCounts.value = message?.status_counts || {};
 			} catch (e) {
-				console.error('Failed to load material transfers', e);
-				transferList.value = [];
+				console.error('Failed to load production plans', e);
+				planList.value = [];
 				toastStore.show({
-					title: e?.message || __('Failed to load material transfers'),
+					title: e?.message || __('Failed to load production plans'),
 					color: 'error',
 				});
 			} finally {
@@ -396,7 +367,7 @@ export default {
 
 		const resetAndLoad = () => {
 			page.value = 1;
-			loadTransfers();
+			loadPlans();
 		};
 
 		const handleSearchUpdate = () => {
@@ -414,7 +385,7 @@ export default {
 				itemSearchLoading.value = true;
 				try {
 					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.material_transfers.search_items',
+						method: 'posawesome.posawesome.api.production_plans.search_manufacturable_items',
 						args: { search_text: term.trim(), limit: 20 },
 					});
 					itemSearchResults.value = message || [];
@@ -474,79 +445,63 @@ export default {
 		const goToPage = (nextPage) => {
 			if (nextPage < 1) return;
 			page.value = nextPage;
-			loadTransfers();
+			loadPlans();
 		};
 
 		const statusColor = (status) => {
 			const map = {
-				'In Transit': 'blue',
-				'Partially Received': 'orange',
-				'Fully Received': 'green',
+				Draft: 'grey',
+				'Work In Progress': 'orange',
+				'Production Complete': 'green',
+				Cancelled: 'red',
 			};
 			return map[status] || 'grey';
 		};
 
-		const statusChipClass = (status) => {
-			if (status === 'Partially Received') {
-				return 'pos-status-chip--partial';
-			}
-			return '';
+		const actionColor = (action) => {
+			const map = {
+				'Start Production': 'primary',
+				'Mark Production Complete': 'success',
+				Cancel: 'error',
+			};
+			return map[action] || 'primary';
 		};
 
 		const goToNew = () => {
-			router.push('/material-transfers/new');
+			router.push('/production-plans/new');
 		};
 
-		const openConfirmReceipt = async (transfer) => {
-			confirmTransferName.value = transfer;
-			try {
-				const { message } = await frappe.call({
-					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.get_stock_entry_items',
-					args: { transfer },
-				});
-				confirmItems.value = message?.items || [];
-				confirmDialog.value = true;
-			} catch (e) {
-				toastStore.show({ title: e?.message || __('Nothing to confirm'), color: 'warning' });
-			}
-		};
-
-		const handleConfirmReceipt = async (receivedMap) => {
-			confirmLoading.value = true;
+		const advanceStatus = async (name, action) => {
 			try {
 				await frappe.call({
-					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.confirm_receipt',
-					args: {
-						transfer: confirmTransferName.value,
-						received_quantities: JSON.stringify(receivedMap),
-					},
+					method: 'posawesome.posawesome.api.production_plans.advance_production_plan_status',
+					args: { name, action },
 					freeze: true,
-					freeze_message: __('Confirming receipt...'),
+					freeze_message: __('Updating status...'),
 				});
-				toastStore.show({ title: __('Receipt confirmed'), color: 'success' });
-				confirmDialog.value = false;
-				await loadTransfers();
+				toastStore.show({
+					title: __('Production Plan {0} updated', [name]),
+					color: 'success',
+				});
+				await loadPlans();
 			} catch (e) {
-				toastStore.show({ title: e?.message || __('Confirm failed'), color: 'error' });
-			} finally {
-				confirmLoading.value = false;
+				toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
 			}
 		};
 
-		const openTransferDetail = (item) => {
-			frappe.set_route('Form', 'Material Transfer', item.name);
+		const openPlanDetail = (item) => {
+			frappe.set_route('Form', 'Production Plan', item.name);
 		};
 
 		onMounted(() => {
 			loadItemGroups();
 			loadWarehouses();
-			loadTransfers();
+			loadPlans();
 		});
 
 		return {
-			transferList,
+			planList,
 			listLoading,
-			mineOnly,
 			searchQuery,
 			listHeaders,
 			page,
@@ -568,22 +523,19 @@ export default {
 			itemSearchLoading,
 			hasActiveFilters,
 			paginationLabel,
-			loadTransfers,
+			loadPlans,
 			resetAndLoad,
 			handleSearchUpdate,
 			handleItemSearchUpdate,
 			clearFilters,
 			goToPage,
 			formatDisplayDate,
+			formatQty,
 			statusColor,
-			statusChipClass,
+			actionColor,
 			goToNew,
-			openConfirmReceipt,
-			confirmDialog,
-			confirmItems,
-			confirmLoading,
-			handleConfirmReceipt,
-			openTransferDetail,
+			advanceStatus,
+			openPlanDetail,
 		};
 	},
 };

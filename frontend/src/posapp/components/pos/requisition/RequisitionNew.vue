@@ -68,14 +68,19 @@
 								</v-card>
 
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
+									<div class="invoice-section-heading">
+										<h3 class="invoice-section-heading__title">
+											{{ __("Items Required Date") }}
+										</h3>
+									</div>
 									<div class="sale-options-body">
 										<VueDatePicker
-											v-model="transactionDateDisplay"
+											v-model="requiredDateDisplay"
 											model-type="format"
 											format="dd-MM-yyyy"
 											auto-apply
 											teleport
-											:placeholder="__('Required Date')"
+											:placeholder="__('Items Required Date')"
 											class="sleek-field pos-themed-input"
 										/>
 									</div>
@@ -176,6 +181,7 @@ import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import { useRequisition } from '../../../composables/pos/requisition/useRequisition';
+import { useItemsStore } from '../../../stores/itemsStore';
 import { isPosWarehouseSwitcher } from '../../../utils/posWarehouseAccess';
 import ItemsSelector from '../items/ItemsSelector.vue';
 import RequisitionItemsTable from './RequisitionItemsTable.vue';
@@ -197,8 +203,9 @@ export default {
 		const router = useRouter();
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
+		const itemsStore = useItemsStore();
 		const pos_profile = ref(uiStore.posProfile || {});
-		const transactionDate = ref(getTodayDate());
+		const requiredDate = ref(getTodayDate());
 		const warehouseOptions = ref([]);
 		const sourceWarehouseOptions = ref([]);
 		const sourceWarehouseLabel = ref('');
@@ -235,17 +242,30 @@ export default {
 			);
 		});
 
-		const transactionDateDisplay = computed({
+		const requiredDateDisplay = computed({
 			get: () => {
-				const parts = String(transactionDate.value || '').split('-');
+				const parts = String(requiredDate.value || '').split('-');
 				return parts.length === 3
 					? `${parts[2]}-${parts[1]}-${parts[0]}`
-					: transactionDate.value;
+					: requiredDate.value;
 			},
 			set: (v) => {
-				transactionDate.value = normalizeDateForBackend(v) || getTodayDate();
+				requiredDate.value = normalizeDateForBackend(v) || getTodayDate();
 			},
 		});
+
+		const refreshCatalogForWarehouse = async (wh) => {
+			if (!wh) {
+				return;
+			}
+			itemsStore.setActiveSaleWarehouse(wh);
+			if (typeof itemsStore.refreshItems === 'function') {
+				await itemsStore.refreshItems({
+					warehouse: wh,
+					forceServer: true,
+				});
+			}
+		};
 
 		const loadAllWarehouses = async () => {
 			try {
@@ -279,6 +299,7 @@ export default {
 				if (row.name) {
 					sourceWarehouse.value = row.name;
 					sourceWarehouseLabel.value = row.warehouse_name || row.name;
+					await refreshCatalogForWarehouse(row.name);
 					return;
 				}
 			} catch (error) {
@@ -288,6 +309,7 @@ export default {
 			if (profileWh) {
 				sourceWarehouse.value = profileWh;
 				sourceWarehouseLabel.value = profileWh;
+				await refreshCatalogForWarehouse(profileWh);
 			}
 		};
 
@@ -319,6 +341,7 @@ export default {
 				}
 				if (defaultWh) {
 					sourceWarehouse.value = defaultWh;
+					await refreshCatalogForWarehouse(defaultWh);
 				}
 			} catch (error) {
 				console.error('Failed to load source warehouses:', error);
@@ -330,6 +353,7 @@ export default {
 					{ name: profileWh, warehouse_name: profileWh },
 				];
 				sourceWarehouse.value = profileWh;
+				await refreshCatalogForWarehouse(profileWh);
 			}
 			warehouseLoading.value = false;
 		};
@@ -408,7 +432,7 @@ export default {
 					method: 'posawesome.posawesome.api.requisitions.create_requisition',
 					args: {
 						data: {
-							transaction_date: transactionDate.value,
+							transaction_date: getTodayDate(),
 							source_warehouse: resolvedSource,
 							target_warehouse: targetWarehouse.value,
 							notes: notes.value,
@@ -418,7 +442,7 @@ export default {
 								item_group: row.item_group,
 								required_qty: row.qty,
 								uom: row.uom,
-								schedule_date: transactionDate.value,
+								schedule_date: requiredDate.value,
 							})),
 						},
 					},
@@ -438,10 +462,11 @@ export default {
 			}
 		};
 
-		watch(sourceWarehouse, (nextSource) => {
+		watch(sourceWarehouse, async (nextSource) => {
 			if (nextSource && targetWarehouse.value === nextSource) {
 				targetWarehouse.value = null;
 			}
+			await refreshCatalogForWarehouse(nextSource);
 		});
 
 		onMounted(async () => {
@@ -463,7 +488,7 @@ export default {
 			targetWarehouse,
 			targetWarehouseOptions,
 			warehouseLoading,
-			transactionDateDisplay,
+			requiredDateDisplay,
 			requisitionItems,
 			notes,
 			totalQty,

@@ -13,12 +13,27 @@ import OfflineRouteUnavailable from "../components/system/OfflineRouteUnavailabl
 const OFFLINE_ROUTE_UNAVAILABLE_NAME = "offline-route-unavailable";
 
 const routes = [
-	{ path: "/", redirect: "/pos" },
+	{ path: "/", redirect: "/sales-invoices/new" },
 	{
-		path: "/pos",
-		component: () => import("../components/pos/shell/Pos.vue"),
-		meta: { title: "POS", layout: "default", loadingMessage: "Loading POS..." },
+		path: "/sales-invoices",
+		redirect: "/sales-invoices/new",
 	},
+	{
+		path: "/sales-invoices/new",
+		component: () => import("../components/pos/shell/Pos.vue"),
+		meta: { title: "Sales Invoice", layout: "default", loadingMessage: "Loading POS..." },
+	},
+	{
+		path: "/sales-invoices/list",
+		component: () =>
+			import("../components/pos/sales_invoice/SalesInvoiceList.vue"),
+		meta: {
+			title: "Sales Invoices",
+			layout: "default",
+			loadingMessage: "Loading sales invoices...",
+		},
+	},
+	{ path: "/pos", redirect: "/sales-invoices/new" },
 	{
 		path: "/requisitions",
 		redirect: "/requisitions/list",
@@ -68,7 +83,35 @@ const routes = [
 		},
 	},
 	{
-		path: "/orders",
+		path: "/production-plans",
+		redirect: "/production-plans/new",
+	},
+	{
+		path: "/production-plans/new",
+		component: () =>
+			import("../components/pos/production_plan/ProductionPlanNew.vue"),
+		meta: {
+			title: "New Production Plan",
+			layout: "default",
+			loadingMessage: "Loading new production plan...",
+		},
+	},
+	{
+		path: "/production-plans/list",
+		component: () =>
+			import("../components/pos/production_plan/ProductionPlanList.vue"),
+		meta: {
+			title: "Production Plans",
+			layout: "default",
+			loadingMessage: "Loading production plans...",
+		},
+	},
+	{
+		path: "/purchase-invoices",
+		redirect: "/purchase-invoices/new",
+	},
+	{
+		path: "/purchase-invoices/new",
 		component: () =>
 			import("../components/pos/purchase/PurchaseOrders.vue"),
 		meta: {
@@ -77,6 +120,17 @@ const routes = [
 			loadingMessage: "Loading purchase invoice...",
 		},
 	},
+	{
+		path: "/purchase-invoices/list",
+		component: () =>
+			import("../components/pos/purchase/PurchaseInvoiceList.vue"),
+		meta: {
+			title: "Purchase Invoices",
+			layout: "default",
+			loadingMessage: "Loading purchase invoices...",
+		},
+	},
+	{ path: "/orders", redirect: "/purchase-invoices/new" },
 	{
 		path: "/payments",
 		redirect: "/payments/customer",
@@ -165,7 +219,7 @@ const routes = [
 	},
 	{
 		path: "/:pathMatch(.*)*",
-		redirect: "/pos",
+		redirect: "/sales-invoices/new",
 	},
 ];
 

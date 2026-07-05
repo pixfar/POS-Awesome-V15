@@ -838,6 +838,116 @@ def create_purchase_order(data):
     return _create_purchase_invoice_from_pos(payload)
 
 
+def get_purchase_invoices_list(
+    pos_profile,
+    page_start=0,
+    page_length=100,
+    mine_only=0,
+    status=None,
+    from_date=None,
+    to_date=None,
+    item_code=None,
+    item_group=None,
+    supplier=None,
+    search=None,
+):
+    """Paginated, filterable list of submitted purchase invoices for the Invoice List page.
+
+    Purchase Invoice has no pos_profile field, so scope by company instead.
+    """
+    doctype = "Purchase Invoice"
+    profile = _resolve_pos_profile(pos_profile)
+
+    filters = [
+        [doctype, "docstatus", "=", 1],
+        [doctype, "company", "=", profile.get("company")],
+    ]
+    if int(mine_only or 0):
+        filters.append([doctype, "owner", "=", frappe.session.user])
+    if status:
+        filters.append([doctype, "status", "=", status])
+    if from_date:
+        filters.append([doctype, "posting_date", ">=", from_date])
+    if to_date:
+        filters.append([doctype, "posting_date", "<=", to_date])
+    if supplier:
+        filters.append([doctype, "supplier", "=", supplier])
+
+    item_doctype = f"{doctype} Item"
+    if item_code:
+        filters.append([item_doctype, "item_code", "=", item_code])
+    if item_group:
+        filters.append([item_doctype, "item_group", "=", item_group])
+
+    or_filters = None
+    if search:
+        like = f"%{search}%"
+        or_filters = [
+            [doctype, "name", "like", like],
+            [doctype, "supplier", "like", like],
+        ]
+
+    page_start = max(0, int(page_start or 0))
+    page_length = max(1, min(int(page_length or 100), 200))
+
+    fields = [
+        "name",
+        "supplier",
+        "posting_date",
+        "posting_time",
+        "grand_total",
+        "outstanding_amount",
+        "status",
+        "currency",
+        "owner",
+    ]
+
+    rows = frappe.get_list(
+        doctype,
+        filters=filters,
+        or_filters=or_filters,
+        fields=fields,
+        order_by="posting_date desc, posting_time desc, modified desc",
+        limit_start=page_start,
+        limit_page_length=page_length,
+        distinct=True,
+        ignore_permissions=True,
+    )
+
+    total = len(
+        frappe.get_list(
+            doctype,
+            filters=filters,
+            or_filters=or_filters,
+            fields=["name"],
+            distinct=True,
+            ignore_permissions=True,
+            limit_page_length=0,
+        )
+    )
+
+    status_filters = [f for f in filters if not (f[0] == doctype and f[1] == "status")]
+    status_counts = {
+        row.status: row.count
+        for row in frappe.get_list(
+            doctype,
+            filters=status_filters,
+            or_filters=or_filters,
+            fields=["status", "count(name) as count"],
+            group_by="status",
+            ignore_permissions=True,
+            limit_page_length=0,
+        )
+    }
+
+    return {
+        "invoices": rows,
+        "total": total,
+        "has_more": (page_start + page_length) < total,
+        "status_counts": status_counts,
+    }
+
+
 def search_items(search_text=None, limit=20):
     filters = {"disabled": 0}
     or_filters = None

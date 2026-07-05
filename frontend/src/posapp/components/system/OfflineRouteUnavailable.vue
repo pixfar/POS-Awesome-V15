@@ -53,7 +53,7 @@ const __ =
 
 const targetRoute = computed(() => {
 	const rawTarget = route.query.target;
-	return typeof rawTarget === "string" && rawTarget.trim() ? rawTarget : "/pos";
+	return typeof rawTarget === "string" && rawTarget.trim() ? rawTarget : "/sales-invoices/new";
 });
 
 function retryRoute() {
@@ -61,7 +61,7 @@ function retryRoute() {
 }
 
 function goToPosHome() {
-	void router.replace("/pos");
+	void router.replace("/sales-invoices/new");
 }
 </script>
 

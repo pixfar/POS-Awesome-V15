@@ -105,6 +105,150 @@ def get_draft_invoices(
 
 
 @frappe.whitelist()
+def get_sales_invoices_list(
+    pos_profile,
+    page_start=0,
+    page_length=100,
+    mine_only=0,
+    status=None,
+    from_date=None,
+    to_date=None,
+    item_code=None,
+    item_group=None,
+    customer=None,
+    search=None,
+):
+    """Paginated, filterable list of submitted sales invoices for the Invoice List page."""
+    profile = (
+        frappe.get_cached_doc("POS Profile", pos_profile)
+        if isinstance(pos_profile, str)
+        else pos_profile
+    )
+    doctype = (
+        "POS Invoice"
+        if profile.get("create_pos_invoice_instead_of_sales_invoice")
+        else "Sales Invoice"
+    )
+
+    filters = [
+        [doctype, "docstatus", "=", 1],
+        [doctype, "pos_profile", "=", profile.get("name") or pos_profile],
+    ]
+    if int(mine_only or 0):
+        filters.append([doctype, "owner", "=", frappe.session.user])
+    if status:
+        filters.append([doctype, "status", "=", status])
+    if from_date:
+        filters.append([doctype, "posting_date", ">=", from_date])
+    if to_date:
+        filters.append([doctype, "posting_date", "<=", to_date])
+    if customer:
+        filters.append([doctype, "customer", "=", customer])
+
+    item_doctype = f"{doctype} Item"
+    if item_code:
+        filters.append([item_doctype, "item_code", "=", item_code])
+    if item_group:
+        filters.append([item_doctype, "item_group", "=", item_group])
+
+    or_filters = None
+    if search:
+        like = f"%{search}%"
+        or_filters = [
+            [doctype, "name", "like", like],
+            [doctype, "customer_name", "like", like],
+            [doctype, "customer", "like", like],
+        ]
+
+    page_start = max(0, int(page_start or 0))
+    page_length = max(1, min(int(page_length or 100), 200))
+
+    fields = [
+        "name",
+        "customer",
+        "customer_name",
+        "posting_date",
+        "posting_time",
+        "grand_total",
+        "outstanding_amount",
+        "status",
+        "currency",
+        "is_return",
+        "owner",
+    ]
+
+    rows = frappe.get_list(
+        doctype,
+        filters=filters,
+        or_filters=or_filters,
+        fields=fields,
+        order_by="posting_date desc, posting_time desc, modified desc",
+        limit_start=page_start,
+        limit_page_length=page_length,
+        distinct=True,
+        ignore_permissions=True,
+    )
+    for row in rows:
+        row["doctype"] = doctype
+
+    total = len(
+        frappe.get_list(
+            doctype,
+            filters=filters,
+            or_filters=or_filters,
+            fields=["name"],
+            distinct=True,
+            ignore_permissions=True,
+            limit_page_length=0,
+        )
+    )
+
+    status_filters = [f for f in filters if not (f[0] == doctype and f[1] == "status")]
+    status_counts = {
+        row.status: row.count
+        for row in frappe.get_list(
+            doctype,
+            filters=status_filters,
+            or_filters=or_filters,
+            fields=["status", "count(name) as count"],
+            group_by="status",
+            ignore_permissions=True,
+            limit_page_length=0,
+        )
+    }
+
+    return {
+        "invoices": rows,
+        "total": total,
+        "has_more": (page_start + page_length) < total,
+        "status_counts": status_counts,
+    }
+
+
+@frappe.whitelist()
+def search_items(search_text=None, limit=20):
+    """Generic item search used by the Sales Invoice list's item filter."""
+    limit = max(1, min(int(limit or 20), 50))
+    filters = {"disabled": 0, "has_variants": 0}
+    or_filters = None
+    if search_text and len(search_text.strip()) >= 2:
+        like = f"%{search_text.strip()}%"
+        or_filters = {
+            "name": ["like", like],
+            "item_name": ["like", like],
+        }
+
+    return frappe.get_all(
+        "Item",
+        filters=filters,
+        or_filters=or_filters,
+        fields=["name as item_code", "item_name", "item_group"],
+        order_by="item_name asc",
+        limit_page_length=limit,
+    )
+
+
+@frappe.whitelist()
 def get_draft_invoice_doc(invoice_name, doctype="Sales Invoice"):
     started_at = time.perf_counter()
     doc = frappe.get_cached_doc(doctype, invoice_name)

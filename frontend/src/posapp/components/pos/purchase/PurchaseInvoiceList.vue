@@ -3,10 +3,10 @@
 		<v-card flat class="invoice-section-card pos-themed-card pos-list-card">
 			<div class="pos-list-header">
 				<div class="pos-list-header__main">
-					<p class="pos-list-header__eyebrow">{{ __("Stock Movement") }}</p>
-					<h3 class="pos-list-header__title">{{ __("Material Transfers") }}</h3>
+					<p class="pos-list-header__eyebrow">{{ __("Purchase") }}</p>
+					<h3 class="pos-list-header__title">{{ __("Purchase Invoices") }}</h3>
 					<p class="pos-list-header__subtitle">
-						{{ __("Track inter-warehouse transfers and confirm received stock") }}
+						{{ __("Track submitted purchase invoices and supplier balances") }}
 					</p>
 				</div>
 				<div class="pos-list-header__actions">
@@ -17,7 +17,7 @@
 						prepend-icon="mdi-plus"
 						@click="goToNew"
 					>
-						{{ __("New Transfer") }}
+						{{ __("Create Invoice") }}
 					</v-btn>
 				</div>
 			</div>
@@ -27,24 +27,20 @@
 					<span class="pos-list-stat__label">{{ __("Total") }}</span>
 					<strong class="pos-list-stat__value">{{ total }}</strong>
 				</div>
-				<div class="pos-list-stat">
-					<span class="pos-list-stat__label">{{ __("In Transit") }}</span>
-					<strong class="pos-list-stat__value">{{ statusCounts["In Transit"] || 0 }}</strong>
+				<div class="pos-list-stat pos-list-stat--success">
+					<span class="pos-list-stat__label">{{ __("Paid") }}</span>
+					<strong class="pos-list-stat__value">{{ paidCount }}</strong>
 				</div>
 				<div class="pos-list-stat pos-list-stat--warning">
-					<span class="pos-list-stat__label">{{ __("Partial") }}</span>
-					<strong class="pos-list-stat__value">{{ statusCounts["Partially Received"] || 0 }}</strong>
-				</div>
-				<div class="pos-list-stat pos-list-stat--success">
-					<span class="pos-list-stat__label">{{ __("Received") }}</span>
-					<strong class="pos-list-stat__value">{{ statusCounts["Fully Received"] || 0 }}</strong>
+					<span class="pos-list-stat__label">{{ __("Unpaid") }}</span>
+					<strong class="pos-list-stat__value">{{ unpaidCount }}</strong>
 				</div>
 			</div>
 
 			<div class="pos-list-toolbar">
 				<v-text-field
 					v-model="searchQuery"
-					:label="__('Search transfer or warehouse')"
+					:label="__('Search invoice or supplier')"
 					density="compact"
 					variant="solo"
 					hide-details
@@ -59,7 +55,7 @@
 						density="compact"
 						hide-details
 						color="primary"
-						:label="__('My Transfers')"
+						:label="__('My Invoices')"
 						@update:model-value="resetAndLoad"
 					/>
 					<v-btn
@@ -69,7 +65,7 @@
 						prepend-icon="mdi-sync"
 						:loading="listLoading"
 						class="text-none"
-						@click="loadTransfers"
+						@click="loadInvoices"
 					>
 						{{ __("Sync") }}
 					</v-btn>
@@ -140,17 +136,21 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-select
-					v-model="warehouseFilter"
-					:items="warehouseOptions"
-					item-title="warehouse_name"
+				<v-autocomplete
+					v-model="supplierFilter"
+					v-model:search="supplierSearchQuery"
+					:items="supplierSearchResults"
+					:loading="supplierSearchLoading"
+					item-title="supplier_name"
 					item-value="name"
-					:label="__('Warehouse')"
+					:label="__('Supplier')"
 					density="compact"
 					variant="outlined"
 					hide-details
 					clearable
+					:custom-filter="() => true"
 					class="pos-themed-input pos-list-filter-field"
+					@update:search="handleSupplierSearchUpdate"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
@@ -158,54 +158,57 @@
 				</v-btn>
 			</div>
 
-			<div v-if="transferList.length" class="pos-list-table-wrap">
+			<div v-if="invoiceList.length" class="pos-list-table-wrap">
 				<v-data-table
 					:headers="listHeaders"
-					:items="transferList"
+					:items="invoiceList"
 					:loading="listLoading"
 					density="comfortable"
 					hide-default-footer
 					:items-per-page="-1"
-					class="pos-list-table material-transfer-list-table"
-					@click:row="(_, row) => openTransferDetail(row.item)"
+					class="pos-list-table purchase-invoice-list-table"
+					@click:row="(_, row) => openInvoiceDetail(row.item)"
 				>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
-					<template #item.transaction_date="{ item }">
-						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.transaction_date) }}</span>
+					<template #item.posting_date="{ item }">
+						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
-					<template #item.from_warehouse="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.from_warehouse">
-							{{ item.from_warehouse }}
-						</span>
+					<template #item.supplier="{ item }">
+						<span class="pos-list-cell-truncate" :title="item.supplier">{{ item.supplier }}</span>
 					</template>
-					<template #item.to_warehouse="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.to_warehouse">
-							{{ item.to_warehouse }}
-						</span>
-					</template>
-					<template #item.transfer_status="{ item }">
-						<v-chip
-							size="small"
-							variant="tonal"
-							:color="statusColor(item.transfer_status)"
-							:class="statusChipClass(item.transfer_status)"
-						>
-							{{ item.transfer_status }}
+					<template #item.status="{ item }">
+						<v-chip size="small" variant="tonal" :color="statusColor(item.status)">
+							{{ item.status }}
 						</v-chip>
 					</template>
+					<template #item.grand_total="{ item }">
+						<span class="pos-list-cell-primary">
+							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.grand_total) }}
+						</span>
+					</template>
+					<template #item.outstanding_amount="{ item }">
+						<span
+							:class="
+								item.outstanding_amount > 0
+									? 'pos-list-cell-primary text-warning'
+									: 'pos-list-cell-muted'
+							"
+						>
+							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.outstanding_amount) }}
+						</span>
+					</template>
 					<template #item.actions="{ item }">
-						<div class="d-flex justify-end">
+						<div class="d-flex justify-end ga-1 flex-wrap">
 							<v-btn
-								v-if="item.can_confirm"
 								size="small"
-								variant="flat"
+								variant="tonal"
 								color="primary"
 								class="text-none"
-								@click.stop="openConfirmReceipt(item.name)"
+								@click.stop="openInvoiceDetail(item)"
 							>
-								{{ __("Confirm") }}
+								{{ __("View") }}
 							</v-btn>
 						</div>
 					</template>
@@ -245,12 +248,12 @@
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
-				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-truck-delivery-outline</v-icon>
-				<h4 class="pos-list-empty__title">{{ __("No material transfers found") }}</h4>
+				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-cart-outline</v-icon>
+				<h4 class="pos-list-empty__title">{{ __("No purchase invoices found") }}</h4>
 				<p class="pos-list-empty__subtitle">
 					{{ hasActiveFilters
 						? __("Try different filters or clear them.")
-						: __("Create a new transfer to move stock between warehouses.") }}
+						: __("Create a new purchase invoice to see it listed here.") }}
 				</p>
 				<v-btn
 					v-if="!hasActiveFilters"
@@ -260,7 +263,7 @@
 					prepend-icon="mdi-plus"
 					@click="goToNew"
 				>
-					{{ __("New Transfer") }}
+					{{ __("Create Invoice") }}
 				</v-btn>
 			</div>
 
@@ -268,13 +271,6 @@
 				<v-progress-circular indeterminate color="primary" />
 			</div>
 		</v-card>
-
-		<ConfirmReceiptDialog
-			v-model="confirmDialog"
-			:items="confirmItems"
-			:loading="confirmLoading"
-			@confirm="handleConfirmReceipt"
-		/>
 	</div>
 </template>
 
@@ -282,27 +278,28 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
-import { useToastStore } from '../../../stores/toastStore';
-import ConfirmReceiptDialog from '../requisition/ConfirmReceiptDialog.vue';
+import { useUIStore } from '../../../stores/uiStore.js';
+
+const UNPAID_STATUSES = [
+	'Unpaid',
+	'Unpaid and Discounted',
+	'Partly Paid',
+	'Partly Paid and Discounted',
+	'Overdue',
+	'Overdue and Discounted',
+];
 
 export default {
-	name: 'MaterialTransferList',
+	name: 'PurchaseInvoiceList',
 	mixins: [format],
-	components: {
-		ConfirmReceiptDialog,
-	},
 	setup() {
 		const router = useRouter();
-		const toastStore = useToastStore();
-		const transferList = ref([]);
+		const uiStore = useUIStore();
+		const invoiceList = ref([]);
 		const listLoading = ref(false);
 		const mineOnly = ref(false);
 		const searchQuery = ref('');
 		let searchTimeout = null;
-		const confirmDialog = ref(false);
-		const confirmItems = ref([]);
-		const confirmLoading = ref(false);
-		const confirmTransferName = ref('');
 
 		const page = ref(1);
 		const pageSize = ref(20);
@@ -310,28 +307,44 @@ export default {
 		const hasMore = ref(false);
 		const statusCounts = ref({});
 
-		const statusOptions = ['In Transit', 'Partially Received', 'Fully Received'];
+		const statusOptions = [
+			'Draft',
+			'Unpaid',
+			'Unpaid and Discounted',
+			'Partly Paid',
+			'Partly Paid and Discounted',
+			'Overdue',
+			'Overdue and Discounted',
+			'Paid',
+			'Debit Note Issued',
+			'Cancelled',
+		];
 		const statusFilter = ref(null);
 		const fromDate = ref('');
 		const toDate = ref('');
 		const itemCodeFilter = ref(null);
 		const itemGroupFilter = ref(null);
-		const warehouseFilter = ref(null);
+		const supplierFilter = ref(null);
 
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
 		const itemSearchLoading = ref(false);
 		let itemSearchTimeout = null;
 
+		const supplierSearchQuery = ref('');
+		const supplierSearchResults = ref([]);
+		const supplierSearchLoading = ref(false);
+		let supplierSearchTimeout = null;
+
 		const itemGroupOptions = ref([]);
-		const warehouseOptions = ref([]);
 
 		const listHeaders = [
-			{ title: __('Transfer'), key: 'name', sortable: true },
-			{ title: __('Date'), key: 'transaction_date', sortable: true },
-			{ title: __('From'), key: 'from_warehouse', sortable: true },
-			{ title: __('To'), key: 'to_warehouse', sortable: true },
-			{ title: __('Status'), key: 'transfer_status', sortable: true },
+			{ title: __('Invoice'), key: 'name', sortable: true },
+			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Supplier'), key: 'supplier', sortable: true },
+			{ title: __('Status'), key: 'status', sortable: true },
+			{ title: __('Total'), key: 'grand_total', sortable: true, align: 'end' },
+			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
 		];
 
@@ -343,7 +356,7 @@ export default {
 					toDate.value ||
 					itemCodeFilter.value ||
 					itemGroupFilter.value ||
-					warehouseFilter.value,
+					supplierFilter.value,
 			),
 		);
 
@@ -354,18 +367,29 @@ export default {
 			return __('Showing {0}-{1} of {2}', [start, end, total.value]);
 		});
 
+		const paidCount = computed(() => statusCounts.value['Paid'] || 0);
+		const unpaidCount = computed(() =>
+			UNPAID_STATUSES.reduce((sum, key) => sum + (statusCounts.value[key] || 0), 0),
+		);
+
 		const formatDisplayDate = (value) => {
 			if (!value) return '—';
 			const parts = String(value).split('-');
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 		};
 
-		const loadTransfers = async () => {
+		const loadInvoices = async () => {
+			const posProfile = uiStore.posProfile;
+			if (!posProfile?.name) {
+				invoiceList.value = [];
+				return;
+			}
 			listLoading.value = true;
 			try {
 				const { message } = await frappe.call({
-					method: 'posawesome.posawesome.api.material_transfers.get_material_transfers_list',
+					method: 'posawesome.posawesome.api.purchase_invoices.get_purchase_invoices_list',
 					args: {
+						pos_profile: posProfile.name,
 						page_start: (page.value - 1) * pageSize.value,
 						page_length: pageSize.value,
 						mine_only: mineOnly.value ? 1 : 0,
@@ -374,21 +398,17 @@ export default {
 						to_date: toDate.value || undefined,
 						item_code: itemCodeFilter.value || undefined,
 						item_group: itemGroupFilter.value || undefined,
-						warehouse: warehouseFilter.value || undefined,
+						supplier: supplierFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
-				transferList.value = message?.transfers || [];
+				invoiceList.value = message?.invoices || [];
 				total.value = message?.total || 0;
 				hasMore.value = Boolean(message?.has_more);
 				statusCounts.value = message?.status_counts || {};
 			} catch (e) {
-				console.error('Failed to load material transfers', e);
-				transferList.value = [];
-				toastStore.show({
-					title: e?.message || __('Failed to load material transfers'),
-					color: 'error',
-				});
+				console.error('Failed to load purchase invoices', e);
+				invoiceList.value = [];
 			} finally {
 				listLoading.value = false;
 			}
@@ -396,7 +416,7 @@ export default {
 
 		const resetAndLoad = () => {
 			page.value = 1;
-			loadTransfers();
+			loadInvoices();
 		};
 
 		const handleSearchUpdate = () => {
@@ -414,7 +434,7 @@ export default {
 				itemSearchLoading.value = true;
 				try {
 					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.material_transfers.search_items',
+						method: 'posawesome.posawesome.api.purchase_invoices.search_items',
 						args: { search_text: term.trim(), limit: 20 },
 					});
 					itemSearchResults.value = message || [];
@@ -422,6 +442,28 @@ export default {
 					itemSearchResults.value = [];
 				} finally {
 					itemSearchLoading.value = false;
+				}
+			}, 300);
+		};
+
+		const handleSupplierSearchUpdate = (term) => {
+			if (supplierSearchTimeout) clearTimeout(supplierSearchTimeout);
+			if (!term || term.trim().length < 2) {
+				supplierSearchResults.value = [];
+				return;
+			}
+			supplierSearchTimeout = setTimeout(async () => {
+				supplierSearchLoading.value = true;
+				try {
+					const { message } = await frappe.call({
+						method: 'posawesome.posawesome.api.purchase_invoices.search_suppliers',
+						args: { search_text: term.trim(), limit: 20 },
+					});
+					supplierSearchResults.value = message || [];
+				} catch {
+					supplierSearchResults.value = [];
+				} finally {
+					supplierSearchLoading.value = false;
 				}
 			}, 300);
 		};
@@ -443,23 +485,6 @@ export default {
 			}
 		};
 
-		const loadWarehouses = async () => {
-			try {
-				const { message } = await frappe.call({
-					method: 'frappe.client.get_list',
-					args: {
-						doctype: 'Warehouse',
-						fields: ['name', 'warehouse_name'],
-						filters: { is_group: 0, disabled: 0 },
-						limit_page_length: 200,
-					},
-				});
-				warehouseOptions.value = message || [];
-			} catch (e) {
-				console.error('Failed to load warehouses', e);
-			}
-		};
-
 		const clearFilters = () => {
 			searchQuery.value = '';
 			statusFilter.value = null;
@@ -467,84 +492,47 @@ export default {
 			toDate.value = '';
 			itemCodeFilter.value = null;
 			itemGroupFilter.value = null;
-			warehouseFilter.value = null;
+			supplierFilter.value = null;
 			resetAndLoad();
 		};
 
 		const goToPage = (nextPage) => {
 			if (nextPage < 1) return;
 			page.value = nextPage;
-			loadTransfers();
+			loadInvoices();
 		};
 
 		const statusColor = (status) => {
 			const map = {
-				'In Transit': 'blue',
-				'Partially Received': 'orange',
-				'Fully Received': 'green',
+				Draft: 'grey',
+				Unpaid: 'orange',
+				'Unpaid and Discounted': 'orange',
+				'Partly Paid': 'orange',
+				'Partly Paid and Discounted': 'orange',
+				Overdue: 'red',
+				'Overdue and Discounted': 'red',
+				Paid: 'green',
+				'Debit Note Issued': 'blue',
+				Cancelled: 'red',
 			};
 			return map[status] || 'grey';
 		};
 
-		const statusChipClass = (status) => {
-			if (status === 'Partially Received') {
-				return 'pos-status-chip--partial';
-			}
-			return '';
-		};
-
 		const goToNew = () => {
-			router.push('/material-transfers/new');
+			router.push('/purchase-invoices/new');
 		};
 
-		const openConfirmReceipt = async (transfer) => {
-			confirmTransferName.value = transfer;
-			try {
-				const { message } = await frappe.call({
-					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.get_stock_entry_items',
-					args: { transfer },
-				});
-				confirmItems.value = message?.items || [];
-				confirmDialog.value = true;
-			} catch (e) {
-				toastStore.show({ title: e?.message || __('Nothing to confirm'), color: 'warning' });
-			}
-		};
-
-		const handleConfirmReceipt = async (receivedMap) => {
-			confirmLoading.value = true;
-			try {
-				await frappe.call({
-					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.confirm_receipt',
-					args: {
-						transfer: confirmTransferName.value,
-						received_quantities: JSON.stringify(receivedMap),
-					},
-					freeze: true,
-					freeze_message: __('Confirming receipt...'),
-				});
-				toastStore.show({ title: __('Receipt confirmed'), color: 'success' });
-				confirmDialog.value = false;
-				await loadTransfers();
-			} catch (e) {
-				toastStore.show({ title: e?.message || __('Confirm failed'), color: 'error' });
-			} finally {
-				confirmLoading.value = false;
-			}
-		};
-
-		const openTransferDetail = (item) => {
-			frappe.set_route('Form', 'Material Transfer', item.name);
+		const openInvoiceDetail = (item) => {
+			frappe.set_route('Form', 'Purchase Invoice', item.name);
 		};
 
 		onMounted(() => {
 			loadItemGroups();
-			loadWarehouses();
-			loadTransfers();
+			loadInvoices();
 		});
 
 		return {
-			transferList,
+			invoiceList,
 			listLoading,
 			mineOnly,
 			searchQuery,
@@ -553,7 +541,6 @@ export default {
 			pageSize,
 			total,
 			hasMore,
-			statusCounts,
 			statusOptions,
 			statusFilter,
 			fromDate,
@@ -561,29 +548,28 @@ export default {
 			itemCodeFilter,
 			itemGroupFilter,
 			itemGroupOptions,
-			warehouseFilter,
-			warehouseOptions,
+			supplierFilter,
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,
+			supplierSearchQuery,
+			supplierSearchResults,
+			supplierSearchLoading,
 			hasActiveFilters,
 			paginationLabel,
-			loadTransfers,
+			paidCount,
+			unpaidCount,
+			loadInvoices,
 			resetAndLoad,
 			handleSearchUpdate,
 			handleItemSearchUpdate,
+			handleSupplierSearchUpdate,
 			clearFilters,
 			goToPage,
 			formatDisplayDate,
 			statusColor,
-			statusChipClass,
 			goToNew,
-			openConfirmReceipt,
-			confirmDialog,
-			confirmItems,
-			confirmLoading,
-			handleConfirmReceipt,
-			openTransferDetail,
+			openInvoiceDetail,
 		};
 	},
 };

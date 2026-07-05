@@ -7,30 +7,20 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today
 
-from posawesome.posawesome.doctype.requisition.transfer_status import (
-	get_transferred_by_item,
-	update_requisition_transfer_status,
-)
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_warehouse_doc_read_access,
-	get_expanded_permitted_warehouses,
 	get_warehouse_doc_list_rows,
+	get_warehouse_doc_status_counts,
 	is_system_manager,
 )
+
+ALLOWED_STATUS_TRANSITIONS = {'Sent': {'Received', 'Rejected'}}
 
 
 def _parse_json(value):
 	if isinstance(value, str):
 		return json.loads(value)
 	return value
-
-
-def _get_in_transit_se_name(requisition):
-	return frappe.db.get_value('Stock Entry', {
-		'custom_requisition': requisition,
-		'workflow_state': 'In Transit',
-		'docstatus': ['!=', 2],
-	}, 'name')
 
 
 @frappe.whitelist()
@@ -88,34 +78,39 @@ def create_requisition(data):
 	}
 
 
-def _can_confirm_receipt(doc):
-	return (
-		doc.transfer_status == 'In Transit'
-		and frappe.session.user == doc.requested_by
-	)
-
-
-def _can_create_stock_entry(doc):
-	if doc.requested_by == frappe.session.user:
-		return False
-	if is_system_manager():
-		return True
-	warehouses = get_expanded_permitted_warehouses() or []
-	return doc.source_warehouse in warehouses
-
-
 def _enrich_list_row(row):
-	doc = frappe.get_doc('Requisition', row.name)
-	row['can_transfer'] = _can_create_stock_entry(doc)
-	row['can_confirm'] = _can_confirm_receipt(doc)
+	row['can_manage_status'] = bool(is_system_manager()) and row.get('transfer_status') == 'Sent'
 	return row
 
 
 @frappe.whitelist()
-def get_requisitions_list(page_start=0, page_length=20, mine_only=0):
-	"""Paginated requisition list for POS tracking."""
+def get_requisitions_list(
+	page_start=0,
+	page_length=20,
+	mine_only=0,
+	status=None,
+	from_date=None,
+	to_date=None,
+	item_code=None,
+	item_group=None,
+	warehouse=None,
+	search=None,
+):
+	"""Paginated, filterable requisition list for POS tracking."""
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
+
+	shared_filter_args = dict(
+		mine_only=mine_only,
+		date_field='transaction_date',
+		from_date=from_date,
+		to_date=to_date,
+		item_code=item_code,
+		item_group=item_group,
+		warehouse=warehouse,
+		search=search,
+		search_fields=['name', 'source_warehouse', 'target_warehouse', 'requested_by'],
+	)
 
 	rows, total = get_warehouse_doc_list_rows(
 		'Requisition',
@@ -132,7 +127,16 @@ def get_requisitions_list(page_start=0, page_length=20, mine_only=0):
 		],
 		page_start=page_start,
 		page_length=page_length,
-		mine_only=mine_only,
+		extra_filters={'transfer_status': status} if status else None,
+		**shared_filter_args,
+	)
+
+	status_counts = get_warehouse_doc_status_counts(
+		'Requisition',
+		'source_warehouse',
+		'target_warehouse',
+		'transfer_status',
+		**shared_filter_args,
 	)
 
 	requisitions = [_enrich_list_row(row) for row in rows]
@@ -141,6 +145,7 @@ def get_requisitions_list(page_start=0, page_length=20, mine_only=0):
 		'requisitions': requisitions,
 		'total': total,
 		'has_more': (page_start + page_length) < total,
+		'status_counts': status_counts,
 	}
 
 
@@ -168,196 +173,38 @@ def get_requisition_detail(requisition):
 			}
 			for row in doc.items
 		],
-		'can_transfer': _can_create_stock_entry(doc),
-		'can_confirm': _can_confirm_receipt(doc),
+		'can_manage_status': bool(is_system_manager()) and doc.transfer_status == 'Sent',
 	}
 
 
 @frappe.whitelist()
-def can_create_stock_entry(requisition):
-	doc = frappe.get_doc('Requisition', requisition)
-	ensure_warehouse_doc_read_access(doc, 'source_warehouse', 'target_warehouse')
-
-	if not _can_create_stock_entry(doc):
-		reason = 'requester' if doc.requested_by == frappe.session.user else 'no_permission'
-		return {'can_create': False, 'reason': reason}
-
-	return {'can_create': True}
-
-
-@frappe.whitelist()
-def make_stock_entry(requisition):
-	doc = frappe.get_doc('Requisition', requisition)
-	ensure_warehouse_doc_read_access(doc, 'source_warehouse', 'target_warehouse')
-
-	if doc.requested_by == frappe.session.user:
-		frappe.throw(
-			_('You cannot create a Stock Entry for your own Requisition.'),
-			title=_('Not Allowed'),
-		)
-
+def set_requisition_status(requisition, status):
+	"""Transition a submitted Requisition from Sent to Received/Rejected."""
 	if not is_system_manager():
-		warehouses = get_expanded_permitted_warehouses() or []
-		if not doc.source_warehouse or doc.source_warehouse not in warehouses:
-			frappe.throw(
-				_('You need permission on the Source Warehouse ({0}) to transfer stock.').format(
-					doc.source_warehouse or _('not set')
-				),
-				title=_('No Warehouse Permission'),
-			)
-
-	if doc.docstatus != 1:
 		frappe.throw(
-			_('Submit the Requisition before creating a Stock Entry.'),
-			title=_('Not Submitted'),
-		)
-	if not doc.source_warehouse:
-		frappe.throw(_('Source Warehouse is required to transfer stock.'))
-	if not doc.target_warehouse:
-		frappe.throw(_('Target Warehouse is required to transfer stock.'))
-	if doc.source_warehouse == doc.target_warehouse:
-		frappe.throw(
-			_('Source and Target Warehouse cannot be the same for a transfer.')
-		)
-
-	company = frappe.db.get_value('Warehouse', doc.source_warehouse, 'company')
-	if not company:
-		frappe.throw(_('Could not determine Company from Source Warehouse.'))
-
-	transferred_by_item = get_transferred_by_item(doc.name)
-	stock_entry = frappe.new_doc('Stock Entry')
-	stock_entry.stock_entry_type = 'Material Transfer'
-	stock_entry.purpose = 'Material Transfer'
-	stock_entry.company = company
-	stock_entry.from_warehouse = doc.source_warehouse
-	stock_entry.to_warehouse = doc.target_warehouse
-	stock_entry.custom_requisition = doc.name
-
-	for row in doc.items:
-		remaining = flt(row.required_qty) - flt(
-			transferred_by_item.get(row.name)
-		)
-		if remaining <= 0:
-			continue
-
-		item_details = frappe.db.get_value(
-			'Item',
-			row.item_code,
-			['item_name', 'stock_uom', 'description'],
-			as_dict=True,
-		)
-		conversion_factor = 1
-		stock_entry.append(
-			'items',
-			{
-				'item_code': row.item_code,
-				'item_name': row.item_name or item_details.item_name,
-				'description': item_details.description,
-				'qty': remaining,
-				'transfer_qty': remaining * conversion_factor,
-				'uom': row.uom or item_details.stock_uom,
-				'stock_uom': item_details.stock_uom,
-				'conversion_factor': conversion_factor,
-				's_warehouse': doc.source_warehouse,
-				't_warehouse': doc.target_warehouse,
-				'custom_requisition_item': row.name,
-			},
-		)
-
-	if not stock_entry.items:
-		frappe.throw(
-			_('All items on this Requisition are already fully transferred.'),
-			title=_('Nothing to Transfer'),
-		)
-
-	stock_entry.set_stock_entry_type()
-	return stock_entry.as_dict()
-
-
-@frappe.whitelist()
-def get_in_transit_se_items(requisition):
-	doc = frappe.get_doc('Requisition', requisition)
-	ensure_warehouse_doc_read_access(doc, 'source_warehouse', 'target_warehouse')
-
-	se_name = _get_in_transit_se_name(requisition)
-	if not se_name:
-		frappe.throw(_('No In Transit Stock Entry found for this Requisition.'), title=_('Nothing to Confirm'))
-
-	se = frappe.get_doc('Stock Entry', se_name)
-	items = [
-		{
-			'name': item.name,
-			'item_code': item.item_code,
-			'item_name': item.item_name,
-			'qty': item.qty,
-			'uom': item.uom,
-			'stock_uom': item.stock_uom,
-			'conversion_factor': flt(item.conversion_factor) or 1,
-		}
-		for item in se.items
-	]
-	return {'se_name': se_name, 'items': items}
-
-
-@frappe.whitelist()
-def confirm_receipt_from_requisition(requisition, received_quantities=None):
-	doc = frappe.get_doc('Requisition', requisition)
-	ensure_warehouse_doc_read_access(doc, 'source_warehouse', 'target_warehouse')
-
-	if frappe.session.user != doc.requested_by:
-		frappe.throw(
-			_('Only {0} (the person who submitted this Requisition) can confirm receipt.').format(
-				frappe.bold(doc.requested_by)
-			),
+			_('Only a System Manager can update the Requisition status.'),
 			title=_('Not Allowed'),
 			exc=frappe.PermissionError,
 		)
 
-	se_name = _get_in_transit_se_name(requisition)
-	if not se_name:
-		frappe.throw(_('No In Transit Stock Entry found for this Requisition.'), title=_('Nothing to Confirm'))
+	if status not in ('Received', 'Rejected'):
+		frappe.throw(_('Invalid status {0}.').format(status))
 
-	se = frappe.get_doc('Stock Entry', se_name)
+	doc = frappe.get_doc('Requisition', requisition)
+	if doc.docstatus != 1:
+		frappe.throw(_('Submit the Requisition before updating its status.'))
 
-	if received_quantities:
-		received_quantities = _parse_json(received_quantities)
+	allowed_next = ALLOWED_STATUS_TRANSITIONS.get(doc.transfer_status, set())
+	if status not in allowed_next:
+		frappe.throw(
+			_('Requisition {0} cannot move from {1} to {2}.').format(
+				doc.name, doc.transfer_status, status
+			),
+			title=_('Invalid Status Change'),
+		)
 
-		for item in se.items:
-			if item.name not in received_quantities:
-				continue
-			new_qty = flt(received_quantities[item.name])
-			if new_qty < 0:
-				frappe.throw(_('Received quantity cannot be negative for item {0}.').format(item.item_code))
-			if new_qty > flt(item.qty):
-				frappe.throw(
-					_('Received quantity ({0}) cannot exceed sent quantity ({1}) for item {2}.').format(
-						new_qty, item.qty, item.item_code
-					)
-				)
-			item.qty = new_qty
-			item.transfer_qty = new_qty * (flt(item.conversion_factor) or 1)
-
-		se.items = [item for item in se.items if flt(item.qty) > 0]
-
-		if not se.items:
-			frappe.throw(
-				_('All received quantities are zero. Enter at least one positive quantity.'),
-				title=_('Nothing to Confirm'),
-			)
-
-		se.flags.ignore_permissions = True
-		se.save()
-
-	se.reload()
-	se.flags.ignore_permissions = True
-	se.flags.ignore_workflow = True
-	se.submit()
-	frappe.db.set_value(
-		'Stock Entry', se.name, 'workflow_state', 'Requisition Received', update_modified=False
-	)
-
-	update_requisition_transfer_status(requisition)
-	return frappe.db.get_value('Requisition', requisition, 'transfer_status')
+	doc.db_set('transfer_status', status, update_modified=False)
+	return {'name': doc.name, 'transfer_status': status}
 
 
 @frappe.whitelist()

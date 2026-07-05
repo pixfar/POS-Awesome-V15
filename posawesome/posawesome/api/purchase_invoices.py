@@ -44,6 +44,35 @@ def create_purchase_invoice(data):
 	return po._create_purchase_invoice_from_pos(payload)
 
 
+@frappe.whitelist()
+def get_purchase_invoices_list(
+	pos_profile,
+	page_start=0,
+	page_length=100,
+	mine_only=0,
+	status=None,
+	from_date=None,
+	to_date=None,
+	item_code=None,
+	item_group=None,
+	supplier=None,
+	search=None,
+):
+	return po.get_purchase_invoices_list(
+		pos_profile,
+		page_start=page_start,
+		page_length=page_length,
+		mine_only=mine_only,
+		status=status,
+		from_date=from_date,
+		to_date=to_date,
+		item_code=item_code,
+		item_group=item_group,
+		supplier=supplier,
+		search=search,
+	)
+
+
 # Generic item search used by ItemsSelector in purchase context.
 @frappe.whitelist()
 def search_items(search_text=None, limit=20):
