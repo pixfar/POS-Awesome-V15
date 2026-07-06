@@ -5,6 +5,7 @@
 
 import frappe
 import time
+from frappe.utils import flt
 from erpnext.selling.doctype.sales_order.sales_order import make_sales_invoice
 from posawesome.posawesome.api.invoice_processing.utils import (
     _get_return_validity_settings,
@@ -222,6 +223,69 @@ def get_sales_invoices_list(
         "total": total,
         "has_more": (page_start + page_length) < total,
         "status_counts": status_counts,
+    }
+
+
+@frappe.whitelist()
+def get_sales_invoice_detail(name, doctype="Sales Invoice"):
+    """Full detail (header + items) for the Sales Invoice list's detail page."""
+    if doctype not in ("Sales Invoice", "POS Invoice"):
+        doctype = "Sales Invoice"
+
+    doc = frappe.get_doc(doctype, name)
+    owner_name = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
+    return {
+        "name": doc.name,
+        "doctype": doctype,
+        "customer": doc.customer,
+        "customer_name": doc.customer_name,
+        "posting_date": doc.posting_date,
+        "posting_time": doc.posting_time,
+        "status": doc.status,
+        "currency": doc.currency,
+        "company": doc.company,
+        "pos_profile": doc.get("pos_profile"),
+        "warehouse": doc.get("set_warehouse"),
+        "territory": doc.get("territory"),
+        "net_total": flt(doc.net_total),
+        "total_qty": flt(doc.total_qty),
+        "discount_amount": flt(doc.get("discount_amount")),
+        "additional_discount_percentage": flt(doc.get("additional_discount_percentage")),
+        "grand_total": flt(doc.grand_total),
+        "paid_amount": flt(doc.paid_amount),
+        "outstanding_amount": flt(doc.outstanding_amount),
+        "change_amount": flt(doc.get("change_amount")),
+        "is_return": doc.is_return,
+        "return_against": doc.get("return_against"),
+        "remarks": doc.get("remarks"),
+        "owner": owner_name,
+        "payments": [
+            {
+                "mode_of_payment": row.mode_of_payment,
+                "amount": flt(row.amount),
+            }
+            for row in (doc.get("payments") or [])
+        ],
+        "taxes": [
+            {
+                "description": row.description,
+                "rate": flt(row.rate),
+                "tax_amount": flt(row.tax_amount),
+            }
+            for row in (doc.get("taxes") or [])
+        ],
+        "items": [
+            {
+                "item_code": row.item_code,
+                "item_name": row.item_name,
+                "qty": flt(row.qty),
+                "uom": row.uom,
+                "rate": flt(row.rate),
+                "amount": flt(row.amount),
+                "warehouse": row.get("warehouse"),
+            }
+            for row in doc.items
+        ],
     }
 
 

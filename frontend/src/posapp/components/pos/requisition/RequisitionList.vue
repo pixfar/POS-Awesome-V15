@@ -494,7 +494,7 @@ export default {
 		};
 
 		const openRequisitionDetail = (item) => {
-			frappe.set_route('Form', 'Requisition', item.name);
+			router.push(`/requisitions/${item.name}`);
 		};
 
 		onMounted(() => {

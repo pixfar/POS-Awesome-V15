@@ -153,6 +153,7 @@ def get_requisitions_list(
 def get_requisition_detail(requisition):
 	doc = frappe.get_doc('Requisition', requisition)
 	ensure_warehouse_doc_read_access(doc, 'source_warehouse', 'target_warehouse')
+	owner_name = frappe.db.get_value('User', doc.owner, 'full_name') or doc.owner
 	return {
 		'name': doc.name,
 		'transaction_date': doc.transaction_date,
@@ -161,6 +162,11 @@ def get_requisition_detail(requisition):
 		'target_warehouse': doc.target_warehouse,
 		'transfer_status': doc.transfer_status,
 		'notes': doc.notes,
+		'created_by': owner_name,
+		'creation': doc.creation,
+		'amended_from': doc.get('amended_from'),
+		'total_required_qty': flt(sum(flt(row.required_qty) for row in doc.items)),
+		'item_count': len(doc.items),
 		'items': [
 			{
 				'name': row.name,

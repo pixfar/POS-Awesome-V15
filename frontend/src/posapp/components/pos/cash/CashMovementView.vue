@@ -1,17 +1,5 @@
 <template>
 	<div class="pa-3">
-		<div class="d-flex justify-end mb-3" v-if="pendingOfflineCount > 0">
-			<v-btn
-				variant="outlined"
-				color="warning"
-				:loading="syncingOffline"
-				:disabled="isOffline()"
-				@click="handleSyncOffline"
-			>
-				{{ __("Sync Offline Cash Movements ({0})", [pendingOfflineCount]) }}
-			</v-btn>
-		</div>
-
 		<v-alert v-if="errorMessage" type="error" variant="tonal" density="compact" class="mb-3">
 			{{ errorMessage }}
 		</v-alert>
@@ -63,12 +51,7 @@ import { computed, ref, watch } from "vue";
 import { useUIStore } from "../../../stores/uiStore";
 import { useToastStore } from "../../../stores/toastStore";
 import { useCashMovement } from "../../../composables/pos/cash/useCashMovement";
-import {
-	getPendingOfflineCashMovementCount,
-	isOffline,
-	saveOfflineCashMovement,
-	syncOfflineCashMovements,
-} from "../../../../offline";
+import { getPendingOfflineCashMovementCount } from "../../../../offline";
 import CashMovementForm from "./CashMovementForm.vue";
 import CashMovementHistory from "./CashMovementHistory.vue";
 
@@ -92,7 +75,6 @@ const {
 } = useCashMovement();
 
 const contextLoaded = ref(false);
-const syncingOffline = ref(false);
 const pendingOfflineCount = ref(0);
 const historyStatus = ref("");
 const historyMovementType = ref("");
@@ -160,26 +142,6 @@ async function handleSubmit(payload: any) {
 			client_request_id: `cm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 		};
 
-		if (isOffline()) {
-			const method =
-				payload.movementType === "Deposit"
-					? "posawesome.posawesome.api.cash_movement.service.create_cash_deposit"
-					: "posawesome.posawesome.api.cash_movement.service.create_pos_expense";
-			await saveOfflineCashMovement({
-				method,
-				args: {
-					payload: requestPayload,
-				},
-			});
-			toastStore.show({
-				title: __("Cash movement saved offline"),
-				color: "warning",
-			});
-			formResetToken.value += 1;
-			refreshPendingOfflineCount();
-			return;
-		}
-
 		await submitMovement({
 			movementType: payload.movementType,
 			amount: payload.amount,
@@ -244,36 +206,6 @@ async function handleDelete(row: any) {
 		await refreshHistory();
 	} catch (err: any) {
 		toastStore.show({ title: err?.message || __("Failed to delete cash movement"), color: "error" });
-	}
-}
-
-async function handleSyncOffline() {
-	if (isOffline()) {
-		return;
-	}
-	syncingOffline.value = true;
-	try {
-		const result = await syncOfflineCashMovements();
-		refreshPendingOfflineCount();
-		if (result?.synced) {
-			toastStore.show({
-				title: __("Synced {0} offline cash movement(s).", [result.synced]),
-				color: "success",
-			});
-			await refreshHistory();
-			return;
-		}
-		toastStore.show({
-			title: __("No offline cash movement synced."),
-			color: "info",
-		});
-	} catch (err: any) {
-		toastStore.show({
-			title: err?.message || __("Failed to sync offline cash movements"),
-			color: "error",
-		});
-	} finally {
-		syncingOffline.value = false;
 	}
 }
 

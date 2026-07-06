@@ -112,6 +112,10 @@ export const useItemsStore = defineStore("items", () => {
 	const activeSaleWarehouse = ref<string | null>(null);
 	const customer = ref<string | null>(null);
 	const customerPriceList = ref<string | null>(null);
+	// Independent of cachedPagination's IndexedDB-total heuristic (which can get
+	// stuck after the small initial bootstrap fetch): tracks whether the server
+	// has told us, via a short/empty page, that there's nothing left to scroll-load.
+	const scrollPaginationExhausted = ref(false);
 
 	// Composables Initialization
 	const {
@@ -220,6 +224,7 @@ export const useItemsStore = defineStore("items", () => {
 			posProfile.value,
 			limitSearchEnabled.value,
 		);
+		scrollPaginationExhausted.value = false;
 	};
 
 	const shouldUseIndexedSearch = () => {
@@ -283,6 +288,7 @@ export const useItemsStore = defineStore("items", () => {
 			items.value = Array.isArray(newItems) ? [...newItems] : [];
 			resetIndexes();
 			updateIndexes(items.value, posProfile.value);
+			scrollPaginationExhausted.value = false;
 		} else if (Array.isArray(newItems) && newItems.length) {
 			const additions: Item[] = [];
 			newItems.forEach((item) => {
@@ -327,9 +333,10 @@ export const useItemsStore = defineStore("items", () => {
 	});
 
 	const hasMoreCachedItems = computed(() => {
-		if (!cachedPagination.value.enabled) return false;
+		if (limitSearchEnabled.value) return false;
+		if (searchTerm.value && searchTerm.value.length >= 2) return false;
 		if (cachedPagination.value.loading) return true;
-		return cachedPagination.value.offset < cachedPagination.value.total;
+		return !scrollPaginationExhausted.value;
 	});
 
 	const itemStats = computed(() => {
@@ -877,43 +884,70 @@ export const useItemsStore = defineStore("items", () => {
 
 	const appendCachedItemsPage = async () => {
 		if (limitSearchEnabled.value) return [];
-		if (!cachedPagination.value.enabled || cachedPagination.value.loading)
-			return [];
+		if (cachedPagination.value.loading) return [];
 		if (searchTerm.value && searchTerm.value.length >= 2) return [];
-		if (cachedPagination.value.offset >= cachedPagination.value.total)
-			return [];
+		if (scrollPaginationExhausted.value) return [];
+		if (!posProfile.value) return [];
 
 		cachedPagination.value.loading = true;
 
 		try {
-			const nextPage = await searchStoredItemsCompat({
-				search: cachedPagination.value.search || "",
-				itemGroup: cachedPagination.value.group,
-				limit: cachedPagination.value.pageSize,
-				offset: cachedPagination.value.offset,
-				scope: getStorageScope(),
+			const lastItemCode = items.value.length
+				? items.value[items.value.length - 1]?.item_code || null
+				: null;
+			const requestProfile = JSON.parse(JSON.stringify(posProfile.value));
+			const activeWarehouse = resolveLoadItemsWarehouse();
+			if (activeWarehouse) {
+				requestProfile.warehouse = activeWarehouse;
+			}
+			const normalizedGroup =
+				itemGroup.value && itemGroup.value !== "ALL"
+					? String(itemGroup.value).toLowerCase()
+					: "";
+			const pageSize = cachedPagination.value.pageSize || 200;
+
+			// @ts-ignore
+			const response = await frappe.call({
+				method: "posawesome.posawesome.api.items.get_items",
+				args: {
+					pos_profile: JSON.stringify(requestProfile),
+					price_list: activePriceList.value,
+					item_group: normalizedGroup,
+					start_after: lastItemCode,
+					limit: pageSize,
+					sort_by: "item_code",
+				},
 			});
 
-			const safePage = Array.isArray(nextPage) ? nextPage : [];
+			const safePage = Array.isArray(response?.message)
+				? response.message
+				: [];
 
 			if (safePage.length === 0) {
-				cachedPagination.value.offset = cachedPagination.value.total;
+				scrollPaginationExhausted.value = true;
 				return [];
 			}
 
-			setItems(safePage, {
-				append: true,
-				totalCount: cachedPagination.value.total,
-			});
-			cachedPagination.value.offset += safePage.length;
+			const nextItemCode = safePage[safePage.length - 1]?.item_code || null;
+			if (!nextItemCode || nextItemCode === lastItemCode) {
+				// Cursor didn't advance — nothing new to reveal.
+				scrollPaginationExhausted.value = true;
+				return [];
+			}
 
-			if (safePage.length < cachedPagination.value.pageSize) {
-				cachedPagination.value.offset = cachedPagination.value.total;
+			setItems(safePage, { append: true });
+			totalItemCount.value = Math.max(
+				totalItemCount.value,
+				items.value.length,
+			);
+
+			if (safePage.length < pageSize) {
+				scrollPaginationExhausted.value = true;
 			}
 
 			return safePage;
 		} catch (error) {
-			console.warn("Failed to append cached items:", error);
+			console.warn("Failed to load more items from server:", error);
 			return [];
 		} finally {
 			cachedPagination.value.loading = false;

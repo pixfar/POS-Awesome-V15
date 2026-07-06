@@ -490,7 +490,7 @@ export default {
 		};
 
 		const openPlanDetail = (item) => {
-			frappe.set_route('Form', 'Production Plan', item.name);
+			router.push(`/production-plans/${item.name}`);
 		};
 
 		onMounted(() => {

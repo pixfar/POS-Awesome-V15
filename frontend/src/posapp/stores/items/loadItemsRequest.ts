@@ -145,6 +145,11 @@ export const buildLoadItemsRequest = ({
 	if (activeWarehouse) {
 		args.warehouse = activeWarehouse;
 	}
+	// Plain catalog browsing (no search term) is paginated/displayed in
+	// ascending item code order — keep the server cursor consistent with that.
+	if (!searchValue) {
+		args.sort_by = "item_code";
+	}
 
 	return {
 		forceServer,

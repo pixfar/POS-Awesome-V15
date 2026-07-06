@@ -11,8 +11,6 @@
 			:loading-message="loadingMessage"
 			@nav-click="handleNavClick"
 			@go-desk="goDesk"
-			@show-offline-invoices="showOfflineInvoices = true"
-			@open-employee-switch="openEmployeeSwitch"
 		>
 			<!-- Slot for status indicator -->
 			<template #status-indicator>
@@ -24,15 +22,6 @@
 						:is-ip-host="isIpHost"
 						:bootstrap-warning-active="bootstrapWarningActive"
 						:bootstrap-warning-tooltip="bootstrapWarningTooltip"
-						@toggle-panel="toggleOfflineStatusPanel"
-					/>
-					<OfflineStatusPanel
-						v-model="offlinePanelOpen"
-						@toggle-offline="toggleManualOfflineFromPanel"
-						@refresh-offline-data="handleRefreshOfflineDataAction"
-						@rebuild-offline-data="handleRebuildOfflineDataAction"
-						@clear-cache="handleClearCacheAction"
-						@open-diagnostics="handleOpenOfflineDiagnosticsAction"
 					/>
 				</div>
 			</template>
@@ -75,9 +64,6 @@
 					:network-online="networkOnline"
 					:server-online="serverOnline"
 					@close-shift="openCloseShift"
-					@sync-invoices="syncPendingInvoices"
-					@open-employee-switch="openEmployeeSwitch"
-					@lock-pos="lockPosScreen"
 					@open-customer-display="$emit('open-customer-display')"
 					@clear-cache="clearCache"
 					@show-about="showAboutDialog = true"
@@ -119,13 +105,6 @@
 			</v-card>
 		</v-dialog>
 
-		<OfflineInvoicesDialog
-			v-model="showOfflineInvoices"
-			:pos-profile="posProfile"
-			@deleted="updateAfterDelete"
-			@sync-all="syncPendingInvoices"
-		/>
-
 		<!-- Snackbar for notifications -->
 		<v-snackbar
 			v-model="visible"
@@ -154,11 +133,9 @@ import NavbarDrawer from "./navbar/NavbarDrawer.vue";
 import NavbarMenu from "./navbar/NavbarMenu.vue";
 import NavbarSettingsPanel from "./navbar/NavbarSettingsPanel.vue";
 import NotificationBell from "./navbar/NotificationBell.vue";
-import OfflineStatusPanel from "./navbar/OfflineStatusPanel.vue";
 import StatusIndicator from "./navbar/StatusIndicator.vue";
 import CacheUsageMeter from "./navbar/CacheUsageMeter.vue";
 import AboutDialog from "./navbar/AboutDialog.vue";
-import OfflineInvoices from "./OfflineInvoices.vue";
 import EmployeeSwitchDialog from "./pos/employee/EmployeeSwitchDialog.vue";
 import posLogo from "./pos/pos.png";
 import { forceClearAllCache } from "../../offline/index";
@@ -196,7 +173,6 @@ export default {
 		} = storeToRefs(toastStore);
 		const { isFrozen, freezeTitle, freezeMessage } = storeToRefs(uiStore);
 		const { currentCashier, currentCashierDisplay } = storeToRefs(employeeStore);
-		const { panelOpen: offlinePanelOpen } = storeToRefs(offlineSyncStore);
 
 		return {
 			isRtl,
@@ -218,7 +194,6 @@ export default {
 			employeeStore,
 			currentCashier,
 			currentCashierDisplay,
-			offlinePanelOpen,
 		};
 	},
 	components: {
@@ -227,12 +202,10 @@ export default {
 		NavbarMenu,
 		NavbarSettingsPanel,
 		NotificationBell,
-		OfflineStatusPanel,
 		StatusIndicator,
 		CacheUsageMeter,
 		AboutDialog,
 		EmployeeSwitchDialog,
-		OfflineInvoicesDialog: OfflineInvoices,
 		ServerUsageGadget,
 		DatabaseUsageGadget,
 	},
@@ -343,11 +316,9 @@ export default {
 			company: "POS Awesome",
 			companyImg: posLogo,
 			showAboutDialog: false,
-			showOfflineInvoices: false,
 			settingsPanelOpen: false,
 			lastSyncTotalsSnapshot: { pending: 0, synced: 0, drafted: 0 },
 			syncNotificationPrimed: false,
-			employeeSwitchHandler: null,
 			lockPosHandler: null,
 		};
 	},
@@ -534,9 +505,6 @@ export default {
 			this.eventBus.off("show_message");
 			this.eventBus.off("set_company", this.handleSetCompany);
 			this.eventBus.off("invoice_submission_failed", this.handleInvoiceSubmissionFailed);
-			if (this.employeeSwitchHandler) {
-				this.eventBus.off("open_employee_switch", this.employeeSwitchHandler);
-			}
 			if (this.lockPosHandler) {
 				this.eventBus.off("lock_pos_screen", this.lockPosHandler);
 			}
@@ -611,9 +579,6 @@ export default {
 				this.employeeStore.setTerminalEmployees([]);
 			}
 		},
-		openEmployeeSwitch() {
-			this.employeeStore.openEmployeeSwitch();
-		},
 		lockPosScreen() {
 			this.employeeStore.lockTerminal();
 		},
@@ -680,9 +645,7 @@ export default {
 			if (this.eventBus) {
 				this.eventBus.on("show_message", (data) => this.toastStore.show(data));
 				this.eventBus.on("invoice_submission_failed", this.handleInvoiceSubmissionFailed);
-				this.employeeSwitchHandler = () => this.openEmployeeSwitch();
 				this.lockPosHandler = () => this.lockPosScreen();
-				this.eventBus.on("open_employee_switch", this.employeeSwitchHandler);
 				this.eventBus.on("lock_pos_screen", this.lockPosHandler);
 			}
 		},
@@ -706,25 +669,8 @@ export default {
 		openCloseShift() {
 			this.$emit("close-shift");
 		},
-		toggleOfflineStatusPanel() {
-			const nextOpen = !this.offlinePanelOpen;
-			this.offlineSyncStore.setPanelOpen(nextOpen);
-			if (nextOpen) {
-				this.refreshCacheUsage();
-			}
-		},
 		closeOfflineStatusPanel() {
 			this.offlineSyncStore.setPanelOpen(false);
-		},
-		syncPendingInvoices() {
-			this.$emit("sync-invoices");
-		},
-		toggleManualOffline() {
-			this.$emit("toggle-offline");
-		},
-		toggleManualOfflineFromPanel() {
-			this.closeOfflineStatusPanel();
-			this.toggleManualOffline();
 		},
 		handleRefreshOfflineDataAction() {
 			this.closeOfflineStatusPanel();
@@ -900,9 +846,6 @@ export default {
 		},
 		refreshCacheUsage() {
 			this.$emit("refresh-cache-usage");
-		},
-		updateAfterDelete() {
-			this.$emit("update-after-delete");
 		},
 		handleSyncTotalsNotification(newTotals = {}, oldTotals = {}) {
 			const normalized = this.normalizeSyncTotals(newTotals);

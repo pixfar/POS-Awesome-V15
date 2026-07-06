@@ -396,22 +396,6 @@ export default {
 		},
 		quickActions() {
 			const actions = [
-				{
-					id: "switch-cashier",
-					label: __("Switch Cashier"),
-					subtitle: this.cashierName || __("Change terminal cashier"),
-					icon: "mdi-account-switch-outline",
-					tone: "primary",
-					handler: "openEmployeeSwitch",
-				},
-				{
-					id: "lock-screen",
-					label: __("Lock Screen"),
-					subtitle: __("Pause terminal until next cashier"),
-					icon: "mdi-lock-outline",
-					tone: "warning",
-					handler: "lockPos",
-				},
 				this.isEnabledSetting(this.posProfile?.posa_allow_print_last_invoice)
 					? {
 							id: "print-last-invoice",
@@ -422,14 +406,6 @@ export default {
 							handler: "printLastInvoiceAction",
 						}
 					: null,
-				{
-					id: "sync-offline-sales",
-					label: __("Sync Offline Sales"),
-					subtitle: __("Upload pending transactions"),
-					icon: "mdi-sync",
-					tone: "info",
-					handler: "syncInvoices",
-				},
 				!this.posProfile?.posa_hide_closing_shift
 					? {
 							id: "close-shift",
@@ -568,21 +544,9 @@ export default {
 			}
 
 			switch (action.handler) {
-				case "openEmployeeSwitch":
-					this.closeMenu();
-					this.$emit("open-employee-switch");
-					break;
-				case "lockPos":
-					this.closeMenu();
-					this.$emit("lock-pos");
-					break;
 				case "printLastInvoiceAction":
 					this.closeMenu();
 					this.printLastInvoice();
-					break;
-				case "syncInvoices":
-					this.closeMenu();
-					this.$emit("sync-invoices");
 					break;
 				case "closeShift":
 					this.closeMenu();
@@ -801,9 +765,6 @@ export default {
 	},
 	emits: [
 		"close-shift",
-		"sync-invoices",
-		"open-employee-switch",
-		"lock-pos",
 		"open-customer-display",
 		"toggle-offline",
 		"clear-cache",

@@ -281,13 +281,22 @@ export function useItemsSync() {
 
 			let loaded = items.value.length;
 			let syncedCount = 0;
-			let lastItemName = items.value.length
-				? items.value[items.value.length - 1]?.item_name || null
+			let lastItemCode = items.value.length
+				? items.value[items.value.length - 1]?.item_code || null
 				: null;
 
 			const limit = resolvePageSize(DEFAULT_PAGE_SIZE);
+			// Hard safety cap: even a generous overestimate of the catalog size
+			// bounds the loop, so a cursor that somehow stops advancing (or a
+			// server response that never shrinks) can't spin forever.
+			const maxIterations = Math.max(
+				50,
+				Math.ceil((totalItemCount.value || 20000) / limit) + 10,
+			);
+			let iterations = 0;
 
 			while (
+				iterations < maxIterations &&
 				backgroundSyncState.value.token === token &&
 				shouldPersistItems
 			) {
@@ -315,8 +324,9 @@ export function useItemsSync() {
 							normalizedGroup !== "ALL"
 								? normalizedGroup.toLowerCase()
 								: "",
-						start_after: lastItemName,
+						start_after: lastItemCode,
 						limit,
+						sort_by: "item_code",
 					},
 				});
 
@@ -331,6 +341,15 @@ export function useItemsSync() {
 					break;
 				}
 
+				iterations += 1;
+
+				const nextItemCode = batch[batch.length - 1]?.item_code || null;
+				if (!nextItemCode || nextItemCode === lastItemCode) {
+					// Cursor didn't advance — refetching would just loop forever
+					// on the same window, so stop here instead of spinning.
+					break;
+				}
+
 				primeItemDetailsCache(batch, posProfile, activePriceList);
 				if (containsStockQuantities(batch)) {
 					updateLocalStockCache(batch);
@@ -342,8 +361,7 @@ export function useItemsSync() {
 				loaded += batch.length;
 				syncedCount += batch.length;
 				syncedItemsCount.value = syncedCount;
-				lastItemName =
-					batch[batch.length - 1]?.item_name || lastItemName;
+				lastItemCode = nextItemCode;
 
 				await updateCachedPaginationFromStorage();
 

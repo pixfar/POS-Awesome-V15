@@ -103,12 +103,6 @@ const invoiceShortcuts: Record<string, unknown> & ThisType<InvoiceShortcutsVm> =
 
 			const key = event.key;
 
-			if (key === "F4") {
-				consumeEvent(event);
-				this.eventBus.emit("open_employee_switch");
-				return;
-			}
-
 			if (key === "F6") {
 				consumeEvent(event);
 				this.$refs.customerSection?.openNewCustomer?.() ||

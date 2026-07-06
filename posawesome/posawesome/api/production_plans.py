@@ -229,6 +229,64 @@ def get_production_plans_list(
 
 
 @frappe.whitelist()
+def get_production_plan_detail(name):
+	"""Full detail (header + items) for the Production Plan list's detail page.
+	Restricted to System Manager."""
+	if not is_system_manager():
+		frappe.throw(
+			_('Only a System Manager can view Production Plans.'),
+			exc=frappe.PermissionError,
+		)
+
+	doc = frappe.get_doc('Production Plan', name)
+
+	# Production Plan Item has no item_name field of its own; look it up in bulk.
+	item_codes = list({row.item_code for row in doc.po_items if row.item_code})
+	item_names = (
+		{
+			row.name: row.item_name
+			for row in frappe.get_all('Item', filters={'name': ['in', item_codes]}, fields=['name', 'item_name'])
+		}
+		if item_codes
+		else {}
+	)
+
+	owner_name = frappe.db.get_value('User', doc.owner, 'full_name') or doc.owner
+
+	return {
+		'name': doc.name,
+		'company': doc.company,
+		'posting_date': doc.posting_date,
+		'for_warehouse': doc.for_warehouse,
+		'customer': doc.get('customer'),
+		'get_items_from': doc.get('get_items_from'),
+		'workflow_state': doc.workflow_state,
+		'status': doc.status,
+		'total_planned_qty': flt(doc.total_planned_qty),
+		'total_produced_qty': flt(doc.get('total_produced_qty')),
+		'created_by': owner_name,
+		'creation': doc.creation,
+		'amended_from': doc.get('amended_from'),
+		'item_count': len(doc.po_items),
+		'items': [
+			{
+				'item_code': row.item_code,
+				'item_name': item_names.get(row.item_code),
+				'bom_no': row.bom_no,
+				'planned_qty': flt(row.planned_qty),
+				'pending_qty': flt(row.get('pending_qty')),
+				'produced_qty': flt(row.get('produced_qty')),
+				'stock_uom': row.stock_uom,
+				'warehouse': row.warehouse,
+				'planned_start_date': row.planned_start_date,
+			}
+			for row in doc.po_items
+		],
+		'available_actions': list(ALLOWED_TRANSITIONS.get(doc.workflow_state, {}).keys()),
+	}
+
+
+@frappe.whitelist()
 def advance_production_plan_status(name, action):
 	"""Transition a Production Plan through Draft -> Work In Progress ->
 	Production Complete -> Cancelled. Restricted to System Manager.

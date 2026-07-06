@@ -90,6 +90,7 @@ def _build_search_plan(
     include_description: bool,
     include_image: bool,
     item_groups: Optional[Sequence[str]],
+    sort_by: Optional[str] = None,
 ) -> SearchPlan:
     """Assemble filters, pagination rules and search metadata."""
 
@@ -102,9 +103,11 @@ def _build_search_plan(
     limit = _to_positive_int(limit)
     offset = _to_positive_int(offset)
 
+    sort_by_code = sort_by == "item_code"
+
     filters: Dict[str, Any] = {"disabled": 0, "is_sales_item": 1, "is_fixed_asset": 0}
     if start_after:
-        filters["item_name"] = [">", start_after]
+        filters["item_code" if sort_by_code else "item_name"] = [">", start_after]
     if modified_after:
         try:
             parsed_modified_after = get_datetime(modified_after)
@@ -174,7 +177,7 @@ def _build_search_plan(
 
     limit_page_length: Optional[int] = None
     limit_start: Optional[int] = None
-    order_by = "item_name asc"
+    order_by = "item_code asc" if sort_by_code else "item_name asc"
 
     if limit is not None:
         limit_page_length = limit
@@ -481,6 +484,7 @@ def _execute_item_search(
     include_description: bool,
     include_image: bool,
     item_groups: Optional[Sequence[str]],
+    sort_by: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Orchestrate the helpers responsible for executing the search query."""
 
@@ -500,6 +504,7 @@ def _execute_item_search(
         include_description,
         include_image,
         item_groups,
+        sort_by,
     )
 
     return _run_item_query(pos_profile, price_list, customer, plan)
@@ -562,6 +567,7 @@ def get_items(
     include_description=False,
     include_image=False,
     item_groups=None,
+    sort_by=None,
 ):
     started_at = time.perf_counter()
     profile_ctx = _normalize_profile_context(pos_profile)
@@ -582,6 +588,7 @@ def get_items(
         include_description,
         include_image,
         item_groups_tuple,
+        sort_by,
     ):
         return _execute_item_search(
             profile_ctx.pos_profile_json,
@@ -596,6 +603,7 @@ def get_items(
             include_description,
             include_image,
             list(item_groups_tuple),
+            sort_by,
         )
 
     if profile_ctx.use_price_list_cache:
@@ -613,6 +621,7 @@ def get_items(
             include_description,
             include_image,
             groups_ctx.groups_tuple,
+            sort_by,
         )
         log_perf_event(
             "get_items",
@@ -638,6 +647,7 @@ def get_items(
         include_description,
         include_image,
         groups_ctx.groups,
+        sort_by,
     )
     log_perf_event(
         "get_items",

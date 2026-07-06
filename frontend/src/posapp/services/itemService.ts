@@ -17,6 +17,7 @@ export interface GetItemsArgs {
 	limit?: number;
 	modified_after?: string;
 	warehouse?: string;
+	sort_by?: string;
 }
 
 export interface BarcodeLookupArgs {

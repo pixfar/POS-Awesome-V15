@@ -948,6 +948,54 @@ def get_purchase_invoices_list(
     }
 
 
+def get_purchase_invoice_detail(name):
+    """Full detail (header + items) for the Purchase Invoice list's detail page."""
+    doc = frappe.get_doc("Purchase Invoice", name)
+    owner_name = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
+    return {
+        "name": doc.name,
+        "supplier": doc.supplier,
+        "supplier_name": doc.get("supplier_name"),
+        "posting_date": doc.posting_date,
+        "posting_time": doc.posting_time,
+        "due_date": doc.get("due_date"),
+        "status": doc.status,
+        "currency": doc.currency,
+        "company": doc.company,
+        "warehouse": doc.get("set_warehouse"),
+        "territory": doc.get("territory"),
+        "update_stock": doc.get("update_stock"),
+        "net_total": flt(doc.net_total),
+        "total_qty": flt(doc.total_qty),
+        "discount_amount": flt(doc.get("discount_amount")),
+        "grand_total": flt(doc.grand_total),
+        "paid_amount": flt(doc.get("paid_amount")),
+        "outstanding_amount": flt(doc.outstanding_amount),
+        "remarks": doc.get("remarks"),
+        "owner": owner_name,
+        "taxes": [
+            {
+                "description": row.description,
+                "rate": flt(row.rate),
+                "tax_amount": flt(row.tax_amount),
+            }
+            for row in (doc.get("taxes") or [])
+        ],
+        "items": [
+            {
+                "item_code": row.item_code,
+                "item_name": row.item_name,
+                "qty": flt(row.qty),
+                "uom": row.uom,
+                "rate": flt(row.rate),
+                "amount": flt(row.amount),
+                "warehouse": row.get("warehouse"),
+            }
+            for row in doc.items
+        ],
+    }
+
+
 def search_items(search_text=None, limit=20):
     filters = {"disabled": 0}
     or_filters = None

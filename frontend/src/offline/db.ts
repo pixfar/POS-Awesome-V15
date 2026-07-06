@@ -617,49 +617,25 @@ export function persist(key: string, value: unknown = memory[key]) {
 	}
 }
 
+// This app now runs online-only (see Phase 1 of the offline-removal plan). These
+// primitives are kept as no-op stubs — rather than edit every one of their ~50
+// call sites right now — so `if (isOffline()) { ...queue locally... }` branches
+// throughout the app always take the online path. Real deletion of the offline
+// write-queue/sync machinery is a separate follow-up.
 export function isOffline() {
-	if (typeof window === "undefined") {
-		// Not in a browser (SSR/Node), assume online (or handle explicitly if needed)
-		return memory.manual_offline || false;
-	}
-
-	const {
-		location: { protocol, hostname },
-		navigator,
-	} = window;
-	const online = navigator.onLine;
-
-	const serverOnline =
-		typeof (window as AnyRecord).serverOnline === "boolean"
-			? (window as AnyRecord).serverOnline
-			: true;
-
-	const isIpAddress = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname);
-	const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
-	const isDnsName = !isIpAddress && !isLocalhost;
-
-	if (memory.manual_offline) {
-		return true;
-	}
-
-	if (protocol === "https:" && isDnsName) {
-		return !online || !serverOnline;
-	}
-
-	return !online || !serverOnline;
+	return false;
 }
 
 export function isManualOffline() {
-	return memory.manual_offline || false;
+	return false;
 }
 
-export function setManualOffline(state) {
-	memory.manual_offline = !!state;
-	persist("manual_offline");
+export function setManualOffline(_state?: boolean) {
+	// no-op: manual offline mode has been removed.
 }
 
 export function toggleManualOffline() {
-	setManualOffline(!memory.manual_offline);
+	// no-op: manual offline mode has been removed.
 }
 
 export async function clearAllCache() {

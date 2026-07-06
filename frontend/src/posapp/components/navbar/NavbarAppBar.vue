@@ -66,26 +66,6 @@
 						isRtl ? 'rtl-primary-actions' : 'ltr-primary-actions',
 					]"
 				>
-					<v-btn
-						icon
-						size="small"
-						:class="[
-							'offline-invoices-btn mobile-btn pos-themed-button',
-							isRtl ? 'rtl-offline-btn' : 'ltr-offline-btn',
-							{ 'has-pending': pendingInvoices > 0 },
-						]"
-						:aria-label="__('View offline invoices') + ` (${pendingInvoices})`"
-						@click="$emit('show-offline-invoices')"
-					>
-						<v-badge v-if="pendingInvoices > 0" :content="pendingInvoices" color="error" floating>
-							<v-icon class="pos-text-primary">mdi-file-document-multiple-outline</v-icon>
-						</v-badge>
-						<v-icon v-else class="pos-text-primary">mdi-file-document-multiple-outline</v-icon>
-						<v-tooltip activator="parent" location="bottom">
-							{{ __("Offline Invoices") }} ({{ pendingInvoices }})
-						</v-tooltip>
-					</v-btn>
-
 					<!-- Notification bell centered between offline invoices and menu -->
 					<div class="notification-wrapper">
 						<slot name="notification-bell"></slot>
@@ -116,17 +96,13 @@
 							isRtl ? 'rtl-profile-chip' : 'ltr-profile-chip',
 						]"
 						data-test="cashier-chip"
-						tabindex="0"
-						role="button"
-						@click="$emit('open-employee-switch')"
-						@keydown.enter="$emit('open-employee-switch')"
 					>
 						<v-icon
 							:start="!isRtl"
 							:end="isRtl"
 							:class="['pos-text-primary', isRtl ? 'rtl-profile-icon' : 'ltr-profile-icon']"
 						>
-							mdi-account-switch-outline
+							mdi-account-outline
 						</v-icon>
 						<span
 							:class="[
@@ -150,34 +126,6 @@
 						isRtl ? 'rtl-primary-actions' : 'ltr-primary-actions',
 					]"
 				>
-					<v-btn
-						icon
-						:class="[
-							'offline-invoices-btn pos-themed-button',
-							isRtl ? 'rtl-offline-btn' : 'ltr-offline-btn',
-							{ 'has-pending': pendingInvoices > 0 },
-						]"
-						:aria-label="__('View offline invoices') + ` (${pendingInvoices})`"
-						:aria-describedby="'offline-invoices-tooltip'"
-						@click="$emit('show-offline-invoices')"
-						@keydown.enter="$emit('show-offline-invoices')"
-						tabindex="0"
-					>
-						<v-badge v-if="pendingInvoices > 0" :content="pendingInvoices" color="error" floating>
-							<v-icon class="pos-text-primary">mdi-file-document-multiple-outline</v-icon>
-						</v-badge>
-						<v-icon v-else class="pos-text-primary">mdi-file-document-multiple-outline</v-icon>
-						<v-tooltip
-							id="offline-invoices-tooltip"
-							activator="parent"
-							:location="isRtl ? 'bottom start' : 'bottom end'"
-							:open-delay="500"
-							:close-delay="200"
-						>
-							{{ __("Offline Invoices") }} ({{ pendingInvoices }})
-						</v-tooltip>
-					</v-btn>
-
 					<!-- Notification bell between offline invoices and menu -->
 					<div class="notification-wrapper">
 						<slot name="notification-bell"></slot>
@@ -367,7 +315,7 @@ export default {
 			}
 		},
 	},
-	emits: ["nav-click", "go-desk", "show-offline-invoices", "open-employee-switch"],
+	emits: ["nav-click", "go-desk"],
 };
 </script>
 

@@ -141,7 +141,12 @@ export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 			try {
 				const el = event.target as HTMLElement | null;
 				if (!el) return;
-				if (el.scrollTop + el.clientHeight >= el.scrollHeight - 50) {
+				// Only treat this as "scrolled near the bottom" if the content
+				// actually overflows the container — otherwise a page whose
+				// items all fit on screen would look "at the bottom" from the
+				// very first render and trigger an auto-advance nobody asked for.
+				const hasOverflow = el.scrollHeight > el.clientHeight + 1;
+				if (hasOverflow && el.scrollTop + el.clientHeight >= el.scrollHeight - 50) {
 					if (typeof loadVisibleItems === "function") {
 						loadVisibleItems();
 					}

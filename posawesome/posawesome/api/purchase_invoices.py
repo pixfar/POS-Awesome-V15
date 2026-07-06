@@ -73,6 +73,11 @@ def get_purchase_invoices_list(
 	)
 
 
+@frappe.whitelist()
+def get_purchase_invoice_detail(name):
+	return po.get_purchase_invoice_detail(name)
+
+
 # Generic item search used by ItemsSelector in purchase context.
 @frappe.whitelist()
 def search_items(search_text=None, limit=20):

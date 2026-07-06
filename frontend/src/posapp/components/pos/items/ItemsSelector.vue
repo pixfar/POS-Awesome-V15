@@ -136,6 +136,59 @@
 							/>
 						</v-col>
 					</v-row>
+
+					<div v-if="totalPages > 1" class="items-pagination">
+						<span class="items-pagination__label">
+							{{ __("Page {0} of {1}", [currentPage, totalPages]) }}
+						</span>
+						<div class="items-pagination__controls">
+							<v-btn
+								icon="mdi-page-first"
+								size="small"
+								variant="text"
+								density="comfortable"
+								:disabled="currentPage <= 1 || isLoadingMorePages"
+								@click="goToPage(1)"
+							/>
+							<v-btn
+								icon="mdi-chevron-left"
+								size="small"
+								variant="text"
+								density="comfortable"
+								:disabled="currentPage <= 1 || isLoadingMorePages"
+								@click="goToPage(currentPage - 1)"
+							/>
+							<v-btn
+								v-for="pageNumber in pageNumbers"
+								:key="pageNumber"
+								size="small"
+								:variant="pageNumber === currentPage ? 'flat' : 'text'"
+								:color="pageNumber === currentPage ? 'primary' : undefined"
+								class="items-pagination__page-btn"
+								:disabled="isLoadingMorePages"
+								@click="goToPage(pageNumber)"
+							>
+								{{ pageNumber }}
+							</v-btn>
+							<v-btn
+								icon="mdi-chevron-right"
+								size="small"
+								variant="text"
+								density="comfortable"
+								:loading="isLoadingMorePages"
+								:disabled="currentPage >= totalPages"
+								@click="goToPage(currentPage + 1)"
+							/>
+							<v-btn
+								icon="mdi-page-last"
+								size="small"
+								variant="text"
+								density="comfortable"
+								:disabled="currentPage >= totalPages || isLoadingMorePages"
+								@click="goToPage(totalPages)"
+							/>
+						</div>
+					</div>
 				</v-card>
 			</div>
 		</v-card>
@@ -331,7 +384,7 @@ const {
 const search_input = ref("");
 const first_search = ref("");
 const items_view = ref("card");
-const itemsPerPage = ref(50);
+const itemsPerPage = ref(20);
 const clearingSearch = ref(false);
 const isDragging = ref(false);
 const new_line = ref(false);
@@ -429,19 +482,113 @@ const {
 	isBackgroundLoading,
 	loadProgress,
 	syncedItemsCount = ref(0),
+	totalItemCount,
+	hasMoreCachedItems,
 } = itemsIntegration;
+
+// --- Item grid pagination (discrete pages, "infinite scroll" auto-advances) ---
+// `displayedItems` only ever holds ONE page's worth of items (never the whole
+// growing catalog) — vue-virtual-scroller throws "Rendered items limit reached"
+// if asked to render too many rows at once, which happened when pagination
+// cumulatively revealed everything up to the current page. `items`/`filteredItems`
+// (the full catalog cache used by search/scan) keep growing via
+// appendCachedItemsPage as before; only the small render window advances.
+const pageSize = computed(() =>
+	enable_custom_items_per_page.value ? items_per_page.value : itemsPerPage.value,
+);
+const currentPage = ref(1);
+const isLoadingMorePages = ref(false);
+
+const totalKnownItems = computed(() =>
+	Math.max(totalItemCount.value || 0, filteredItems.value.length),
+);
+const totalPages = computed(() =>
+	Math.max(1, Math.ceil(totalKnownItems.value / (pageSize.value || 1))),
+);
+const pageNumbers = computed(() => {
+	const total = totalPages.value;
+	const current = currentPage.value;
+	const windowSize = 5;
+	let start = Math.max(1, current - Math.floor(windowSize / 2));
+	let end = Math.min(total, start + windowSize - 1);
+	start = Math.max(1, end - windowSize + 1);
+	const pages: number[] = [];
+	for (let p = start; p <= end; p++) pages.push(p);
+	return pages;
+});
+
+// Ensures items[0 .. targetCount) are loaded, fetching more pages from the
+// server as needed. Returns once loaded or the server says there's no more.
+const ensureItemsLoadedUpTo = async (targetCount) => {
+	let safetyCounter = 0;
+	const maxFetches = 100; // generous cap; each fetch pulls a full page
+	while (
+		filteredItems.value.length < targetCount &&
+		hasMoreCachedItems.value &&
+		!isLoadingMorePages.value &&
+		safetyCounter < maxFetches
+	) {
+		safetyCounter += 1;
+		isLoadingMorePages.value = true;
+		try {
+			const appended = await itemsIntegration.appendCachedItemsPage();
+			if (!Array.isArray(appended) || !appended.length) break;
+		} finally {
+			isLoadingMorePages.value = false;
+		}
+	}
+};
+
+const goToPage = async (page) => {
+	const targetPage = Math.max(1, Math.min(totalPages.value, page));
+	const targetCount = Math.min(totalKnownItems.value, targetPage * pageSize.value);
+	await ensureItemsLoadedUpTo(targetCount);
+	currentPage.value = targetPage;
+	await nextTick();
+	itemsContainer.value?.scrollToItem?.(0);
+};
+
+// Scroll-triggered "infinite scroll": nearing the end of the current page's
+// small render window advances to the next page instead of growing it.
+const isAdvancingPage = ref(false);
+const advancePage = async () => {
+	if (isAdvancingPage.value || isLoadingMorePages.value || currentPage.value >= totalPages.value) return;
+	isAdvancingPage.value = true;
+	try {
+		const nextPage = currentPage.value + 1;
+		const targetCount = Math.min(totalKnownItems.value, nextPage * pageSize.value);
+		await ensureItemsLoadedUpTo(targetCount);
+		// Only advance if the next page actually has at least one item to show.
+		if (filteredItems.value.length > currentPage.value * pageSize.value) {
+			currentPage.value = nextPage;
+			// Without resetting scroll position, the viewport stays "near the
+			// bottom" pixel-wise, which would immediately look like "near end"
+			// again for the new page and cascade into advancing many pages at
+			// once from a single scroll gesture.
+			await nextTick();
+			itemsContainer.value?.scrollToItem?.(0);
+		}
+	} finally {
+		isAdvancingPage.value = false;
+	}
+};
+
+watch([search_input, item_group, () => hide_zero_rate_items.value, () => showOnlyBarcodeItemsRef.value], () => {
+	currentPage.value = 1;
+});
 
 const displayedItems = computed(() => {
 	const baseItems = Array.isArray(filteredItems.value) ? filteredItems.value : [];
 	const rawTerm = first_search.value;
 	const term = (typeof rawTerm === "string" ? rawTerm : "").trim().toLowerCase();
-	return filterAndPaginate(baseItems, {
+	const upToCurrentPage = filterAndPaginate(baseItems, {
 		searchTerm: term,
 		hideZeroRate: hide_zero_rate_items.value,
 		hideVariants: pos_profile.value?.posa_hide_variants_items,
 		onlyBarcode: showOnlyBarcodeItemsRef.value,
-		limit: enable_custom_items_per_page.value ? items_per_page.value : itemsPerPage.value,
+		limit: currentPage.value * pageSize.value,
 	});
+	return upToCurrentPage.slice((currentPage.value - 1) * pageSize.value);
 });
 
 watch(
@@ -598,7 +745,7 @@ const {
 	setContainerElement,
 } = useItemSelectorLayout({
 	resizeDebounce: 100,
-	loadVisibleItems: () => itemsLoader.loadVisibleItems(),
+	loadVisibleItems: () => advancePage(),
 });
 
 // Template ref for the ItemsSelectorCards component — used to measure the actual
@@ -848,6 +995,33 @@ onMounted(async () => {
 		get loading() {
 			return loading.value;
 		},
+		get items() {
+			return items.value;
+		},
+		get totalItemCount() {
+			return totalItemCount.value;
+		},
+		get hasMoreCachedItems() {
+			return hasMoreCachedItems.value;
+		},
+		appendCachedItemsPage: () => itemsIntegration.appendCachedItemsPage(),
+		loadItems: (args: any) => itemsIntegration.loadItems(args),
+		get_search: itemsSelectorSearch.get_search as (_value: unknown) => unknown,
+		get first_search() {
+			return first_search.value;
+		},
+		get item_group() {
+			return item_group.value;
+		},
+		get usesLimitSearch() {
+			return usesLimitSearch.value;
+		},
+		get limitSearchCap() {
+			return pageSize.value;
+		},
+		get scheduleCardMetricsUpdate() {
+			return scheduleCardMetricsUpdate;
+		},
 	});
 
 	itemSelection.registerContext({
@@ -955,6 +1129,8 @@ onMounted(async () => {
 		const el = itemsContainer.value?.$el || itemsContainer.value;
 		setContainerElement(el instanceof HTMLElement ? el : null);
 	});
+
+	attachCardScrollListener();
 });
 
 onBeforeUnmount(() => {
@@ -973,6 +1149,7 @@ onBeforeUnmount(() => {
 	cleanupSearchInput?.();
 	cleanupSearchInput = null;
 	itemSearchFocusClearGuard.dispose();
+	detachCardScrollListener();
 });
 
 // 8. Watchers
@@ -1274,8 +1451,41 @@ const cancelItemDetailsRequest = () => itemDetailFetcher.cancelItemDetailsReques
 
 const select_item = (e, item) => itemSelection.handleItemSelection(e, item);
 const click_item_row = (e, data) => itemSelection.handleRowClick(e, data);
-const onVirtualRangeUpdate = (s, e, vs, ve) => itemsLoader.onVirtualRangeUpdate(s, e, vs, ve);
+// NOTE: pagination auto-advance is intentionally NOT driven by this event.
+// vue-virtual-scroller's visible-range calculation includes its overscan
+// buffer (virtualScrollBuffer, 200px), which for a small ~20-item page can
+// make the *entire* page register as "visible" immediately on render —
+// triggering an auto-advance before the user has scrolled at all, then
+// cascading through many pages. A real native scroll listener (below) is
+// used instead, matching how the Table view already triggers pagination.
+const onVirtualRangeUpdate = () => {};
 const onListScroll = (e) => handleListScroll(e);
+
+let cardScrollerEl: HTMLElement | null = null;
+const detachCardScrollListener = () => {
+	if (cardScrollerEl) {
+		cardScrollerEl.removeEventListener("scroll", handleListScroll);
+		cardScrollerEl = null;
+	}
+};
+const attachCardScrollListener = async () => {
+	await nextTick();
+	if (items_view.value !== "card") return;
+	const el = itemsContainer.value?.getScrollerElement?.();
+	if (el && el !== cardScrollerEl) {
+		detachCardScrollListener();
+		cardScrollerEl = el;
+		el.addEventListener("scroll", handleListScroll, { passive: true });
+	}
+};
+
+watch(items_view, (view) => {
+	if (view === "card") {
+		attachCardScrollListener();
+	} else {
+		detachCardScrollListener();
+	}
+});
 
 defineExpose({
 	search_input,
@@ -1380,6 +1590,33 @@ defineExpose({
 .items-selector-shell {
 	min-height: 0;
 	min-width: 0;
+}
+
+.items-pagination {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding: 8px 16px;
+	border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+}
+
+.items-pagination__label {
+	font-size: 0.8rem;
+	color: var(--pos-text-secondary, rgba(var(--v-theme-on-surface), 0.6));
+	white-space: nowrap;
+}
+
+.items-pagination__controls {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-wrap: wrap;
+}
+
+.items-pagination__page-btn {
+	min-width: 32px;
 }
 
 .dynamic-padding {

@@ -584,19 +584,6 @@
 								</div>
 							</div>
 
-							<v-alert
-								v-if="isOffline()"
-								type="warning"
-								variant="tonal"
-								density="compact"
-								class="mb-4"
-							>
-								{{
-									__(
-										"You are offline. Add Payment will work again when the connection is restored.",
-									)
-								}}
-							</v-alert>
 
 							<div v-if="loading && activeTab === 'partial'" class="tab-loader">
 								<v-progress-circular indeterminate color="warning" size="28" width="3" />
@@ -650,7 +637,6 @@
 											variant="text"
 											size="small"
 											color="warning"
-											:disabled="isOffline()"
 											:title="__('Add Payment')"
 											:aria-label="__('Add payment to invoice')"
 											@click="openAddPayment(item)"
@@ -780,7 +766,6 @@
 											size="small"
 											variant="flat"
 											color="warning"
-											:disabled="isOffline()"
 											@click="openAddPayment(invoice)"
 										>
 											{{ __("Add Payment") }}
@@ -1346,7 +1331,7 @@
 					variant="text"
 					prepend-icon="mdi-link-wrench"
 					:loading="repairChangeLoading"
-					:disabled="repairChangeLoading || isOffline()"
+					:disabled="repairChangeLoading"
 					@click="repairChangeAllocation(selectedInvoiceDetail)"
 				>
 					{{ __("Repair Change Allocation") }}

@@ -739,6 +739,32 @@ def _resolve_payment_amounts(payment, conversion_rate=1):
     return amount, base_amount
 
 
+def _reapply_incoming_payment_amounts(invoice_doc, incoming_payments):
+    """Restore tendered amounts after set_missing_values() resets them.
+
+    Sales Invoice.set_pos_fields() -> update_multi_mode_option() unconditionally
+    rebuilds invoice_doc.payments from the POS Profile's configured modes on every
+    set_missing_values() call, dropping any amount the client already tendered
+    (each rebuilt row starts at amount 0). Left alone, on_submit() then calls
+    clear_unallocated_mode_of_payments(), which deletes every zero-amount row,
+    so the submitted invoice ends up with no payments at all. Re-apply the
+    client's amounts, matched by mode_of_payment, right after set_missing_values().
+    """
+    if not incoming_payments:
+        return
+
+    amounts_by_mode = {}
+    for row in incoming_payments:
+        mode = (row or {}).get("mode_of_payment")
+        if not mode:
+            continue
+        amounts_by_mode[mode] = amounts_by_mode.get(mode, 0) + flt(row.get("amount"))
+
+    for payment in invoice_doc.payments or []:
+        if payment.mode_of_payment in amounts_by_mode:
+            payment.amount = amounts_by_mode[payment.mode_of_payment]
+
+
 def _normalize_return_payment_rows(invoice_doc, conversion_rate=1):
     if not invoice_doc.is_return:
         return
@@ -861,6 +887,7 @@ def update_invoice(data):
 
     # Set missing values first
     invoice_doc.set_missing_values()
+    _reapply_incoming_payment_amounts(invoice_doc, data.get("payments"))
     if effective_price_list:
         invoice_doc.selling_price_list = effective_price_list
 

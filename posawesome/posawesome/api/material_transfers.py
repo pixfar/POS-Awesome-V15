@@ -151,6 +151,7 @@ def get_material_transfers_list(
 def get_material_transfer_detail(transfer):
 	doc = frappe.get_doc('Material Transfer', transfer)
 	ensure_warehouse_doc_read_access(doc, 'from_warehouse', 'to_warehouse')
+	owner_name = frappe.db.get_value('User', doc.owner, 'full_name') or doc.owner
 	return {
 		'name': doc.name,
 		'transaction_date': doc.transaction_date,
@@ -159,6 +160,13 @@ def get_material_transfer_detail(transfer):
 		'to_warehouse': doc.to_warehouse,
 		'transfer_status': doc.transfer_status,
 		'notes': doc.notes,
+		'stock_entry': doc.get('stock_entry'),
+		'created_by': owner_name,
+		'creation': doc.creation,
+		'amended_from': doc.get('amended_from'),
+		'total_qty': flt(sum(flt(row.qty) for row in doc.items)),
+		'total_received_qty': flt(sum(flt(row.received_qty) for row in doc.items)),
+		'item_count': len(doc.items),
 		'items': [
 			{
 				'name': row.name,

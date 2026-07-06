@@ -275,10 +275,11 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
+import { ensurePosProfile } from '../../../../utils/pos_profile';
 
 const UNPAID_STATUSES = [
 	'Unpaid',
@@ -378,8 +379,24 @@ export default {
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 		};
 
+		const resolvePosProfile = async () => {
+			if (uiStore.posProfile?.name) {
+				return uiStore.posProfile;
+			}
+			try {
+				const profile = await ensurePosProfile();
+				if (profile?.name) {
+					uiStore.setPosProfile(profile);
+				}
+				return profile;
+			} catch (e) {
+				console.error('Failed to resolve active POS profile', e);
+				return null;
+			}
+		};
+
 		const loadInvoices = async () => {
-			const posProfile = uiStore.posProfile;
+			const posProfile = await resolvePosProfile();
 			if (!posProfile?.name) {
 				invoiceList.value = [];
 				return;
@@ -523,13 +540,24 @@ export default {
 		};
 
 		const openInvoiceDetail = (item) => {
-			frappe.set_route('Form', 'Purchase Invoice', item.name);
+			router.push(`/purchase-invoices/${item.name}`);
 		};
 
 		onMounted(() => {
 			loadItemGroups();
 			loadInvoices();
 		});
+
+		// The POS profile is hydrated asynchronously by the app shell after mount —
+		// retry once it becomes available instead of leaving the list stuck empty.
+		watch(
+			() => uiStore.posProfile?.name,
+			(profileName, previousProfileName) => {
+				if (profileName && profileName !== previousProfileName) {
+					resetAndLoad();
+				}
+			},
+		);
 
 		return {
 			invoiceList,

@@ -33,6 +33,16 @@ const routes = [
 			loadingMessage: "Loading sales invoices...",
 		},
 	},
+	{
+		path: "/sales-invoices/:name",
+		component: () =>
+			import("../components/pos/sales_invoice/SalesInvoiceDetail.vue"),
+		meta: {
+			title: "Sales Invoice",
+			layout: "default",
+			loadingMessage: "Loading sales invoice...",
+		},
+	},
 	{ path: "/pos", redirect: "/sales-invoices/new" },
 	{
 		path: "/requisitions",
@@ -56,6 +66,16 @@ const routes = [
 			title: "New Requisition",
 			layout: "default",
 			loadingMessage: "Loading new requisition...",
+		},
+	},
+	{
+		path: "/requisitions/:name",
+		component: () =>
+			import("../components/pos/requisition/RequisitionDetail.vue"),
+		meta: {
+			title: "Requisition",
+			layout: "default",
+			loadingMessage: "Loading requisition...",
 		},
 	},
 	{
@@ -83,6 +103,16 @@ const routes = [
 		},
 	},
 	{
+		path: "/material-transfers/:name",
+		component: () =>
+			import("../components/pos/material_transfer/MaterialTransferDetail.vue"),
+		meta: {
+			title: "Material Transfer",
+			layout: "default",
+			loadingMessage: "Loading material transfer...",
+		},
+	},
+	{
 		path: "/production-plans",
 		redirect: "/production-plans/new",
 	},
@@ -107,6 +137,16 @@ const routes = [
 		},
 	},
 	{
+		path: "/production-plans/:name",
+		component: () =>
+			import("../components/pos/production_plan/ProductionPlanDetail.vue"),
+		meta: {
+			title: "Production Plan",
+			layout: "default",
+			loadingMessage: "Loading production plan...",
+		},
+	},
+	{
 		path: "/purchase-invoices",
 		redirect: "/purchase-invoices/new",
 	},
@@ -128,6 +168,16 @@ const routes = [
 			title: "Purchase Invoices",
 			layout: "default",
 			loadingMessage: "Loading purchase invoices...",
+		},
+	},
+	{
+		path: "/purchase-invoices/:name",
+		component: () =>
+			import("../components/pos/purchase/PurchaseInvoiceDetail.vue"),
+		meta: {
+			title: "Purchase Invoice",
+			layout: "default",
+			loadingMessage: "Loading purchase invoice...",
 		},
 	},
 	{ path: "/orders", redirect: "/purchase-invoices/new" },

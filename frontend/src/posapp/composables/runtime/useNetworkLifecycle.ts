@@ -103,8 +103,6 @@ export function useNetworkLifecycle(options: UseNetworkLifecycleOptions) {
 		}
 		options.networkOnline.value = false;
 		options.internetReachable.value = false;
-		options.serverOnline.value = false;
-		(window as any).serverOnline = false;
 	};
 
 	const handleVisibilityChange = () => {
@@ -158,8 +156,6 @@ export function useNetworkLifecycle(options: UseNetworkLifecycleOptions) {
 			options.serverConnecting.value = false;
 		});
 		registerRealtime("disconnect", () => {
-			options.serverOnline.value = false;
-			(window as any).serverOnline = false;
 			options.serverConnecting.value = false;
 		});
 		registerRealtime("connecting", () => {

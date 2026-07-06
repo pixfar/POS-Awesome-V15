@@ -534,7 +534,7 @@ export default {
 		};
 
 		const openTransferDetail = (item) => {
-			frappe.set_route('Form', 'Material Transfer', item.name);
+			router.push(`/material-transfers/${item.name}`);
 		};
 
 		onMounted(() => {
