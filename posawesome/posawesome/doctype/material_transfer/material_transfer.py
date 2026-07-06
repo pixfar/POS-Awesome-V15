@@ -225,38 +225,50 @@ def confirm_receipt(transfer, received_quantities=None):
 	if se.docstatus not in (0, 1):
 		frappe.throw(_('Goods are not in transit yet.'))
 
-	if received_quantities:
-		if isinstance(received_quantities, str):
-			received_quantities = json.loads(received_quantities)
+	# Confirming receipt only records how much actually arrived (received_qty on the
+	# Material Transfer's own items) — it never edits the linked Stock Entry's
+	# quantities. The Stock Entry already posted the full sent qty to the stock ledger
+	# on dispatch and Frappe disallows changing quantities on a submitted document
+	# (see: "Cannot Update After Submit"); any shortfall is tracked here, not corrected
+	# in stock.
+	if isinstance(received_quantities, str):
+		received_quantities = json.loads(received_quantities)
+	received_quantities = received_quantities or {}
 
-		for item in se.items:
-			if item.name not in received_quantities:
-				continue
-			new_qty = flt(received_quantities[item.name])
-			if new_qty < 0:
-				frappe.throw(_('Received quantity cannot be negative for item {0}.').format(item.item_code))
-			if new_qty > flt(item.qty):
-				frappe.throw(
-					_('Received qty ({0}) cannot exceed sent qty ({1}) for item {2}.').format(
-						new_qty, item.qty, item.item_code
-					)
-				)
-			item.qty = new_qty
-			item.transfer_qty = new_qty * (flt(item.conversion_factor) or 1)
+	mt_item_by_name = {row.name: row for row in doc.items}
+	any_positive = False
 
-		se.items = [i for i in se.items if flt(i.qty) > 0]
-		if not se.items:
+	for se_item in se.items:
+		mt_item_name = getattr(se_item, 'custom_material_transfer_item', None)
+		if not mt_item_name or mt_item_name not in mt_item_by_name:
+			continue
+
+		sent_qty = flt(se_item.qty)
+		new_qty = flt(received_quantities.get(se_item.name, sent_qty))
+		if new_qty < 0:
+			frappe.throw(_('Received quantity cannot be negative for item {0}.').format(se_item.item_code))
+		if new_qty > sent_qty:
 			frappe.throw(
-				_('All received quantities are zero. Enter at least one positive quantity.'),
-				title=_('Nothing to Receive'),
+				_('Received qty ({0}) cannot exceed sent qty ({1}) for item {2}.').format(
+					new_qty, sent_qty, se_item.item_code
+				)
 			)
-		se.flags.ignore_permissions = True
-		se.save()
+		if new_qty > 0:
+			any_positive = True
 
-	se.reload()
-	se.flags.ignore_permissions = True
-	se.flags.ignore_workflow = True
+		frappe.db.set_value(
+			'Material Transfer Item', mt_item_name, 'received_qty', new_qty, update_modified=False
+		)
+
+	if not any_positive:
+		frappe.throw(
+			_('All received quantities are zero. Enter at least one positive quantity.'),
+			title=_('Nothing to Receive'),
+		)
+
 	if se.docstatus == 0:
+		se.flags.ignore_permissions = True
+		se.flags.ignore_workflow = True
 		se.submit()
 	frappe.db.set_value(
 		'Stock Entry',
@@ -265,18 +277,6 @@ def confirm_receipt(transfer, received_quantities=None):
 		'Requisition Received',
 		update_modified=False,
 	)
-
-	mt_item_by_name = {row.name: row for row in doc.items}
-	for se_item in se.items:
-		mt_item_name = getattr(se_item, 'custom_material_transfer_item', None)
-		if mt_item_name and mt_item_name in mt_item_by_name:
-			frappe.db.set_value(
-				'Material Transfer Item',
-				mt_item_name,
-				'received_qty',
-				flt(se_item.qty),
-				update_modified=False,
-			)
 
 	doc.reload()
 	status = _calculate_receipt_status(doc)
