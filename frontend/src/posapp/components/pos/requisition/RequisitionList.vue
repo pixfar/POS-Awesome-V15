@@ -88,26 +88,18 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-text-field
+				<DateFilterField
 					v-model="fromDate"
-					type="date"
 					:label="__('From Date')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					class="pos-themed-input pos-list-filter-field"
+					field-class="pos-themed-input pos-list-filter-field"
+					:max="toDate"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-text-field
+				<DateFilterField
 					v-model="toDate"
-					type="date"
 					:label="__('To Date')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					class="pos-themed-input pos-list-filter-field"
+					field-class="pos-themed-input pos-list-filter-field"
+					:min="fromDate"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-autocomplete
@@ -304,9 +296,11 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
+import DateFilterField from '../shared/DateFilterField.vue';
 
 export default {
 	name: 'RequisitionList',
+	components: { DateFilterField },
 	mixins: [format],
 	setup() {
 		const router = useRouter();

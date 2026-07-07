@@ -136,23 +136,15 @@
 									:items="historyStatusItems"
 									:label="__('Status')"
 								/>
-								<v-text-field
+								<DateFilterField
 									v-model="historyDateFrom"
-									type="date"
-									class="pos-themed-input"
-									variant="outlined"
-									density="compact"
-									hide-details
 									:label="__('From Date')"
+									:max="historyDateTo"
 								/>
-								<v-text-field
+								<DateFilterField
 									v-model="historyDateTo"
-									type="date"
-									class="pos-themed-input"
-									variant="outlined"
-									density="compact"
-									hide-details
 									:label="__('To Date')"
+									:min="historyDateFrom"
 								/>
 								<v-btn
 									class="history-repair-toggle"
@@ -494,23 +486,15 @@
 									:items="partialStatusItems"
 									:label="__('Payment Status')"
 								/>
-								<v-text-field
+								<DateFilterField
 									v-model="partialDateFrom"
-									type="date"
-									class="pos-themed-input"
-									variant="outlined"
-									density="compact"
-									hide-details
 									:label="__('From Date')"
+									:max="partialDateTo"
 								/>
-								<v-text-field
+								<DateFilterField
 									v-model="partialDateTo"
-									type="date"
-									class="pos-themed-input"
-									variant="outlined"
-									density="compact"
-									hide-details
 									:label="__('To Date')"
+									:min="partialDateFrom"
 								/>
 							</div>
 
@@ -830,23 +814,15 @@
 									prepend-inner-icon="mdi-magnify"
 									:label="__(currentDraftSourceOption.searchLabel)"
 								/>
-								<v-text-field
+								<DateFilterField
 									v-model="draftDateFrom"
-									type="date"
-									class="pos-themed-input"
-									variant="outlined"
-									density="compact"
-									hide-details
 									:label="__('From Date')"
+									:max="draftDateTo"
 								/>
-								<v-text-field
+								<DateFilterField
 									v-model="draftDateTo"
-									type="date"
-									class="pos-themed-input"
-									variant="outlined"
-									density="compact"
-									hide-details
 									:label="__('To Date')"
+									:min="draftDateFrom"
 								/>
 							</div>
 
@@ -1029,23 +1005,15 @@
 									prepend-inner-icon="mdi-magnify"
 									:label="__('Search return invoices or customers')"
 								/>
-								<v-text-field
+								<DateFilterField
 									v-model="returnDateFrom"
-									type="date"
-									class="pos-themed-input"
-									variant="outlined"
-									density="compact"
-									hide-details
 									:label="__('From Date')"
+									:max="returnDateTo"
 								/>
-								<v-text-field
+								<DateFilterField
 									v-model="returnDateTo"
-									type="date"
-									class="pos-themed-input"
-									variant="outlined"
-									density="compact"
-									hide-details
 									:label="__('To Date')"
+									:min="returnDateFrom"
 								/>
 							</div>
 
@@ -1368,6 +1336,7 @@ import { useResponsive } from "../../../composables/core/useResponsive";
 import { useToastStore } from "../../../stores/toastStore";
 import { useUIStore } from "../../../stores/uiStore";
 import { useInvoiceStore } from "../../../stores/invoiceStore";
+import DateFilterField from "../shared/DateFilterField.vue";
 import { useCustomersStore } from "../../../stores/customersStore";
 import { useEmployeeStore } from "../../../stores/employeeStore";
 import {
@@ -1399,6 +1368,7 @@ export default {
 	mixins: [format],
 	components: {
 		DocumentSourceSelector,
+		DateFilterField,
 	},
 	setup() {
 		const uiStore = useUIStore();

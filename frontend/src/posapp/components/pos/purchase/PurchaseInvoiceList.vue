@@ -84,26 +84,18 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-text-field
+				<DateFilterField
 					v-model="fromDate"
-					type="date"
 					:label="__('From Date')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					class="pos-themed-input pos-list-filter-field"
+					field-class="pos-themed-input pos-list-filter-field"
+					:max="toDate"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-text-field
+				<DateFilterField
 					v-model="toDate"
-					type="date"
 					:label="__('To Date')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					class="pos-themed-input pos-list-filter-field"
+					field-class="pos-themed-input pos-list-filter-field"
+					:min="fromDate"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-autocomplete
@@ -318,6 +310,7 @@ import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
+import DateFilterField from '../shared/DateFilterField.vue';
 
 const UNPAID_STATUSES = [
 	'Unpaid',
@@ -330,6 +323,7 @@ const UNPAID_STATUSES = [
 
 export default {
 	name: 'PurchaseInvoiceList',
+	components: { DateFilterField },
 	mixins: [format],
 	setup() {
 		const router = useRouter();

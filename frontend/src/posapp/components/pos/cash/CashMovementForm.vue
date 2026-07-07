@@ -3,13 +3,10 @@
 		<div class="d-flex flex-wrap align-center justify-space-between ga-3 mb-1">
 			<div class="text-h6">{{ __("Cash Movement") }}</div>
 			<div class="cash-movement-form__posting-date">
-				<v-text-field
+				<DateFilterField
 					v-model="postingDate"
-					type="date"
-					variant="outlined"
-					density="compact"
-					hide-details
 					:label="__('Posting Date')"
+					:clearable="false"
 					:disabled="submitting || !enabled"
 				/>
 			</div>
@@ -153,6 +150,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import DateFilterField from "../shared/DateFilterField.vue";
 
 type MovementType = "Expense" | "Deposit";
 type AccountSearchType = "expense" | "cash";
