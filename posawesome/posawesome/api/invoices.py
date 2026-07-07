@@ -117,6 +117,7 @@ def get_sales_invoices_list(
     item_code=None,
     item_group=None,
     customer=None,
+    warehouse=None,
     search=None,
 ):
     """Paginated, filterable list of submitted sales invoices for the Invoice List page."""
@@ -131,9 +132,11 @@ def get_sales_invoices_list(
         else "Sales Invoice"
     )
 
+    # No docstatus filter here on purpose — the list should show invoices of
+    # any status (Draft, submitted, Cancelled), matching the Status dropdown's
+    # own options (which already includes "Draft" and "Cancelled").
     filters = [
-        [doctype, "docstatus", "=", 1],
-        [doctype, "pos_profile", "=", profile.get("name") or pos_profile],
+        [doctype, "company", "=", profile.get("company")],
     ]
     if int(mine_only or 0):
         filters.append([doctype, "owner", "=", frappe.session.user])
@@ -145,6 +148,8 @@ def get_sales_invoices_list(
         filters.append([doctype, "posting_date", "<=", to_date])
     if customer:
         filters.append([doctype, "customer", "=", customer])
+    if warehouse:
+        filters.append([doctype, "set_warehouse", "=", warehouse])
 
     item_doctype = f"{doctype} Item"
     if item_code:

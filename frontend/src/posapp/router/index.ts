@@ -198,6 +198,16 @@ const routes = [
 		props: { partyType: "Supplier" },
 	},
 	{
+		path: "/payments/list",
+		component: () => import("../components/pos/payment/PaymentList.vue"),
+		meta: { title: "Payments", layout: "default", loadingMessage: "Loading payments..." },
+	},
+	{
+		path: "/payments/:name",
+		component: () => import("../components/pos/payment/PaymentDetail.vue"),
+		meta: { title: "Payment", layout: "default", loadingMessage: "Loading payment..." },
+	},
+	{
 		path: "/gift-cards",
 		component: () => import("../components/pos/wallet/GiftCardsView.vue"),
 		meta: {

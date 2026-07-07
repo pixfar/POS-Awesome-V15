@@ -229,19 +229,44 @@
 							@update:model-value="resetAndLoad"
 						/>
 						<v-btn
+							icon="mdi-page-first"
+							size="small"
+							variant="text"
+							:disabled="page <= 1 || listLoading"
+							@click="goToPage(1)"
+						/>
+						<v-btn
 							icon="mdi-chevron-left"
 							size="small"
 							variant="text"
 							:disabled="page <= 1 || listLoading"
 							@click="goToPage(page - 1)"
 						/>
-						<span class="pos-list-pagination__page">{{ page }}</span>
+						<v-btn
+							v-for="pageNumber in pageNumbers"
+							:key="pageNumber"
+							size="small"
+							:variant="pageNumber === page ? 'flat' : 'text'"
+							:color="pageNumber === page ? 'primary' : undefined"
+							class="pos-list-pagination__page-btn"
+							:disabled="listLoading"
+							@click="goToPage(pageNumber)"
+						>
+							{{ pageNumber }}
+						</v-btn>
 						<v-btn
 							icon="mdi-chevron-right"
 							size="small"
 							variant="text"
 							:disabled="!hasMore || listLoading"
 							@click="goToPage(page + 1)"
+						/>
+						<v-btn
+							icon="mdi-page-last"
+							size="small"
+							variant="text"
+							:disabled="!hasMore || listLoading"
+							@click="goToPage(totalPages)"
 						/>
 					</div>
 				</div>
@@ -295,6 +320,7 @@ export default {
 		const page = ref(1);
 		const pageSize = ref(20);
 		const total = ref(0);
+		const totalPages = computed(() => Math.max(1, Math.ceil(total.value / (pageSize.value || 1))));
 		const hasMore = ref(false);
 		const statusCounts = ref({});
 
@@ -337,9 +363,19 @@ export default {
 
 		const paginationLabel = computed(() => {
 			if (!total.value) return __('No results');
-			const start = (page.value - 1) * pageSize.value + 1;
-			const end = Math.min(page.value * pageSize.value, total.value);
-			return __('Showing {0}-{1} of {2}', [start, end, total.value]);
+			return __('Page {0} of {1}', [page.value, totalPages.value]);
+		});
+
+		const pageNumbers = computed(() => {
+			const totalCount = totalPages.value;
+			const current = page.value;
+			const windowSize = 5;
+			let start = Math.max(1, current - Math.floor(windowSize / 2));
+			let end = Math.min(totalCount, start + windowSize - 1);
+			start = Math.max(1, end - windowSize + 1);
+			const pages = [];
+			for (let p = start; p <= end; p++) pages.push(p);
+			return pages;
 		});
 
 		const formatDisplayDate = (value) => {
@@ -512,6 +548,8 @@ export default {
 			page,
 			pageSize,
 			total,
+			totalPages,
+			pageNumbers,
 			hasMore,
 			statusCounts,
 			statusOptions,

@@ -56,6 +56,7 @@ def get_purchase_invoices_list(
 	item_code=None,
 	item_group=None,
 	supplier=None,
+	warehouse=None,
 	search=None,
 ):
 	return po.get_purchase_invoices_list(
@@ -69,6 +70,7 @@ def get_purchase_invoices_list(
 		item_code=item_code,
 		item_group=item_group,
 		supplier=supplier,
+		warehouse=warehouse,
 		search=search,
 	)
 

@@ -157,6 +157,19 @@
 					@update:search="handleCustomerSearchUpdate"
 					@update:model-value="resetAndLoad"
 				/>
+				<v-select
+					v-model="warehouseFilter"
+					:items="warehouseOptions"
+					item-title="warehouse_name"
+					item-value="name"
+					:label="__('Warehouse')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="resetAndLoad"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -235,19 +248,44 @@
 							@update:model-value="resetAndLoad"
 						/>
 						<v-btn
+							icon="mdi-page-first"
+							size="small"
+							variant="text"
+							:disabled="page <= 1 || listLoading"
+							@click="goToPage(1)"
+						/>
+						<v-btn
 							icon="mdi-chevron-left"
 							size="small"
 							variant="text"
 							:disabled="page <= 1 || listLoading"
 							@click="goToPage(page - 1)"
 						/>
-						<span class="pos-list-pagination__page">{{ page }}</span>
+						<v-btn
+							v-for="pageNumber in pageNumbers"
+							:key="pageNumber"
+							size="small"
+							:variant="pageNumber === page ? 'flat' : 'text'"
+							:color="pageNumber === page ? 'primary' : undefined"
+							class="pos-list-pagination__page-btn"
+							:disabled="listLoading"
+							@click="goToPage(pageNumber)"
+						>
+							{{ pageNumber }}
+						</v-btn>
 						<v-btn
 							icon="mdi-chevron-right"
 							size="small"
 							variant="text"
 							:disabled="!hasMore || listLoading"
 							@click="goToPage(page + 1)"
+						/>
+						<v-btn
+							icon="mdi-page-last"
+							size="small"
+							variant="text"
+							:disabled="!hasMore || listLoading"
+							@click="goToPage(totalPages)"
 						/>
 					</div>
 				</div>
@@ -312,6 +350,7 @@ export default {
 		const page = ref(1);
 		const pageSize = ref(20);
 		const total = ref(0);
+		const totalPages = computed(() => Math.max(1, Math.ceil(total.value / (pageSize.value || 1))));
 		const hasMore = ref(false);
 		const statusCounts = ref({});
 
@@ -334,6 +373,8 @@ export default {
 		const itemCodeFilter = ref(null);
 		const itemGroupFilter = ref(null);
 		const customerFilter = ref(null);
+		const warehouseFilter = ref(null);
+		const warehouseOptions = ref([]);
 
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
@@ -365,15 +406,26 @@ export default {
 					toDate.value ||
 					itemCodeFilter.value ||
 					itemGroupFilter.value ||
-					customerFilter.value,
+					customerFilter.value ||
+					warehouseFilter.value,
 			),
 		);
 
 		const paginationLabel = computed(() => {
 			if (!total.value) return __('No results');
-			const start = (page.value - 1) * pageSize.value + 1;
-			const end = Math.min(page.value * pageSize.value, total.value);
-			return __('Showing {0}-{1} of {2}', [start, end, total.value]);
+			return __('Page {0} of {1}', [page.value, totalPages.value]);
+		});
+
+		const pageNumbers = computed(() => {
+			const totalCount = totalPages.value;
+			const current = page.value;
+			const windowSize = 5;
+			let start = Math.max(1, current - Math.floor(windowSize / 2));
+			let end = Math.min(totalCount, start + windowSize - 1);
+			start = Math.max(1, end - windowSize + 1);
+			const pages = [];
+			for (let p = start; p <= end; p++) pages.push(p);
+			return pages;
 		});
 
 		const paidCount = computed(() => statusCounts.value['Paid'] || 0);
@@ -427,6 +479,7 @@ export default {
 						item_code: itemCodeFilter.value || undefined,
 						item_group: itemGroupFilter.value || undefined,
 						customer: customerFilter.value || undefined,
+						warehouse: warehouseFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -486,7 +539,7 @@ export default {
 				try {
 					const { message } = await frappe.call({
 						method: 'posawesome.posawesome.api.customers.search_customers',
-						args: { pos_profile: posProfile.name, search_text: term.trim(), limit: 20 },
+						args: { pos_profile: JSON.stringify(posProfile), search_text: term.trim(), limit: 20 },
 					});
 					customerSearchResults.value = message || [];
 				} catch {
@@ -514,6 +567,23 @@ export default {
 			}
 		};
 
+		const loadWarehouses = async () => {
+			try {
+				const { message } = await frappe.call({
+					method: 'frappe.client.get_list',
+					args: {
+						doctype: 'Warehouse',
+						fields: ['name', 'warehouse_name'],
+						filters: { is_group: 0, disabled: 0 },
+						limit_page_length: 200,
+					},
+				});
+				warehouseOptions.value = message || [];
+			} catch (e) {
+				console.error('Failed to load warehouses', e);
+			}
+		};
+
 		const clearFilters = () => {
 			searchQuery.value = '';
 			statusFilter.value = null;
@@ -522,6 +592,7 @@ export default {
 			itemCodeFilter.value = null;
 			itemGroupFilter.value = null;
 			customerFilter.value = null;
+			warehouseFilter.value = null;
 			resetAndLoad();
 		};
 
@@ -561,6 +632,7 @@ export default {
 
 		onMounted(() => {
 			loadItemGroups();
+			loadWarehouses();
 			loadInvoices();
 		});
 
@@ -584,6 +656,8 @@ export default {
 			page,
 			pageSize,
 			total,
+			totalPages,
+			pageNumbers,
 			hasMore,
 			statusOptions,
 			statusFilter,
@@ -593,6 +667,8 @@ export default {
 			itemGroupFilter,
 			itemGroupOptions,
 			customerFilter,
+			warehouseFilter,
+			warehouseOptions,
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,

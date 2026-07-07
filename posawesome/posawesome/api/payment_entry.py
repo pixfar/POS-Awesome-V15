@@ -344,6 +344,180 @@ def get_payment_history(
 
 
 @frappe.whitelist()
+def get_payment_entries_list(
+    pos_profile=None,
+    company=None,
+    page_start=0,
+    page_length=20,
+    mine_only=0,
+    party_type=None,
+    party=None,
+    mode_of_payment=None,
+    payment_type=None,
+    from_date=None,
+    to_date=None,
+    search=None,
+):
+    """Paginated, filterable list of submitted Payment Entries for the Payment List page.
+
+    Payment Entry has no pos_profile field, so scope by company instead (same
+    convention as the Purchase Invoice list).
+    """
+    from posawesome.posawesome.api.purchase_orders import _resolve_pos_profile
+
+    if not company and pos_profile:
+        profile = _resolve_pos_profile(pos_profile)
+        company = profile.get("company")
+    company = company or _default_company()
+
+    doctype = "Payment Entry"
+    filters = [
+        [doctype, "docstatus", "=", 1],
+    ]
+    if company:
+        filters.append([doctype, "company", "=", company])
+    if int(mine_only or 0):
+        filters.append([doctype, "owner", "=", frappe.session.user])
+    if party_type:
+        filters.append([doctype, "party_type", "=", party_type])
+    if party:
+        filters.append([doctype, "party", "=", party])
+    if mode_of_payment:
+        filters.append([doctype, "mode_of_payment", "=", mode_of_payment])
+    if payment_type:
+        filters.append([doctype, "payment_type", "=", payment_type])
+    if from_date:
+        filters.append([doctype, "posting_date", ">=", from_date])
+    if to_date:
+        filters.append([doctype, "posting_date", "<=", to_date])
+
+    or_filters = None
+    if search:
+        like = f"%{search}%"
+        or_filters = [
+            [doctype, "name", "like", like],
+            [doctype, "party", "like", like],
+            [doctype, "party_name", "like", like],
+            [doctype, "reference_no", "like", like],
+        ]
+
+    page_start = max(0, int(page_start or 0))
+    page_length = max(1, min(int(page_length or 20), 200))
+
+    fields = [
+        "name",
+        "posting_date",
+        "party_type",
+        "party",
+        "party_name",
+        "payment_type",
+        "mode_of_payment",
+        "paid_amount",
+        "received_amount",
+        "reference_no",
+        "company",
+        "owner",
+    ]
+
+    rows = frappe.get_list(
+        doctype,
+        filters=filters,
+        or_filters=or_filters,
+        fields=fields,
+        order_by="posting_date desc, creation desc",
+        limit_start=page_start,
+        limit_page_length=page_length,
+        distinct=True,
+        ignore_permissions=True,
+    )
+    for row in rows:
+        row["amount"] = flt(row.get("paid_amount"))
+
+    total = len(
+        frappe.get_list(
+            doctype,
+            filters=filters,
+            or_filters=or_filters,
+            fields=["name"],
+            distinct=True,
+            ignore_permissions=True,
+            limit_page_length=0,
+        )
+    )
+
+    type_filters = [f for f in filters if not (f[0] == doctype and f[1] == "payment_type")]
+    type_counts = {
+        row.payment_type: row.count
+        for row in frappe.get_list(
+            doctype,
+            filters=type_filters,
+            or_filters=or_filters,
+            fields=["payment_type", "count(name) as count"],
+            group_by="payment_type",
+            ignore_permissions=True,
+            limit_page_length=0,
+        )
+    }
+
+    total_amount = frappe.get_list(
+        doctype,
+        filters=filters,
+        or_filters=or_filters,
+        fields=["sum(paid_amount) as total"],
+        ignore_permissions=True,
+    )
+    total_amount = flt(total_amount[0].total) if total_amount else 0
+
+    return {
+        "payments": rows,
+        "total": total,
+        "has_more": (page_start + page_length) < total,
+        "type_counts": type_counts,
+        "total_amount": total_amount,
+    }
+
+
+@frappe.whitelist()
+def get_payment_entry_detail(name):
+    """Full detail (header + allocated references) for the Payment List's detail page."""
+    doc = frappe.get_doc("Payment Entry", name)
+    owner_name = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
+
+    return {
+        "name": doc.name,
+        "posting_date": doc.posting_date,
+        "company": doc.company,
+        "party_type": doc.party_type,
+        "party": doc.party,
+        "party_name": doc.party_name,
+        "payment_type": doc.payment_type,
+        "mode_of_payment": doc.mode_of_payment,
+        "paid_amount": flt(doc.paid_amount),
+        "received_amount": flt(doc.received_amount),
+        "total_allocated_amount": flt(doc.total_allocated_amount),
+        "unallocated_amount": flt(doc.unallocated_amount),
+        "reference_no": doc.reference_no,
+        "reference_date": doc.reference_date,
+        "paid_from": doc.paid_from,
+        "paid_to": doc.paid_to,
+        "remarks": doc.remarks,
+        "created_by": owner_name,
+        "creation": doc.creation,
+        "amended_from": doc.get("amended_from"),
+        "items": [
+            {
+                "reference_doctype": row.reference_doctype,
+                "reference_name": row.reference_name,
+                "total_amount": flt(row.total_amount),
+                "outstanding_amount": flt(row.outstanding_amount),
+                "allocated_amount": flt(row.allocated_amount),
+            }
+            for row in (doc.get("references") or [])
+        ],
+    }
+
+
+@frappe.whitelist()
 def get_party_outstanding(party, party_type="Customer", company=None):
     """Return total outstanding amount for a customer or supplier."""
     if not party:

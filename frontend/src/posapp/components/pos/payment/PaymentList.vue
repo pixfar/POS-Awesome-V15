@@ -3,10 +3,10 @@
 		<v-card flat class="invoice-section-card pos-themed-card pos-list-card">
 			<div class="pos-list-header">
 				<div class="pos-list-header__main">
-					<p class="pos-list-header__eyebrow">{{ __("Purchase") }}</p>
-					<h3 class="pos-list-header__title">{{ __("Purchase Invoices") }}</h3>
+					<p class="pos-list-header__eyebrow">{{ __("Payment") }}</p>
+					<h3 class="pos-list-header__title">{{ __("Payments") }}</h3>
 					<p class="pos-list-header__subtitle">
-						{{ __("Track submitted purchase invoices and supplier balances") }}
+						{{ __("Track submitted payment entries to customers and suppliers") }}
 					</p>
 				</div>
 				<div class="pos-list-header__actions">
@@ -14,10 +14,19 @@
 						color="primary"
 						variant="flat"
 						class="text-none"
-						prepend-icon="mdi-plus"
-						@click="goToNew"
+						prepend-icon="mdi-account"
+						@click="goToNew('Customer')"
 					>
-						{{ __("Create Invoice") }}
+						{{ __("Customer Payment") }}
+					</v-btn>
+					<v-btn
+						color="primary"
+						variant="tonal"
+						class="text-none"
+						prepend-icon="mdi-truck-delivery"
+						@click="goToNew('Supplier')"
+					>
+						{{ __("Supplier Payment") }}
 					</v-btn>
 				</div>
 			</div>
@@ -28,19 +37,23 @@
 					<strong class="pos-list-stat__value">{{ total }}</strong>
 				</div>
 				<div class="pos-list-stat pos-list-stat--success">
-					<span class="pos-list-stat__label">{{ __("Paid") }}</span>
-					<strong class="pos-list-stat__value">{{ paidCount }}</strong>
+					<span class="pos-list-stat__label">{{ __("Received") }}</span>
+					<strong class="pos-list-stat__value">{{ typeCounts.Receive || 0 }}</strong>
 				</div>
 				<div class="pos-list-stat pos-list-stat--warning">
-					<span class="pos-list-stat__label">{{ __("Unpaid") }}</span>
-					<strong class="pos-list-stat__value">{{ unpaidCount }}</strong>
+					<span class="pos-list-stat__label">{{ __("Paid") }}</span>
+					<strong class="pos-list-stat__value">{{ typeCounts.Pay || 0 }}</strong>
+				</div>
+				<div class="pos-list-stat">
+					<span class="pos-list-stat__label">{{ __("Total Amount") }}</span>
+					<strong class="pos-list-stat__value">{{ formatCurrency(totalAmount) }}</strong>
 				</div>
 			</div>
 
 			<div class="pos-list-toolbar">
 				<v-text-field
 					v-model="searchQuery"
-					:label="__('Search invoice or supplier')"
+					:label="__('Search payment or party')"
 					density="compact"
 					variant="solo"
 					hide-details
@@ -55,7 +68,7 @@
 						density="compact"
 						hide-details
 						color="primary"
-						:label="__('My Invoices')"
+						:label="__('My Payments')"
 						@update:model-value="resetAndLoad"
 					/>
 					<v-btn
@@ -65,7 +78,7 @@
 						prepend-icon="mdi-sync"
 						:loading="listLoading"
 						class="text-none"
-						@click="loadInvoices"
+						@click="loadPayments"
 					>
 						{{ __("Sync") }}
 					</v-btn>
@@ -73,10 +86,44 @@
 			</div>
 
 			<div class="pos-list-filters">
+				<v-autocomplete
+					v-model="customerFilter"
+					v-model:search="customerSearchQuery"
+					:items="customerSearchResults"
+					:loading="customerSearchLoading"
+					item-title="customer_name"
+					item-value="name"
+					:label="__('Customer')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					:custom-filter="() => true"
+					class="pos-themed-input pos-list-filter-field"
+					@update:search="handleCustomerSearchUpdate"
+					@update:model-value="handleCustomerSelected"
+				/>
+				<v-autocomplete
+					v-model="supplierFilter"
+					v-model:search="supplierSearchQuery"
+					:items="supplierSearchResults"
+					:loading="supplierSearchLoading"
+					item-title="supplier_name"
+					item-value="name"
+					:label="__('Supplier')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					:custom-filter="() => true"
+					class="pos-themed-input pos-list-filter-field"
+					@update:search="handleSupplierSearchUpdate"
+					@update:model-value="handleSupplierSelected"
+				/>
 				<v-select
-					v-model="statusFilter"
-					:items="statusOptions"
-					:label="__('Status')"
+					v-model="paymentTypeFilter"
+					:items="paymentTypeOptions"
+					:label="__('Payment Type')"
 					density="compact"
 					variant="outlined"
 					hide-details
@@ -106,59 +153,12 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-autocomplete
-					v-model="itemCodeFilter"
-					v-model:search="itemSearchQuery"
-					:items="itemSearchResults"
-					:loading="itemSearchLoading"
-					item-title="item_name"
-					item-value="item_code"
-					:label="__('Item')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					:custom-filter="() => true"
-					class="pos-themed-input pos-list-filter-field"
-					@update:search="handleItemSearchUpdate"
-					@update:model-value="resetAndLoad"
-				/>
 				<v-select
-					v-model="itemGroupFilter"
-					:items="itemGroupOptions"
+					v-model="modeOfPaymentFilter"
+					:items="modeOfPaymentOptions"
 					item-title="name"
 					item-value="name"
-					:label="__('Item Group')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					class="pos-themed-input pos-list-filter-field"
-					@update:model-value="resetAndLoad"
-				/>
-				<v-autocomplete
-					v-model="supplierFilter"
-					v-model:search="supplierSearchQuery"
-					:items="supplierSearchResults"
-					:loading="supplierSearchLoading"
-					item-title="supplier_name"
-					item-value="name"
-					:label="__('Supplier')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					:custom-filter="() => true"
-					class="pos-themed-input pos-list-filter-field"
-					@update:search="handleSupplierSearchUpdate"
-					@update:model-value="resetAndLoad"
-				/>
-				<v-select
-					v-model="warehouseFilter"
-					:items="warehouseOptions"
-					item-title="warehouse_name"
-					item-value="name"
-					:label="__('Warehouse')"
+					:label="__('Mode of Payment')"
 					density="compact"
 					variant="outlined"
 					hide-details
@@ -171,16 +171,16 @@
 				</v-btn>
 			</div>
 
-			<div v-if="invoiceList.length" class="pos-list-table-wrap">
+			<div v-if="paymentList.length" class="pos-list-table-wrap">
 				<v-data-table
 					:headers="listHeaders"
-					:items="invoiceList"
+					:items="paymentList"
 					:loading="listLoading"
 					density="comfortable"
 					hide-default-footer
 					:items-per-page="-1"
-					class="pos-list-table purchase-invoice-list-table"
-					@click:row="(_, row) => openInvoiceDetail(row.item)"
+					class="pos-list-table payment-list-table"
+					@click:row="(_, row) => openPaymentDetail(row.item)"
 				>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
@@ -188,28 +188,19 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
-					<template #item.supplier="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.supplier">{{ item.supplier }}</span>
-					</template>
-					<template #item.status="{ item }">
-						<v-chip size="small" variant="tonal" :color="statusColor(item.status)">
-							{{ item.status }}
-						</v-chip>
-					</template>
-					<template #item.grand_total="{ item }">
-						<span class="pos-list-cell-primary">
-							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.grand_total) }}
+					<template #item.party_name="{ item }">
+						<span class="pos-list-cell-truncate" :title="item.party_name || item.party">
+							{{ item.party_name || item.party }}
 						</span>
 					</template>
-					<template #item.outstanding_amount="{ item }">
-						<span
-							:class="
-								item.outstanding_amount > 0
-									? 'pos-list-cell-primary text-warning'
-									: 'pos-list-cell-muted'
-							"
-						>
-							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.outstanding_amount) }}
+					<template #item.payment_type="{ item }">
+						<v-chip size="small" variant="tonal" :color="paymentTypeColor(item.payment_type)">
+							{{ item.payment_type }}
+						</v-chip>
+					</template>
+					<template #item.amount="{ item }">
+						<span class="pos-list-cell-primary">
+							{{ formatCurrency(item.amount) }}
 						</span>
 					</template>
 					<template #item.actions="{ item }">
@@ -219,7 +210,7 @@
 								variant="tonal"
 								color="primary"
 								class="text-none"
-								@click.stop="openInvoiceDetail(item)"
+								@click.stop="openPaymentDetail(item)"
 							>
 								{{ __("View") }}
 							</v-btn>
@@ -286,22 +277,22 @@
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
-				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-cart-outline</v-icon>
-				<h4 class="pos-list-empty__title">{{ __("No purchase invoices found") }}</h4>
+				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-cash-multiple</v-icon>
+				<h4 class="pos-list-empty__title">{{ __("No payments found") }}</h4>
 				<p class="pos-list-empty__subtitle">
 					{{ hasActiveFilters
 						? __("Try different filters or clear them.")
-						: __("Create a new purchase invoice to see it listed here.") }}
+						: __("Record a customer or supplier payment to see it listed here.") }}
 				</p>
 				<v-btn
 					v-if="!hasActiveFilters"
 					color="primary"
 					variant="flat"
 					class="text-none mt-2"
-					prepend-icon="mdi-plus"
-					@click="goToNew"
+					prepend-icon="mdi-account"
+					@click="goToNew('Customer')"
 				>
-					{{ __("Create Invoice") }}
+					{{ __("Customer Payment") }}
 				</v-btn>
 			</div>
 
@@ -313,28 +304,19 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 
-const UNPAID_STATUSES = [
-	'Unpaid',
-	'Unpaid and Discounted',
-	'Partly Paid',
-	'Partly Paid and Discounted',
-	'Overdue',
-	'Overdue and Discounted',
-];
-
 export default {
-	name: 'PurchaseInvoiceList',
+	name: 'PaymentList',
 	mixins: [format],
 	setup() {
 		const router = useRouter();
 		const uiStore = useUIStore();
-		const invoiceList = ref([]);
+		const paymentList = ref([]);
 		const listLoading = ref(false);
 		const mineOnly = ref(false);
 		const searchQuery = ref('');
@@ -345,61 +327,47 @@ export default {
 		const total = ref(0);
 		const totalPages = computed(() => Math.max(1, Math.ceil(total.value / (pageSize.value || 1))));
 		const hasMore = ref(false);
-		const statusCounts = ref({});
+		const typeCounts = ref({});
+		const totalAmount = ref(0);
 
-		const statusOptions = [
-			'Draft',
-			'Unpaid',
-			'Unpaid and Discounted',
-			'Partly Paid',
-			'Partly Paid and Discounted',
-			'Overdue',
-			'Overdue and Discounted',
-			'Paid',
-			'Debit Note Issued',
-			'Cancelled',
-		];
-		const statusFilter = ref(null);
+		const paymentTypeOptions = ['Receive', 'Pay'];
+		const paymentTypeFilter = ref(null);
 		const fromDate = ref('');
 		const toDate = ref('');
-		const itemCodeFilter = ref(null);
-		const itemGroupFilter = ref(null);
+		const modeOfPaymentFilter = ref(null);
+		const modeOfPaymentOptions = ref([]);
+
+		const customerFilter = ref(null);
+		const customerSearchQuery = ref('');
+		const customerSearchResults = ref([]);
+		const customerSearchLoading = ref(false);
+		let customerSearchTimeout = null;
+
 		const supplierFilter = ref(null);
-		const warehouseFilter = ref(null);
-		const warehouseOptions = ref([]);
-
-		const itemSearchQuery = ref('');
-		const itemSearchResults = ref([]);
-		const itemSearchLoading = ref(false);
-		let itemSearchTimeout = null;
-
 		const supplierSearchQuery = ref('');
 		const supplierSearchResults = ref([]);
 		const supplierSearchLoading = ref(false);
 		let supplierSearchTimeout = null;
 
-		const itemGroupOptions = ref([]);
-
 		const listHeaders = [
-			{ title: __('Invoice'), key: 'name', sortable: true },
+			{ title: __('Payment'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
-			{ title: __('Supplier'), key: 'supplier', sortable: true },
-			{ title: __('Status'), key: 'status', sortable: true },
-			{ title: __('Total'), key: 'grand_total', sortable: true, align: 'end' },
-			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
+			{ title: __('Party'), key: 'party_name', sortable: true },
+			{ title: __('Type'), key: 'payment_type', sortable: true },
+			{ title: __('Mode'), key: 'mode_of_payment', sortable: true },
+			{ title: __('Amount'), key: 'amount', sortable: true, align: 'end' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
 		];
 
 		const hasActiveFilters = computed(() =>
 			Boolean(
 				searchQuery.value ||
-					statusFilter.value ||
+					customerFilter.value ||
+					supplierFilter.value ||
+					paymentTypeFilter.value ||
 					fromDate.value ||
 					toDate.value ||
-					itemCodeFilter.value ||
-					itemGroupFilter.value ||
-					supplierFilter.value ||
-					warehouseFilter.value,
+					modeOfPaymentFilter.value,
 			),
 		);
 
@@ -419,11 +387,6 @@ export default {
 			for (let p = start; p <= end; p++) pages.push(p);
 			return pages;
 		});
-
-		const paidCount = computed(() => statusCounts.value['Paid'] || 0);
-		const unpaidCount = computed(() =>
-			UNPAID_STATUSES.reduce((sum, key) => sum + (statusCounts.value[key] || 0), 0),
-		);
 
 		const formatDisplayDate = (value) => {
 			if (!value) return '—';
@@ -447,38 +410,43 @@ export default {
 			}
 		};
 
-		const loadInvoices = async () => {
+		const loadPayments = async () => {
 			const posProfile = await resolvePosProfile();
-			if (!posProfile?.name) {
-				invoiceList.value = [];
-				return;
+			let partyType;
+			let party;
+			if (customerFilter.value) {
+				partyType = 'Customer';
+				party = customerFilter.value;
+			} else if (supplierFilter.value) {
+				partyType = 'Supplier';
+				party = supplierFilter.value;
 			}
 			listLoading.value = true;
 			try {
 				const { message } = await frappe.call({
-					method: 'posawesome.posawesome.api.purchase_invoices.get_purchase_invoices_list',
+					method: 'posawesome.posawesome.api.payment_entry.get_payment_entries_list',
 					args: {
-						pos_profile: posProfile.name,
+						pos_profile: posProfile?.name || undefined,
 						page_start: (page.value - 1) * pageSize.value,
 						page_length: pageSize.value,
 						mine_only: mineOnly.value ? 1 : 0,
-						status: statusFilter.value || undefined,
+						party_type: partyType,
+						party,
+						payment_type: paymentTypeFilter.value || undefined,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
-						item_code: itemCodeFilter.value || undefined,
-						item_group: itemGroupFilter.value || undefined,
-						supplier: supplierFilter.value || undefined,
-						warehouse: warehouseFilter.value || undefined,
+						mode_of_payment: modeOfPaymentFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
-				invoiceList.value = message?.invoices || [];
+				paymentList.value = message?.payments || [];
 				total.value = message?.total || 0;
 				hasMore.value = Boolean(message?.has_more);
-				statusCounts.value = message?.status_counts || {};
+				typeCounts.value = message?.type_counts || {};
+				totalAmount.value = message?.total_amount || 0;
 			} catch (e) {
-				console.error('Failed to load purchase invoices', e);
-				invoiceList.value = [];
+				console.error('Failed to load payments', e);
+				paymentList.value = [];
 			} finally {
 				listLoading.value = false;
 			}
@@ -486,7 +454,7 @@ export default {
 
 		const resetAndLoad = () => {
 			page.value = 1;
-			loadInvoices();
+			loadPayments();
 		};
 
 		const handleSearchUpdate = () => {
@@ -494,145 +462,129 @@ export default {
 			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
-		const handleItemSearchUpdate = (term) => {
-			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
-			if (!term || term.trim().length < 2) {
-				itemSearchResults.value = [];
+		// Fetches customers immediately (empty term = default/most-recent list,
+		// so the dropdown isn't empty before the user types anything), then
+		// refines as they search by name, ID, or mobile number.
+		const fetchCustomers = async (term) => {
+			const posProfile = await resolvePosProfile();
+			if (!posProfile?.name) {
+				customerSearchResults.value = [];
 				return;
 			}
-			itemSearchTimeout = setTimeout(async () => {
-				itemSearchLoading.value = true;
-				try {
-					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.purchase_invoices.search_items',
-						args: { search_text: term.trim(), limit: 20 },
-					});
-					itemSearchResults.value = message || [];
-				} catch {
-					itemSearchResults.value = [];
-				} finally {
-					itemSearchLoading.value = false;
-				}
-			}, 300);
+			customerSearchLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.customers.search_customers',
+					args: { pos_profile: JSON.stringify(posProfile), search_text: term || undefined, limit: 20 },
+				});
+				customerSearchResults.value = message || [];
+			} catch {
+				customerSearchResults.value = [];
+			} finally {
+				customerSearchLoading.value = false;
+			}
+		};
+
+		const handleCustomerSearchUpdate = (term) => {
+			if (customerSearchTimeout) clearTimeout(customerSearchTimeout);
+			const trimmed = (term || '').trim();
+			if (trimmed.length === 1) return;
+			customerSearchTimeout = setTimeout(() => fetchCustomers(trimmed), 300);
+		};
+
+		const handleCustomerSelected = (value) => {
+			if (value) {
+				supplierFilter.value = null;
+			}
+			resetAndLoad();
+		};
+
+		// Same idea as fetchCustomers: an empty term returns a default list.
+		const fetchSuppliers = async (term) => {
+			supplierSearchLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.purchase_invoices.search_suppliers',
+					args: { search_text: term || undefined, limit: 20 },
+				});
+				supplierSearchResults.value = message || [];
+			} catch {
+				supplierSearchResults.value = [];
+			} finally {
+				supplierSearchLoading.value = false;
+			}
 		};
 
 		const handleSupplierSearchUpdate = (term) => {
 			if (supplierSearchTimeout) clearTimeout(supplierSearchTimeout);
-			if (!term || term.trim().length < 2) {
-				supplierSearchResults.value = [];
-				return;
-			}
-			supplierSearchTimeout = setTimeout(async () => {
-				supplierSearchLoading.value = true;
-				try {
-					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.purchase_invoices.search_suppliers',
-						args: { search_text: term.trim(), limit: 20 },
-					});
-					supplierSearchResults.value = message || [];
-				} catch {
-					supplierSearchResults.value = [];
-				} finally {
-					supplierSearchLoading.value = false;
-				}
-			}, 300);
+			const trimmed = (term || '').trim();
+			if (trimmed.length === 1) return;
+			supplierSearchTimeout = setTimeout(() => fetchSuppliers(trimmed), 300);
 		};
 
-		const loadItemGroups = async () => {
+		const handleSupplierSelected = (value) => {
+			if (value) {
+				customerFilter.value = null;
+			}
+			resetAndLoad();
+		};
+
+		const loadModeOfPayments = async () => {
 			try {
 				const { message } = await frappe.call({
 					method: 'frappe.client.get_list',
 					args: {
-						doctype: 'Item Group',
+						doctype: 'Mode of Payment',
 						fields: ['name'],
-						filters: { is_group: 0 },
+						filters: { enabled: 1 },
 						limit_page_length: 200,
 					},
 				});
-				itemGroupOptions.value = message || [];
+				modeOfPaymentOptions.value = message || [];
 			} catch (e) {
-				console.error('Failed to load item groups', e);
-			}
-		};
-
-		const loadWarehouses = async () => {
-			try {
-				const { message } = await frappe.call({
-					method: 'frappe.client.get_list',
-					args: {
-						doctype: 'Warehouse',
-						fields: ['name', 'warehouse_name'],
-						filters: { is_group: 0, disabled: 0 },
-						limit_page_length: 200,
-					},
-				});
-				warehouseOptions.value = message || [];
-			} catch (e) {
-				console.error('Failed to load warehouses', e);
+				console.error('Failed to load modes of payment', e);
 			}
 		};
 
 		const clearFilters = () => {
 			searchQuery.value = '';
-			statusFilter.value = null;
+			customerFilter.value = null;
+			supplierFilter.value = null;
+			paymentTypeFilter.value = null;
 			fromDate.value = '';
 			toDate.value = '';
-			itemCodeFilter.value = null;
-			itemGroupFilter.value = null;
-			supplierFilter.value = null;
-			warehouseFilter.value = null;
+			modeOfPaymentFilter.value = null;
 			resetAndLoad();
 		};
 
 		const goToPage = (nextPage) => {
 			if (nextPage < 1) return;
 			page.value = nextPage;
-			loadInvoices();
+			loadPayments();
 		};
 
-		const statusColor = (status) => {
-			const map = {
-				Draft: 'grey',
-				Unpaid: 'orange',
-				'Unpaid and Discounted': 'orange',
-				'Partly Paid': 'orange',
-				'Partly Paid and Discounted': 'orange',
-				Overdue: 'red',
-				'Overdue and Discounted': 'red',
-				Paid: 'green',
-				'Debit Note Issued': 'blue',
-				Cancelled: 'red',
-			};
-			return map[status] || 'grey';
+		const paymentTypeColor = (type) => {
+			const map = { Receive: 'green', Pay: 'orange', 'Internal Transfer': 'blue' };
+			return map[type] || 'grey';
 		};
 
-		const goToNew = () => {
-			router.push('/purchase-invoices/new');
+		const goToNew = (partyType) => {
+			router.push(partyType === 'Supplier' ? '/payments/supplier' : '/payments/customer');
 		};
 
-		const openInvoiceDetail = (item) => {
-			router.push(`/purchase-invoices/${item.name}`);
+		const openPaymentDetail = (item) => {
+			router.push(`/payments/${item.name}`);
 		};
 
 		onMounted(() => {
-			loadItemGroups();
-			loadWarehouses();
-			loadInvoices();
+			loadModeOfPayments();
+			fetchCustomers('');
+			fetchSuppliers('');
+			loadPayments();
 		});
 
-		// The POS profile is hydrated asynchronously by the app shell after mount —
-		// retry once it becomes available instead of leaving the list stuck empty.
-		watch(
-			() => uiStore.posProfile?.name,
-			(profileName, previousProfileName) => {
-				if (profileName && profileName !== previousProfileName) {
-					resetAndLoad();
-				}
-			},
-		);
-
 		return {
-			invoiceList,
+			paymentList,
 			listLoading,
 			mineOnly,
 			searchQuery,
@@ -643,37 +595,37 @@ export default {
 			totalPages,
 			pageNumbers,
 			hasMore,
-			statusOptions,
-			statusFilter,
+			typeCounts,
+			totalAmount,
+			paymentTypeOptions,
+			paymentTypeFilter,
 			fromDate,
 			toDate,
-			itemCodeFilter,
-			itemGroupFilter,
-			itemGroupOptions,
+			modeOfPaymentFilter,
+			modeOfPaymentOptions,
+			customerFilter,
+			customerSearchQuery,
+			customerSearchResults,
+			customerSearchLoading,
 			supplierFilter,
-			warehouseFilter,
-			warehouseOptions,
-			itemSearchQuery,
-			itemSearchResults,
-			itemSearchLoading,
 			supplierSearchQuery,
 			supplierSearchResults,
 			supplierSearchLoading,
 			hasActiveFilters,
 			paginationLabel,
-			paidCount,
-			unpaidCount,
-			loadInvoices,
+			loadPayments,
 			resetAndLoad,
 			handleSearchUpdate,
-			handleItemSearchUpdate,
+			handleCustomerSearchUpdate,
+			handleCustomerSelected,
 			handleSupplierSearchUpdate,
+			handleSupplierSelected,
 			clearFilters,
 			goToPage,
 			formatDisplayDate,
-			statusColor,
+			paymentTypeColor,
 			goToNew,
-			openInvoiceDetail,
+			openPaymentDetail,
 		};
 	},
 };

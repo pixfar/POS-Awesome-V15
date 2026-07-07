@@ -650,6 +650,10 @@
 	text-align: center;
 }
 
+.pos-list-pagination__page-btn {
+	min-width: 32px;
+}
+
 .pos-list-table-wrap {
 	flex: 1 1 auto;
 	min-height: 0;

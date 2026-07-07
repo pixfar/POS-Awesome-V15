@@ -309,6 +309,7 @@ export default {
 					children: [
 						{ text: "Customer", icon: "mdi-account", to: "/payments/customer" },
 						{ text: "Supplier", icon: "mdi-truck-delivery", to: "/payments/supplier" },
+						{ text: "Payments", icon: "mdi-format-list-bulleted", to: "/payments/list" },
 					],
 				},
 			],
