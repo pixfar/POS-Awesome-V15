@@ -558,6 +558,14 @@ export default {
 						{ text: "Plan List", icon: "mdi-format-list-bulleted", to: "/production-plans/list" },
 					],
 				});
+				items.push({
+					text: "Bill of Materials",
+					icon: "mdi-clipboard-list-outline",
+					children: [
+						{ text: "Create BOM", icon: "mdi-plus-circle-outline", to: "/boms/new" },
+						{ text: "BOM List", icon: "mdi-format-list-bulleted", to: "/boms/list" },
+					],
+				});
 			}
 			this.items = items;
 		},

@@ -31,6 +31,26 @@ def _resolve_company(pos_profile):
 
 
 @frappe.whitelist()
+def get_default_fg_warehouse():
+	"""Manufacturing Settings' Default Finished Goods Warehouse, used to prefill the
+	Production Plan's Source/Target Warehouse fields."""
+	if not is_system_manager():
+		frappe.throw(
+			_('Only a System Manager can view Production Plans.'),
+			exc=frappe.PermissionError,
+		)
+
+	warehouse = frappe.db.get_single_value('Manufacturing Settings', 'default_fg_warehouse')
+	if not warehouse:
+		return None
+
+	return {
+		'name': warehouse,
+		'warehouse_name': frappe.db.get_value('Warehouse', warehouse, 'warehouse_name') or warehouse,
+	}
+
+
+@frappe.whitelist()
 def search_manufacturable_items(search_text=None, limit=20):
 	"""Item search restricted to items with an active default BOM, for the Production
 	Plan item picker. Each result carries its default bom_no so the caller doesn't need
@@ -63,6 +83,36 @@ def search_manufacturable_items(search_text=None, limit=20):
 
 
 @frappe.whitelist()
+def get_bom_raw_materials(bom_no, qty=1):
+	"""Raw materials (BOM Item rows) for a BOM, scaled to the given quantity, so the
+	Production Plan item picker can preview what will be consumed before creating the
+	plan."""
+	if not is_system_manager():
+		frappe.throw(
+			_('Only a System Manager can view Production Plans.'),
+			exc=frappe.PermissionError,
+		)
+
+	if not bom_no or not frappe.db.exists('BOM', bom_no):
+		return []
+
+	company = frappe.db.get_value('BOM', bom_no, 'company')
+
+	from erpnext.manufacturing.doctype.bom.bom import get_bom_items
+
+	items = get_bom_items(bom_no, company, qty=flt(qty) or 1, fetch_exploded=0)
+	return [
+		{
+			'item_code': d.item_code,
+			'item_name': d.item_name,
+			'qty': flt(d.qty),
+			'uom': d.stock_uom,
+		}
+		for d in items
+	]
+
+
+@frappe.whitelist()
 def create_production_plan(data):
 	"""Create a Production Plan (Draft) from POS. Restricted to System Manager."""
 	if not is_system_manager():
@@ -78,6 +128,8 @@ def create_production_plan(data):
 	items = data.get('items') or []
 	if not items:
 		frappe.throw(_('Add at least one item.'), title=_('Items Required'))
+	if len(items) > 1:
+		frappe.throw(_('Only one production item is allowed per plan.'), title=_('Too Many Items'))
 
 	target_warehouse = data.get('target_warehouse')
 	if not target_warehouse:

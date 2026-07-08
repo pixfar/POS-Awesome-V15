@@ -147,6 +147,37 @@ const routes = [
 		},
 	},
 	{
+		path: "/boms",
+		redirect: "/boms/new",
+	},
+	{
+		path: "/boms/new",
+		component: () => import("../components/pos/bom/BomNew.vue"),
+		meta: {
+			title: "New BOM",
+			layout: "default",
+			loadingMessage: "Loading new BOM...",
+		},
+	},
+	{
+		path: "/boms/list",
+		component: () => import("../components/pos/bom/BomList.vue"),
+		meta: {
+			title: "Bill of Materials",
+			layout: "default",
+			loadingMessage: "Loading BOMs...",
+		},
+	},
+	{
+		path: "/boms/:name",
+		component: () => import("../components/pos/bom/BomDetail.vue"),
+		meta: {
+			title: "BOM",
+			layout: "default",
+			loadingMessage: "Loading BOM...",
+		},
+	},
+	{
 		path: "/purchase-invoices",
 		redirect: "/purchase-invoices/new",
 	},

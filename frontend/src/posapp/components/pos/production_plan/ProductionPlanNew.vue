@@ -81,6 +81,7 @@
 									<h3 class="invoice-section-heading__title">{{ __("Production Items") }}</h3>
 									<p class="text-caption text-medium-emphasis mb-0">
 										{{ __("Only items with an active default BOM can be planned for production") }}
+										{{ __("Only one item can be planned per production plan.") }}
 									</p>
 								</div>
 								<div class="purchase-search-toolbar">
@@ -89,10 +90,15 @@
 										:model-value="selectedSearchItemCode"
 										:items="itemSearchResults"
 										:loading="itemSearchLoading"
+										:disabled="hasReachedItemLimit"
 										item-title="item_name"
 										item-value="item_code"
-										:label="__('Search manufacturable item')"
-										:placeholder="__('Type at least 2 characters')"
+										:label="__('Search by item code or name')"
+										:placeholder="
+											hasReachedItemLimit
+												? __('Remove the current item to add a different one')
+												: __('Browse below or type to search')
+										"
 										:custom-filter="() => true"
 										prepend-inner-icon="mdi-magnify"
 										variant="solo"
@@ -101,15 +107,72 @@
 										hide-details
 										clearable
 										class="pos-themed-input purchase-item-search"
+										:no-data-text="__('No manufacturable items found')"
 										@update:search="handleItemSearchUpdate"
 										@update:model-value="handleSearchItemPicked"
-									/>
+									>
+										<template #item="{ props: itemProps, item }">
+											<v-list-item v-bind="itemProps" :title="undefined">
+												<v-list-item-title class="purchase-item-option__title">
+													{{ item.raw.item_name }}
+												</v-list-item-title>
+												<v-list-item-subtitle class="purchase-item-option__meta">
+													<span class="purchase-item-option__code">{{ item.raw.item_code }}</span>
+													<span class="purchase-item-option__stock">
+														{{ __("UOM") }}: {{ item.raw.stock_uom || "" }}
+													</span>
+													<span v-if="item.raw.bom_no" class="purchase-item-option__bom">
+														{{ __("BOM") }}: {{ item.raw.bom_no }}
+													</span>
+												</v-list-item-subtitle>
+											</v-list-item>
+										</template>
+									</v-autocomplete>
 								</div>
-								<RequisitionItemsTable
+								<ProductionPlanItemsTable
 									:items="planItems"
 									@update-qty="({ item, value }) => updateItemQty(item, value)"
 									@remove-item="removeItem"
 								/>
+							</v-card>
+
+							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">{{ __("Raw Materials Required") }}</h3>
+									<p class="text-caption text-medium-emphasis mb-0">
+										{{ __("Combined raw materials needed to produce the planned items above") }}
+									</p>
+								</div>
+								<v-table
+									v-if="aggregatedRawMaterials.length"
+									density="compact"
+									class="pos-themed-table"
+								>
+									<thead>
+										<tr>
+											<th>{{ __("Raw Material") }}</th>
+											<th class="text-center">{{ __("Qty") }}</th>
+											<th class="text-center">{{ __("UOM") }}</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr v-for="rm in aggregatedRawMaterials" :key="rm.item_code">
+											<td>
+												<div class="font-weight-medium">{{ rm.item_name }}</div>
+												<div class="text-caption text-medium-emphasis">{{ rm.item_code }}</div>
+											</td>
+											<td class="text-center">{{ formatFloat(rm.qty) }}</td>
+											<td class="text-center text-caption">{{ rm.uom }}</td>
+										</tr>
+									</tbody>
+								</v-table>
+								<div v-else class="text-center text-medium-emphasis py-4">
+									{{
+										rawMaterialsLoading
+											? __("Calculating raw materials...")
+											: __("Add production items to see required raw materials")
+									}}
+								</div>
 							</v-card>
 
 							<v-alert v-if="errorMessage" type="error" density="compact">
@@ -146,13 +209,13 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
-import RequisitionItemsTable from '../requisition/RequisitionItemsTable.vue';
+import ProductionPlanItemsTable from './ProductionPlanItemsTable.vue';
 import { normalizeDateForBackend } from '../../../format';
 
 const getTodayDate = () =>
@@ -162,7 +225,7 @@ export default {
 	name: 'ProductionPlanNew',
 	mixins: [format],
 	components: {
-		RequisitionItemsTable,
+		ProductionPlanItemsTable,
 		VueDatePicker,
 	},
 	setup() {
@@ -183,11 +246,14 @@ export default {
 		const selectedSearchItemCode = ref(null);
 		const itemSearchResults = ref([]);
 		const itemSearchLoading = ref(false);
+		const defaultItemResults = ref([]);
 		let itemSearchTimeout = null;
 
 		const totalQty = computed(() =>
 			planItems.value.reduce((sum, row) => sum + Number(row.qty || 0), 0),
 		);
+
+		const hasReachedItemLimit = computed(() => planItems.value.length >= 1);
 
 		const requiredDateDisplay = computed({
 			get: () => {
@@ -200,6 +266,20 @@ export default {
 				requiredDate.value = normalizeDateForBackend(v) || getTodayDate();
 			},
 		});
+
+		const loadDefaultManufacturingWarehouse = async () => {
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.production_plans.get_default_fg_warehouse',
+				});
+				if (message?.name) {
+					sourceWarehouse.value = message.name;
+					targetWarehouse.value = message.name;
+				}
+			} catch (e) {
+				console.error('Failed to load default Finished Goods Warehouse', e);
+			}
+		};
 
 		const loadWarehouses = async () => {
 			warehouseLoading.value = true;
@@ -221,10 +301,25 @@ export default {
 			}
 		};
 
+		const loadDefaultManufacturableItems = async () => {
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.production_plans.search_manufacturable_items',
+					args: { limit: 20 },
+				});
+				defaultItemResults.value = message || [];
+				if (!itemSearchQuery.value || itemSearchQuery.value.trim().length < 2) {
+					itemSearchResults.value = defaultItemResults.value;
+				}
+			} catch (e) {
+				console.error('Failed to load default manufacturable items', e);
+			}
+		};
+
 		const handleItemSearchUpdate = (term) => {
 			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
 			if (!term || term.trim().length < 2) {
-				itemSearchResults.value = [];
+				itemSearchResults.value = defaultItemResults.value;
 				return;
 			}
 			itemSearchTimeout = setTimeout(async () => {
@@ -250,6 +345,13 @@ export default {
 				existing.qty += 1;
 				return;
 			}
+			if (planItems.value.length >= 1) {
+				toastStore.show({
+					title: __('Only one production item is allowed per plan. Remove the current item to add a different one.'),
+					color: 'warning',
+				});
+				return;
+			}
 			planItems.value.unshift({
 				line_id: `pp_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
 				item_code: item.item_code,
@@ -267,6 +369,7 @@ export default {
 			if (item) onAddItem(item);
 			selectedSearchItemCode.value = null;
 			itemSearchQuery.value = '';
+			itemSearchResults.value = defaultItemResults.value;
 		};
 
 		const updateItemQty = (item, value) => {
@@ -277,6 +380,64 @@ export default {
 		const removeItem = (item) => {
 			planItems.value = planItems.value.filter((row) => row.line_id !== item.line_id);
 		};
+
+		// line_id -> { cacheKey, loading, items }. Kept separate from planItems so a qty
+		// edit only re-fetches that line's materials rather than the whole plan.
+		const rawMaterialsByLine = reactive({});
+
+		const fetchRawMaterialsForLine = async (item) => {
+			if (!item.bom_no) return;
+			const key = `${item.bom_no}__${item.qty}`;
+			const existing = rawMaterialsByLine[item.line_id];
+			if (existing?.cacheKey === key) return;
+
+			rawMaterialsByLine[item.line_id] = { cacheKey: key, loading: true, items: existing?.items || [] };
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.production_plans.get_bom_raw_materials',
+					args: { bom_no: item.bom_no, qty: item.qty || 1 },
+				});
+				rawMaterialsByLine[item.line_id] = { cacheKey: key, loading: false, items: message || [] };
+			} catch (e) {
+				console.error('Failed to load BOM raw materials', e);
+				rawMaterialsByLine[item.line_id] = { cacheKey: key, loading: false, items: [] };
+			}
+		};
+
+		watch(
+			planItems,
+			(list) => {
+				const liveLineIds = new Set(list.map((row) => row.line_id));
+				Object.keys(rawMaterialsByLine).forEach((lineId) => {
+					if (!liveLineIds.has(lineId)) delete rawMaterialsByLine[lineId];
+				});
+				list.forEach((item) => fetchRawMaterialsForLine(item));
+			},
+			{ deep: true, immediate: true },
+		);
+
+		const rawMaterialsLoading = computed(() =>
+			planItems.value.some((item) => item.bom_no && rawMaterialsByLine[item.line_id]?.loading),
+		);
+
+		const aggregatedRawMaterials = computed(() => {
+			const totals = {};
+			planItems.value.forEach((item) => {
+				const entry = rawMaterialsByLine[item.line_id];
+				(entry?.items || []).forEach((rm) => {
+					if (!totals[rm.item_code]) {
+						totals[rm.item_code] = {
+							item_code: rm.item_code,
+							item_name: rm.item_name,
+							uom: rm.uom,
+							qty: 0,
+						};
+					}
+					totals[rm.item_code].qty += Number(rm.qty || 0);
+				});
+			});
+			return Object.values(totals).sort((a, b) => a.item_name.localeCompare(b.item_name));
+		});
 
 		const submitPlan = async () => {
 			errorMessage.value = '';
@@ -331,7 +492,11 @@ export default {
 			if (pos_profile.value?.warehouse) {
 				sourceWarehouse.value = pos_profile.value.warehouse;
 			}
-			await loadWarehouses();
+			await Promise.all([
+				loadWarehouses(),
+				loadDefaultManufacturableItems(),
+				loadDefaultManufacturingWarehouse(),
+			]);
 		});
 
 		return {
@@ -353,6 +518,9 @@ export default {
 			updateItemQty,
 			removeItem,
 			submitPlan,
+			aggregatedRawMaterials,
+			rawMaterialsLoading,
+			hasReachedItemLimit,
 		};
 	},
 };
@@ -360,4 +528,28 @@ export default {
 
 <style scoped>
 @import '../invoice-shared-styles.css';
+
+.purchase-item-option__title {
+	font-weight: 600;
+	line-height: 1.3;
+	white-space: normal;
+}
+
+.purchase-item-option__meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 2px;
+}
+
+.purchase-item-option__code {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.purchase-item-option__stock,
+.purchase-item-option__bom {
+	font-variant-numeric: tabular-nums;
+	opacity: 0.85;
+}
 </style>
