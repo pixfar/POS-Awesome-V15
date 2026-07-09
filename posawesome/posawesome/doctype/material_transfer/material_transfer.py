@@ -17,6 +17,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 STATUS_IN_TRANSIT = 'In Transit'
 STATUS_PARTIAL = 'Partially Received'
 STATUS_FULL = 'Fully Received'
+STATUS_REJECTED = 'Rejected'
 
 
 def _ensure_transfer_read_access(doc):
@@ -282,3 +283,40 @@ def confirm_receipt(transfer, received_quantities=None):
 	status = _calculate_receipt_status(doc)
 	doc.db_set('transfer_status', status, update_modified=False)
 	return status
+
+
+@frappe.whitelist()
+def reject_transfer(transfer):
+	"""Reject an in-transit Material Transfer: cancel the linked Stock Entry to
+	reverse the stock movement (goods never arrived), cancel the Material Transfer
+	itself, and mark it Rejected. Only available to whoever could have confirmed
+	receipt, and only while still purely in transit (nothing received yet)."""
+	doc = frappe.get_doc('Material Transfer', transfer)
+	_ensure_transfer_read_access(doc)
+
+	if doc.docstatus != 1:
+		frappe.throw(_('Material Transfer must be submitted.'))
+	if doc.transfer_status != STATUS_IN_TRANSIT:
+		frappe.throw(
+			_('A transfer can only be rejected while goods are in transit — current status: {0}.').format(
+				doc.transfer_status
+			)
+		)
+
+	_check_target_warehouse_permission(doc)
+
+	if doc.stock_entry:
+		se = frappe.get_doc('Stock Entry', doc.stock_entry)
+		if se.docstatus == 1:
+			se.flags.ignore_permissions = True
+			se.flags.ignore_workflow = True
+			# The Material Transfer (still submitted at this point) links back to this
+			# Stock Entry, which would otherwise trip Frappe's linked-document guard.
+			se.flags.ignore_links = True
+			se.cancel()
+
+	doc.flags.ignore_permissions = True
+	doc.cancel()
+	doc.db_set('transfer_status', STATUS_REJECTED, update_modified=False)
+
+	return STATUS_REJECTED

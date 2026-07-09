@@ -117,13 +117,18 @@ def _build_warehouse_doc_conditions(
 	warehouse=None,
 	search=None,
 	search_fields=None,
+	include_cancelled=False,
 ):
 	"""Build the shared WHERE conditions/values for warehouse-scoped doc list queries.
 
 	The main table must be aliased as `main` by the caller so the item EXISTS
 	subquery below can reference `main.name`.
+
+	include_cancelled=True also matches docstatus=2 records — for doctypes (like
+	Material Transfer's Rejected flow) where cancelling is a normal terminal status
+	that should still show up in the list, not just submitted ones.
 	"""
-	conditions = ['main.docstatus = 1']
+	conditions = ['main.docstatus IN (1, 2)'] if include_cancelled else ['main.docstatus = 1']
 	values = {}
 
 	if extra_filters:
@@ -196,6 +201,7 @@ def get_warehouse_doc_list_rows(
 	warehouse=None,
 	search=None,
 	search_fields=None,
+	include_cancelled=False,
 ):
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
@@ -215,6 +221,7 @@ def get_warehouse_doc_list_rows(
 		warehouse=warehouse,
 		search=search,
 		search_fields=search_fields,
+		include_cancelled=include_cancelled,
 	)
 	where_clause = ' AND '.join(conditions)
 	table = f'`tab{doctype}`'
@@ -260,6 +267,7 @@ def get_warehouse_doc_status_counts(
 	warehouse=None,
 	search=None,
 	search_fields=None,
+	include_cancelled=False,
 ):
 	"""Grouped status counts using the same scoping as get_warehouse_doc_list_rows,
 	but without a status filter, so every status tile stays accurate."""
@@ -277,6 +285,7 @@ def get_warehouse_doc_status_counts(
 		warehouse=warehouse,
 		search=search,
 		search_fields=search_fields,
+		include_cancelled=include_cancelled,
 	)
 	where_clause = ' AND '.join(conditions)
 	table = f'`tab{doctype}`'

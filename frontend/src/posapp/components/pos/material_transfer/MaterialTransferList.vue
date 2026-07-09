@@ -39,6 +39,10 @@
 					<span class="pos-list-stat__label">{{ __("Received") }}</span>
 					<strong class="pos-list-stat__value">{{ statusCounts["Fully Received"] || 0 }}</strong>
 				</div>
+				<div class="pos-list-stat pos-list-stat--danger">
+					<span class="pos-list-stat__label">{{ __("Rejected") }}</span>
+					<strong class="pos-list-stat__value">{{ statusCounts["Rejected"] || 0 }}</strong>
+				</div>
 			</div>
 
 			<div class="pos-list-toolbar">
@@ -188,7 +192,7 @@
 						</v-chip>
 					</template>
 					<template #item.actions="{ item }">
-						<div class="d-flex justify-end">
+						<div class="d-flex justify-end ga-1">
 							<v-btn
 								v-if="item.can_confirm"
 								size="small"
@@ -197,7 +201,17 @@
 								class="text-none"
 								@click.stop="openConfirmReceipt(item.name)"
 							>
-								{{ __("Confirm") }}
+								{{ __("Received") }}
+							</v-btn>
+							<v-btn
+								v-if="item.can_confirm"
+								size="small"
+								variant="tonal"
+								color="error"
+								class="text-none"
+								@click.stop="openRejectDialog(item.name)"
+							>
+								{{ __("Rejected") }}
 							</v-btn>
 						</div>
 					</template>
@@ -292,6 +306,29 @@
 			:loading="confirmLoading"
 			@confirm="handleConfirmReceipt"
 		/>
+
+		<v-dialog v-model="rejectDialog" max-width="420">
+			<v-card class="pos-themed-card">
+				<v-card-title class="d-flex align-center gap-2">
+					<v-icon color="error">mdi-close-circle-outline</v-icon>
+					<span>{{ __("Reject Transfer") }}</span>
+				</v-card-title>
+				<v-card-text>
+					{{
+						__(
+							"Rejecting will cancel this transfer and reverse the stock movement. This cannot be undone. Continue?"
+						)
+					}}
+				</v-card-text>
+				<v-card-actions>
+					<v-spacer />
+					<v-btn variant="text" @click="rejectDialog = false">{{ __("Cancel") }}</v-btn>
+					<v-btn color="error" variant="flat" :loading="rejectLoading" @click="handleRejectTransfer">
+						{{ __("Reject") }}
+					</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
 	</div>
 </template>
 
@@ -322,6 +359,9 @@ export default {
 		const confirmItems = ref([]);
 		const confirmLoading = ref(false);
 		const confirmTransferName = ref('');
+		const rejectDialog = ref(false);
+		const rejectLoading = ref(false);
+		const rejectTransferName = ref('');
 
 		const page = ref(1);
 		const pageSize = ref(20);
@@ -330,7 +370,7 @@ export default {
 		const hasMore = ref(false);
 		const statusCounts = ref({});
 
-		const statusOptions = ['In Transit', 'Partially Received', 'Fully Received'];
+		const statusOptions = ['In Transit', 'Partially Received', 'Fully Received', 'Rejected'];
 		const statusFilter = ref(null);
 		const fromDate = ref('');
 		const toDate = ref('');
@@ -352,7 +392,7 @@ export default {
 			{ title: __('From'), key: 'from_warehouse', sortable: true },
 			{ title: __('To'), key: 'to_warehouse', sortable: true },
 			{ title: __('Status'), key: 'transfer_status', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '220px' },
 		];
 
 		const hasActiveFilters = computed(() =>
@@ -512,6 +552,7 @@ export default {
 				'In Transit': 'blue',
 				'Partially Received': 'orange',
 				'Fully Received': 'green',
+				'Rejected': 'red',
 			};
 			return map[status] || 'grey';
 		};
@@ -560,6 +601,30 @@ export default {
 				toastStore.show({ title: e?.message || __('Confirm failed'), color: 'error' });
 			} finally {
 				confirmLoading.value = false;
+			}
+		};
+
+		const openRejectDialog = (transfer) => {
+			rejectTransferName.value = transfer;
+			rejectDialog.value = true;
+		};
+
+		const handleRejectTransfer = async () => {
+			rejectLoading.value = true;
+			try {
+				await frappe.call({
+					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.reject_transfer',
+					args: { transfer: rejectTransferName.value },
+					freeze: true,
+					freeze_message: __('Rejecting transfer...'),
+				});
+				toastStore.show({ title: __('Transfer rejected'), color: 'success' });
+				rejectDialog.value = false;
+				await loadTransfers();
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Reject failed'), color: 'error' });
+			} finally {
+				rejectLoading.value = false;
 			}
 		};
 
@@ -615,6 +680,10 @@ export default {
 			confirmItems,
 			confirmLoading,
 			handleConfirmReceipt,
+			openRejectDialog,
+			rejectDialog,
+			rejectLoading,
+			handleRejectTransfer,
 			openTransferDetail,
 		};
 	},

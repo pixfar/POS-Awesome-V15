@@ -21,6 +21,29 @@
 		:loading="confirmLoading"
 		@confirm="handleConfirmReceipt"
 	/>
+
+	<v-dialog v-model="rejectDialog" max-width="420">
+		<v-card class="pos-themed-card">
+			<v-card-title class="d-flex align-center gap-2">
+				<v-icon color="error">mdi-close-circle-outline</v-icon>
+				<span>{{ __("Reject Transfer") }}</span>
+			</v-card-title>
+			<v-card-text>
+				{{
+					__(
+						"Rejecting will cancel this transfer and reverse the stock movement. This cannot be undone. Continue?"
+					)
+				}}
+			</v-card-text>
+			<v-card-actions>
+				<v-spacer />
+				<v-btn variant="text" @click="rejectDialog = false">{{ __("Cancel") }}</v-btn>
+				<v-btn color="error" variant="flat" :loading="rejectLoading" @click="handleRejectTransfer">
+					{{ __("Reject") }}
+				</v-btn>
+			</v-card-actions>
+		</v-card>
+	</v-dialog>
 </template>
 
 <script>
@@ -46,6 +69,8 @@ export default {
 		const confirmDialog = ref(false);
 		const confirmItems = ref([]);
 		const confirmLoading = ref(false);
+		const rejectDialog = ref(false);
+		const rejectLoading = ref(false);
 
 		const formatDisplayDate = (value) => {
 			if (!value) return '—';
@@ -112,7 +137,12 @@ export default {
 		});
 
 		const statusColor = (status) => {
-			const map = { 'In Transit': 'blue', 'Partially Received': 'orange', 'Fully Received': 'green' };
+			const map = {
+				'In Transit': 'blue',
+				'Partially Received': 'orange',
+				'Fully Received': 'green',
+				'Rejected': 'red',
+			};
 			return map[status] || 'grey';
 		};
 
@@ -171,12 +201,36 @@ export default {
 			}
 		};
 
+		const openRejectDialog = () => {
+			rejectDialog.value = true;
+		};
+
+		const handleRejectTransfer = async () => {
+			rejectLoading.value = true;
+			try {
+				await frappe.call({
+					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.reject_transfer',
+					args: { transfer: name },
+					freeze: true,
+					freeze_message: __('Rejecting transfer...'),
+				});
+				toastStore.show({ title: __('Transfer rejected'), color: 'success' });
+				rejectDialog.value = false;
+				await loadDetail();
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Reject failed'), color: 'error' });
+			} finally {
+				rejectLoading.value = false;
+			}
+		};
+
 		const printDocument = () => openDocumentPrintView('Material Transfer', name);
 
 		const actions = computed(() => {
 			const list = [];
 			if (detail.value.can_confirm) {
-				list.push({ label: __('Confirm'), color: 'primary', onClick: openConfirmReceipt });
+				list.push({ label: __('Received'), color: 'primary', onClick: openConfirmReceipt });
+				list.push({ label: __('Rejected'), color: 'error', onClick: openRejectDialog });
 			}
 			list.push({ label: __('Print'), color: 'primary', onClick: printDocument });
 			return list;
@@ -203,6 +257,9 @@ export default {
 			confirmItems,
 			confirmLoading,
 			handleConfirmReceipt,
+			rejectDialog,
+			rejectLoading,
+			handleRejectTransfer,
 			goBack,
 		};
 	},

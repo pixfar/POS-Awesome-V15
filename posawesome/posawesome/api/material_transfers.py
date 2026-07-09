@@ -108,6 +108,9 @@ def get_material_transfers_list(
 		warehouse=warehouse,
 		search=search,
 		search_fields=['name', 'from_warehouse', 'to_warehouse', 'requested_by'],
+		# Rejecting a transfer cancels it (docstatus=2); it should still show up in
+		# the list with a Rejected status rather than disappearing.
+		include_cancelled=True,
 	)
 
 	rows, total = get_warehouse_doc_list_rows(

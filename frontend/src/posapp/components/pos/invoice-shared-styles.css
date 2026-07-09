@@ -585,6 +585,10 @@
 	color: rgb(var(--v-theme-success));
 }
 
+.pos-list-stat--danger .pos-list-stat__value {
+	color: rgb(var(--v-theme-error));
+}
+
 .pos-list-toolbar {
 	display: flex;
 	align-items: center;

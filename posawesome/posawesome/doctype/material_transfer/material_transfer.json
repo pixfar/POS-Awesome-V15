@@ -51,7 +51,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Transfer Status",
-   "options": "\nIn Transit\nPartially Received\nFully Received",
+   "options": "\nIn Transit\nPartially Received\nFully Received\nRejected",
    "read_only": 1
   },
   {
