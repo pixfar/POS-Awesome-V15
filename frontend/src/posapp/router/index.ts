@@ -258,8 +258,12 @@ const routes = [
 	},
 	{
 		path: "/reports",
-		component: () => import("@/posapp/components/reports/Reports.vue"),
-		meta: { title: "Reports", layout: "default", loadingMessage: "Loading reports..." },
+		component: () => import("@/posapp/components/reports/ErpNextReports.vue"),
+		meta: {
+			title: "Reports",
+			layout: "default",
+			loadingMessage: "Loading reports...",
+		},
 	},
 	{
 		path: "/barcode",

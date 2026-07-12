@@ -312,6 +312,11 @@ export default {
 						{ text: "Payments", icon: "mdi-format-list-bulleted", to: "/payments/list" },
 					],
 				},
+				{
+					text: "Reports",
+					icon: "mdi-chart-box-outline",
+					to: "/reports",
+				},
 			],
 			items: [],
 			company: "POS Awesome",
