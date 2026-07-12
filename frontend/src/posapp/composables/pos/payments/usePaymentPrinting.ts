@@ -9,6 +9,7 @@ import {
 import { printDocumentViaQz } from "../../../services/qzTray";
 import { isOffline } from "../../../../offline/index";
 import { resolvePaymentPrintDoctype } from "../../../utils/paymentPrintDoctype";
+import { openDocumentPdfPrint } from "../../../utils/openDocumentPdfPrint";
 
 declare const frappe: any;
 
@@ -85,6 +86,51 @@ export function usePaymentPrinting(options: PaymentPrintingOptions) {
 		const { doc, profile, doctype, print_format, letter_head } = resolvePrintContext(input);
 		const debugPrint = isDebugPrintEnabled();
 
+		if (!doc?.name) {
+			return;
+		}
+
+		if (isOffline()) {
+			if (profile.posa_open_print_in_new_tab) {
+				openOfflineInvoicePreview(doc, {
+					debugPrint,
+					printFormatStr: print_format,
+				});
+				return;
+			}
+			await printOfflineInvoice(doc);
+			return;
+		}
+
+		if (profile.posa_silent_print) {
+			try {
+				await printDocumentViaQz({
+					doctype,
+					name: doc.name,
+					printFormat: print_format || "Standard",
+					letterhead: profile.letter_head || null,
+					noLetterhead: letter_head,
+				});
+				return;
+			} catch (error) {
+				console.warn("QZ Tray print failed, falling back to PDF print", error);
+			}
+		}
+
+		try {
+			await openDocumentPdfPrint({
+				doctype,
+				name: doc.name,
+				printFormat: print_format || "Standard",
+				letterHead: profile.letter_head || null,
+				noLetterhead: letter_head,
+				autoPrint: !profile.posa_open_print_in_new_tab,
+			});
+			return;
+		} catch (error) {
+			console.warn("PDF print failed, falling back to printview", error);
+		}
+
 		let url =
 			frappe.urllib.get_base_url() +
 			"/printview?doctype=" +
@@ -111,13 +157,6 @@ export function usePaymentPrinting(options: PaymentPrintingOptions) {
 		};
 
 		if (profile.posa_open_print_in_new_tab) {
-			if (isOffline()) {
-				openOfflineInvoicePreview(doc, {
-					debugPrint,
-					printFormatStr: print_format,
-				});
-				return;
-			}
 			let newTabUrl =
 				frappe.urllib.get_base_url() +
 				"/printview?doctype=" +
@@ -149,20 +188,6 @@ export function usePaymentPrinting(options: PaymentPrintingOptions) {
 		}
 
 		if (profile.posa_silent_print) {
-			if (!isOffline()) {
-				try {
-					await printDocumentViaQz({
-						doctype,
-						name: doc.name,
-						printFormat: print_format || "Standard",
-						letterhead: profile.letter_head || null,
-						noLetterhead: letter_head,
-					});
-					return;
-				} catch (error) {
-					console.warn("QZ Tray print failed, falling back to browser print", error);
-				}
-			}
 			silentPrint(url, printOptions);
 		} else {
 			const printWindow = window.open(url, "Print");

@@ -272,6 +272,7 @@ import PurchaseHeader from "./PurchaseHeader.vue";
 import PurchaseItemsTable from "./PurchaseItemsTable.vue";
 import { ref, watch, onMounted, onBeforeUnmount, inject, computed } from "vue";
 import { isPosWarehouseSwitcher } from "../../../utils/posWarehouseAccess";
+import { openDocumentPdfPrint } from "../../../utils/openDocumentPdfPrint";
 
 export default {
 	mixins: [format],
@@ -708,10 +709,20 @@ export default {
 							printFormat ||
 							pos_profile.value.print_format_for_purchase ||
 							"BSP Purchase Invoice";
-						const printUrl = frappe.urllib.get_full_url(
-							`/printview?doctype=${doctype}&name=${docname}&print_format=${encodeURIComponent(formatName)}`,
-						);
-						window.open(printUrl, "_blank")?.focus();
+						try {
+							await openDocumentPdfPrint({
+								doctype,
+								name: docname,
+								printFormat: formatName,
+								autoPrint: true,
+							});
+						} catch (printError) {
+							console.warn("PDF print failed, opening printview", printError);
+							const printUrl = frappe.urllib.get_full_url(
+								`/printview?doctype=${doctype}&name=${docname}&format=${encodeURIComponent(formatName)}&trigger_print=1`,
+							);
+							window.open(printUrl, "_blank")?.focus();
+						}
 					}
 					resetForm();
 				}

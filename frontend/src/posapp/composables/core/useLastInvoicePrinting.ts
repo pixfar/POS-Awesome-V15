@@ -6,6 +6,7 @@ import {
 	watchPrintWindow,
 } from "../../plugins/print";
 import { printDocumentViaQz } from "../../services/qzTray";
+import { openDocumentPdfPrint } from "../../utils/openDocumentPdfPrint";
 
 declare const frappe: any;
 
@@ -47,8 +48,39 @@ export function useLastInvoicePrinting() {
 			posProfile.posa_open_print_in_new_tab,
 		);
 		const useSilentPrint = parseBooleanSetting(posProfile.posa_silent_print);
-		const basePrintUrl = frappe.urllib.get_base_url() + "/printview";
+		const noLetterhead = letter_head ? "0" : "1";
+		const printFormat = pf || "Standard";
 
+		if (useSilentPrint) {
+			try {
+				await printDocumentViaQz({
+					doctype,
+					name: lastInvoiceId,
+					printFormat,
+					letterhead: letter_head || null,
+					noLetterhead,
+				});
+				return;
+			} catch (error) {
+				console.warn("QZ Tray print failed, falling back to PDF print", error);
+			}
+		}
+
+		try {
+			await openDocumentPdfPrint({
+				doctype,
+				name: lastInvoiceId,
+				printFormat,
+				letterHead: letter_head || null,
+				noLetterhead,
+				autoPrint: !openInNewTab,
+			});
+			return;
+		} catch (error) {
+			console.warn("PDF print failed, falling back to printview", error);
+		}
+
+		const basePrintUrl = frappe.urllib.get_base_url() + "/printview";
 		let url =
 			basePrintUrl +
 			"?doctype=" +
@@ -57,9 +89,9 @@ export function useLastInvoicePrinting() {
 			encodeURIComponent(lastInvoiceId) +
 			"&trigger_print=1" +
 			"&format=" +
-			encodeURIComponent(pf || "Standard") +
+			encodeURIComponent(printFormat) +
 			"&no_letterhead=" +
-			(letter_head ? "0" : "1");
+			noLetterhead;
 
 		if (letter_head) {
 			url += "&letterhead=" + encodeURIComponent(letter_head);
@@ -67,15 +99,11 @@ export function useLastInvoicePrinting() {
 
 		url = appendDebugPrintParam(url, debugPrint);
 
-		if (debugPrint) {
-			console.log("[POSA][Print] Opening URL:", url);
-		}
-
 		const printOptions = {
 			triggerPrint: "1",
 			debugPrint,
 			debugInfo: {
-				printFormat: pf || "Standard",
+				printFormat,
 				templatePath: "online-printview",
 			},
 		};
@@ -89,9 +117,9 @@ export function useLastInvoicePrinting() {
 				encodeURIComponent(lastInvoiceId) +
 				"&trigger_print=0" +
 				"&format=" +
-				encodeURIComponent(pf || "Standard") +
+				encodeURIComponent(printFormat) +
 				"&no_letterhead=" +
-				(letter_head ? "0" : "1");
+				noLetterhead;
 
 			if (letter_head) {
 				newTabUrl += "&letterhead=" + encodeURIComponent(letter_head);
@@ -108,39 +136,11 @@ export function useLastInvoicePrinting() {
 				});
 				return;
 			}
-			console.warn(
-				"Popup blocked while opening print preview tab, falling back to browser print",
-			);
-			frappe?.show_alert?.(
-				{
-					message:
-						"Popup blocked while opening print preview. Continuing with browser print.",
-					indicator: "orange",
-				},
-				5,
-			);
-			const fallbackPrintWindow = window.open(url, "Print");
-			if (fallbackPrintWindow) {
-				watchPrintWindow(fallbackPrintWindow, printOptions);
-				return;
-			}
 			silentPrint(url, printOptions);
 			return;
 		}
 
 		if (useSilentPrint) {
-			try {
-				await printDocumentViaQz({
-					doctype,
-					name: lastInvoiceId,
-					printFormat: pf || "Standard",
-					letterhead: letter_head || null,
-					noLetterhead: letter_head ? "0" : "1",
-				});
-				return;
-			} catch (error) {
-				console.warn("QZ Tray print failed, falling back to browser print", error);
-			}
 			silentPrint(url, printOptions);
 			return;
 		}
@@ -148,10 +148,7 @@ export function useLastInvoicePrinting() {
 		const printWindow = window.open(url, "Print");
 		if (printWindow) {
 			watchPrintWindow(printWindow, printOptions);
-			return;
 		}
-
-		console.warn("Popup blocked or failed to open print window");
 	}
 
 	return {

@@ -376,6 +376,13 @@ async function ensureReadyAndPrint(
 			note: "Print target ready",
 		});
 		if (resolvedShouldPrint) {
+			try {
+				if (targetWindow.document) {
+					targetWindow.document.title = " ";
+				}
+			} catch {
+				// Cross-origin or unavailable document title; ignore.
+			}
 			targetWindow.focus();
 			targetWindow.print();
 		}

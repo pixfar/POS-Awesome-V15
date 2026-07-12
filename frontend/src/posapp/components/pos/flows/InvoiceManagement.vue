@@ -1346,6 +1346,7 @@ import {
 	watchPrintWindow,
 } from "../../../plugins/print";
 import { printDocumentViaQz } from "../../../services/qzTray";
+import { openDocumentPdfPrint } from "../../../utils/openDocumentPdfPrint";
 import { isOffline } from "../../../../offline/index";
 import DocumentSourceSelector from "../shared/DocumentSourceSelector.vue";
 import {
@@ -2566,6 +2567,37 @@ export default {
 			const letterHead = profile.letter_head || 0;
 			const debugPrint = isDebugPrintEnabled();
 			const useSilentPrint = !!profile.posa_silent_print;
+			const noLetterhead = letterHead ? "0" : "1";
+
+			if (useSilentPrint && !isOffline()) {
+				try {
+					await printDocumentViaQz({
+						doctype,
+						name: invoice.name,
+						printFormat,
+						letterhead: letterHead || null,
+						noLetterhead,
+					});
+					return;
+				} catch (error) {
+					console.warn("QZ Tray print failed, falling back to PDF print", error);
+				}
+			}
+
+			try {
+				await openDocumentPdfPrint({
+					doctype,
+					name: invoice.name,
+					printFormat,
+					letterHead: letterHead || null,
+					noLetterhead,
+					autoPrint: true,
+				});
+				return;
+			} catch (error) {
+				console.warn("PDF print failed, falling back to browser printview", error);
+			}
+
 			let url =
 				frappe.urllib.get_base_url() +
 				"/printview?doctype=" +
@@ -2575,24 +2607,10 @@ export default {
 				"&trigger_print=1&format=" +
 				encodeURIComponent(printFormat) +
 				"&no_letterhead=" +
-				(letterHead ? "0" : "1");
+				noLetterhead;
 			if (letterHead) url += "&letterhead=" + encodeURIComponent(letterHead);
 			url = appendDebugPrintParam(url, debugPrint);
 			const printOptions = { allowOfflineFallback: isOffline(), triggerPrint: "1", debugPrint };
-			if (useSilentPrint && !isOffline()) {
-				try {
-					await printDocumentViaQz({
-						doctype,
-						name: invoice.name,
-						printFormat,
-						letterhead: letterHead || null,
-						noLetterhead: letterHead ? "0" : "1",
-					});
-					return;
-				} catch (error) {
-					console.warn("QZ Tray print failed, falling back to browser print", error);
-				}
-			}
 			if (useSilentPrint) {
 				silentPrint(url, printOptions);
 				return;
