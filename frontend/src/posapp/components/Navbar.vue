@@ -572,6 +572,15 @@ export default {
 					],
 				});
 			}
+			// Dashboard overview menu item hidden for now (work in progress) --
+			// see /overview route + DashboardOverview.vue for the built feature.
+			// if (this.currentCashier?.is_supervisor) {
+			// 	items.unshift({
+			// 		text: "Dashboard",
+			// 		icon: "mdi-view-dashboard-outline",
+			// 		to: "/overview",
+			// 	});
+			// }
 			this.items = items;
 		},
 		async fetchTerminalEmployees() {

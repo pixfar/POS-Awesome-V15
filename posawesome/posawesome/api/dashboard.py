@@ -5224,3 +5224,65 @@ def get_dashboard_data(
     )
 
     return payload
+
+
+def _collect_daily_expense_summary(
+    company: str,
+    date_value: str,
+    profile_names: list[str] | None = None,
+) -> dict[str, Any]:
+    """Sums today's POS Cash Movement records with movement_type=Expense --
+    the POS equivalent of a petty-cash expense log (there is no Expense Claim
+    integration in POS Awesome)."""
+    filters: dict[str, Any] = {
+        "movement_type": "Expense",
+        "docstatus": 1,
+        "posting_date": date_value,
+        "company": company,
+    }
+    if profile_names:
+        filters["pos_profile"] = ["in", profile_names]
+
+    rows = frappe.get_all("POS Cash Movement", filters=filters, fields=["amount"])
+    total = sum(flt(row.get("amount")) for row in rows)
+    return {"total_amount": flt(total), "count": len(rows)}
+
+
+@frappe.whitelist()
+def get_daily_overview(pos_profile=None):
+    """Lightweight, always-on snapshot for the simple Dashboard overview page:
+    today's sales, payment collections and cash-movement expenses. Company-wide
+    for dashboard-manager roles (same gate as get_dashboard_data), otherwise
+    scoped to the caller's own POS Profile."""
+    user = frappe.session.user
+    current_profile_doc = _resolve_profile(pos_profile)
+    current_profile_name = cstr(current_profile_doc.get("name")).strip()
+    _check_profile_permission(current_profile_name)
+
+    company = cstr(current_profile_doc.get("company")).strip()
+
+    if _user_can_view_all_profiles(user):
+        company_profiles = _get_company_profiles(company)
+        profile_names = [name for name in (p.get("name") for p in company_profiles) if name]
+    else:
+        profile_names = [current_profile_name]
+
+    today = nowdate()
+    sales_summary = _collect_daily_sales_summary(profile_names, company, today)
+    expense_summary = _collect_daily_expense_summary(company, today, profile_names)
+    currency = cstr(frappe.db.get_value("Company", company, "default_currency")).strip()
+
+    return {
+        "date": today,
+        "company": company,
+        "currency": currency,
+        "invoice_count": cint(sales_summary.get("invoice_count")),
+        "gross_sales": flt(sales_summary.get("gross_sales")),
+        "net_sales": flt(sales_summary.get("net_sales")),
+        "collections_total": flt(sales_summary.get("collections_total")),
+        "cash_collections": flt(sales_summary.get("cash_collections")),
+        "card_online_collections": flt(sales_summary.get("card_online_collections")),
+        "other_collections": flt(sales_summary.get("other_collections")),
+        "expense_total": flt(expense_summary.get("total_amount")),
+        "expense_count": cint(expense_summary.get("count")),
+    }

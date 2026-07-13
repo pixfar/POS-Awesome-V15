@@ -256,6 +256,21 @@ const routes = [
 			loadingMessage: "Loading dashboard...",
 		},
 	},
+	// Dashboard overview hidden for now (work in progress) -- redirect straight
+	// navigation to /overview back to Reports until this is revisited.
+	// {
+	// 	path: "/overview",
+	// 	component: () => import("@/posapp/components/reports/DashboardOverview.vue"),
+	// 	meta: {
+	// 		title: "Dashboard",
+	// 		layout: "default",
+	// 		loadingMessage: "Loading dashboard...",
+	// 	},
+	// },
+	{
+		path: "/overview",
+		redirect: "/reports",
+	},
 	{
 		path: "/reports",
 		component: () => import("@/posapp/components/reports/ErpNextReports.vue"),
@@ -263,6 +278,15 @@ const routes = [
 			title: "Reports",
 			layout: "default",
 			loadingMessage: "Loading reports...",
+		},
+	},
+	{
+		path: "/reports/profit-and-loss",
+		component: () => import("@/posapp/components/reports/ProfitAndLossView.vue"),
+		meta: {
+			title: "Profit and Loss Statement",
+			layout: "default",
+			loadingMessage: "Loading profit and loss statement...",
 		},
 	},
 	{
