@@ -85,9 +85,6 @@
 							</div>
 							<div class="erp-report-card__body">
 								<p class="erp-report-card__title">{{ __(report.title) }}</p>
-								<p class="erp-report-card__hint">
-									{{ report.route ? __('View in POS Awesome') : __('Open in ERPNext') }}
-								</p>
 							</div>
 							<v-icon size="18" class="erp-report-card__arrow">
 								{{ report.route ? 'mdi-arrow-right' : 'mdi-open-in-new' }}

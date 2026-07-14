@@ -15,6 +15,30 @@ function userHasAnyRole(roles) {
 
 const reportGroups = [
 	{
+		title: 'Financial Statements & Cash Management',
+		icon: 'mdi-chart-tree',
+		reports: [
+			{
+				title: 'Profit and Loss Statement',
+				name: 'Profit and Loss Statement',
+				icon: 'mdi-chart-areaspline',
+				// Income/Expense breakdown -- restricted since it exposes
+				// company-wide financial results. Rendered in-app (tree view)
+				// instead of redirecting to the ERPNext desk report.
+				roles: ['System Manager'],
+				route: '/reports/profit-and-loss',
+			},
+			{
+				title: 'Daily Cash Summary Report',
+				name: 'Daily Cash Summary Report',
+				icon: 'mdi-file-pdf-box',
+				// No role restriction -- the backend scopes it to the user's own
+				// permitted warehouse(s), same as the Deposit/Expense lists.
+				route: '/reports/daily-cash-summary',
+			},
+		],
+	},
+	{
 		title: 'Sales',
 		icon: 'mdi-point-of-sale',
 		reports: [
@@ -75,6 +99,11 @@ const reportGroups = [
 				name: 'Low Stock Alert Report',
 				icon: 'mdi-alert-outline',
 			},
+			{
+				title: 'Warehouse Wise Item Stock Balance',
+				name: 'Warehouse Wise Item Stock Balance',
+				icon: 'mdi-table-large',
+			},
 		],
 	},
 	{
@@ -106,36 +135,6 @@ const reportGroups = [
 				title: 'Product Weight Report Summary',
 				name: 'Product Weight Report Summary',
 				icon: 'mdi-weight-kilogram',
-			},
-		],
-	},
-	{
-		title: 'Financial Statements',
-		icon: 'mdi-chart-tree',
-		reports: [
-			{
-				title: 'Profit and Loss Statement',
-				name: 'Profit and Loss Statement',
-				icon: 'mdi-chart-areaspline',
-				// Income/Expense breakdown -- restricted since it exposes
-				// company-wide financial results. Rendered in-app (tree view)
-				// instead of redirecting to the ERPNext desk report.
-				roles: ['System Manager'],
-				route: '/reports/profit-and-loss',
-			},
-		],
-	},
-	{
-		title: 'Cash Management',
-		icon: 'mdi-cash-multiple',
-		reports: [
-			{
-				title: 'Daily Cash Summary Report',
-				name: 'Daily Cash Summary Report',
-				icon: 'mdi-file-pdf-box',
-				// No role restriction -- the backend scopes it to the user's own
-				// permitted warehouse(s), same as the Deposit/Expense lists.
-				route: '/reports/daily-cash-summary',
 			},
 		],
 	},
