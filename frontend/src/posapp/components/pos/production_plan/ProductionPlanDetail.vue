@@ -1,19 +1,31 @@
 <template>
-	<DocumentDetailView
-		:eyebrow="__('Manufacturing')"
-		:title="name"
-		:subtitle="__('Production Plan')"
-		:loading="loading"
-		:not-found="notFound"
-		:status="detail.workflow_state"
-		:status-color="statusColor(detail.workflow_state)"
-		:meta-fields="metaFields"
-		:item-columns="itemColumns"
-		:items="itemRows"
-		:totals="totals"
-		:actions="actions"
-		@back="goBack"
-	/>
+	<div class="h-100">
+		<DocumentDetailView
+			:eyebrow="__('Manufacturing')"
+			:title="name"
+			:subtitle="__('Production Plan')"
+			:loading="loading"
+			:not-found="notFound"
+			:status="detail.workflow_state"
+			:status-color="statusColor(detail.workflow_state)"
+			:meta-fields="metaFields"
+			:item-columns="itemColumns"
+			:items="itemRows"
+			:totals="totals"
+			:actions="actions"
+			@back="goBack"
+		/>
+
+		<ConfirmActionDialog
+			v-model="confirmDialogOpen"
+			:title="confirmDialogTitle"
+			:message="confirmDialogMessage"
+			:confirm-label="__(pendingAction || 'Confirm')"
+			:confirm-color="actionColor(pendingAction)"
+			:loading="actionLoading"
+			@confirm="performAdvanceStatus"
+		/>
+	</div>
 </template>
 
 <script>
@@ -22,10 +34,19 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToastStore } from '../../../stores/toastStore';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
+import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+
+const ACTION_CONFIRM_MESSAGES = {
+	'Start Production': __('Start production for this plan? This will submit it and lock in the planned quantities.'),
+	'Mark Production Complete': __('Mark this plan as Production Complete? This finalizes it.'),
+	Cancel: __(
+		'Cancel this production plan? This will also cancel any linked Work Orders, Stock Entries and Job Cards, and reverse stock already consumed or produced.',
+	),
+};
 
 export default {
 	name: 'ProductionPlanDetail',
-	components: { DocumentDetailView },
+	components: { DocumentDetailView, ConfirmActionDialog },
 	setup() {
 		const route = useRoute();
 		const router = useRouter();
@@ -135,7 +156,26 @@ export default {
 			}
 		};
 
-		const advanceStatus = async (action) => {
+		const confirmDialogOpen = ref(false);
+		const pendingAction = ref(null);
+
+		const confirmDialogTitle = computed(() =>
+			pendingAction.value ? __('{0}?', [__(pendingAction.value)]) : '',
+		);
+		const confirmDialogMessage = computed(() =>
+			pendingAction.value
+				? ACTION_CONFIRM_MESSAGES[pendingAction.value] || __('Are you sure you want to continue?')
+				: '',
+		);
+
+		const requestAdvanceStatus = (action) => {
+			pendingAction.value = action;
+			confirmDialogOpen.value = true;
+		};
+
+		const performAdvanceStatus = async () => {
+			if (!pendingAction.value) return;
+			const action = pendingAction.value;
 			actionLoading.value = true;
 			try {
 				await frappe.call({
@@ -145,6 +185,8 @@ export default {
 					freeze_message: __('Updating status...'),
 				});
 				toastStore.show({ title: __('Production Plan {0} updated', [name]), color: 'success' });
+				confirmDialogOpen.value = false;
+				pendingAction.value = null;
 				await loadDetail();
 			} catch (e) {
 				toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
@@ -160,7 +202,7 @@ export default {
 				label: action,
 				color: actionColor(action),
 				loading: actionLoading.value,
-				onClick: () => advanceStatus(action),
+				onClick: () => requestAdvanceStatus(action),
 			})),
 			{ label: __('Print'), color: 'primary', onClick: printDocument },
 		]);
@@ -182,6 +224,13 @@ export default {
 			totals,
 			actions,
 			statusColor,
+			actionColor,
+			confirmDialogOpen,
+			pendingAction,
+			confirmDialogTitle,
+			confirmDialogMessage,
+			actionLoading,
+			performAdvanceStatus,
 			goBack,
 		};
 	},

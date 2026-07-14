@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+	body {
+		font-family: "Noto Sans Bengali", "Noto Sans", Arial, sans-serif;
+		font-size: 13px;
+		color: #222;
+		margin: 0;
+		padding: 24px;
+	}
+
+	.header-wrap {
+		border-bottom: 4px solid #1565c0;
+		padding-bottom: 10px;
+		margin-bottom: 14px;
+	}
+
+	.header-table {
+		display: table;
+		width: 100%;
+		table-layout: fixed;
+	}
+
+	.header-cell {
+		display: table-cell;
+		vertical-align: middle;
+	}
+
+	.logo-cell {
+		width: 90px;
+		text-align: center;
+	}
+
+	.logo-cell img {
+		max-height: 80px;
+		max-width: 100%;
+	}
+
+	.brand-cell {
+		text-align: center;
+		padding: 0 10px;
+	}
+
+	.brand-name {
+		font-weight: bold;
+		font-size: 24px;
+		color: #c62828;
+	}
+
+	.brand-tagline {
+		margin-top: 4px;
+	}
+
+	.brand-tagline span {
+		background-color: #1b5e20;
+		color: #fff;
+		font-weight: bold;
+		font-size: 14px;
+		padding: 3px 14px;
+		border-radius: 3px;
+		display: inline-block;
+		white-space: nowrap;
+	}
+
+	.brand-contact {
+		font-size: 13px;
+		color: #222;
+		margin-top: 6px;
+	}
+
+	.info-table {
+		width: 100%;
+		border-collapse: collapse;
+		margin: 14px 0;
+	}
+
+	.info-table td {
+		padding: 6px 10px;
+		font-size: 13px;
+		border: 1px solid #ccc;
+	}
+
+	.info-table td.right {
+		text-align: right;
+		font-weight: bold;
+	}
+
+	.report-title {
+		text-align: center;
+		font-size: 18px;
+		font-weight: bold;
+		color: #1b5e20;
+		text-decoration: underline;
+		margin: 16px 0;
+	}
+
+	.section-title {
+		background-color: #1b5e20;
+		color: #fff;
+		font-weight: bold;
+		font-size: 13px;
+		padding: 6px 10px;
+		margin-top: 18px;
+	}
+
+	table.data-table {
+		width: 100%;
+		border-collapse: collapse;
+		margin-bottom: 4px;
+	}
+
+	table.data-table th,
+	table.data-table td {
+		border: 1px solid #ccc;
+		padding: 5px 8px;
+		font-size: 12px;
+	}
+
+	table.data-table th {
+		background-color: #eef5ef;
+		text-align: left;
+	}
+
+	table.data-table td.num,
+	table.data-table th.num {
+		text-align: right;
+	}
+
+	table.data-table tr.total-row td {
+		font-weight: bold;
+		background-color: #f5f5f5;
+	}
+
+	.empty-row td {
+		text-align: center;
+		color: #888;
+		padding: 10px;
+	}
+</style>
+</head>
+<body>
+
+<div class="header-wrap">
+	<div class="header-table">
+		<div class="header-cell logo-cell">
+			<img src="https://res.cloudinary.com/dydfwvvro/image/upload/v1783700034/BSP-logo2_kovgsj.png">
+		</div>
+		<div class="header-cell brand-cell">
+			<div class="brand-name">{{ branding.warehouse_name }}</div>
+			{% if branding.tagline %}
+			<div class="brand-tagline"><span>{{ branding.tagline }}</span></div>
+			{% endif %}
+			{% if branding.address or branding.mobile %}
+			<div class="brand-contact">
+				{%- if branding.address -%}ঠিকানা: {{ branding.address }}।{%- endif -%}
+				{%- if branding.address and branding.mobile %} {% endif -%}
+				{%- if branding.mobile -%}মোবাইল: {{ branding.mobile }}{%- endif -%}
+			</div>
+			{% endif %}
+		</div>
+		<div class="header-cell logo-cell">
+			<img src="https://res.cloudinary.com/dydfwvvro/image/upload/v1782278204/bsp-icon_rccjk2.png">
+		</div>
+	</div>
+</div>
+
+<table class="info-table">
+	<tr>
+		<td>Report Date: {{ report_date }} &nbsp;|&nbsp; Time: {{ report_time }}</td>
+		<td class="right">Opening Balance: {{ opening_balance }}</td>
+	</tr>
+</table>
+
+<div class="report-title">Daily Cash Summary Report</div>
+
+<div class="section-title">Sales Collection Summary</div>
+<table class="data-table">
+	<thead>
+		<tr>
+			<th style="width: 6%;">S.L</th>
+			<th>Invoice No.</th>
+			<th class="num">Selling</th>
+			<th class="num">Discount</th>
+			<th class="num">Due</th>
+			<th class="num">Received</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in sales_rows %}
+		<tr>
+			<td>{{ row.sl }}</td>
+			<td>{{ row.invoice_no }}</td>
+			<td class="num">{{ row.selling }}</td>
+			<td class="num">{{ row.discount }}</td>
+			<td class="num">{{ row.due }}</td>
+			<td class="num">{{ row.received }}</td>
+		</tr>
+		{% else %}
+		<tr class="empty-row">
+			<td colspan="6">No sales invoices for this date.</td>
+		</tr>
+		{% endfor %}
+		{% if sales_rows %}
+		<tr class="total-row">
+			<td colspan="2">Total</td>
+			<td class="num">{{ sales_total.selling }}</td>
+			<td class="num">{{ sales_total.discount }}</td>
+			<td class="num">{{ sales_total.due }}</td>
+			<td class="num">{{ sales_total.received }}</td>
+		</tr>
+		{% endif %}
+	</tbody>
+</table>
+
+<div class="section-title">Cash Out Outflow</div>
+<table class="data-table">
+	<thead>
+		<tr>
+			<th style="width: 6%;">S.L</th>
+			<th>Cash out Type</th>
+			<th>Description</th>
+			<th>Reference No.</th>
+			<th class="num">Amount</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in expense_rows %}
+		<tr>
+			<td>{{ row.sl }}</td>
+			<td>{{ row.cash_out_type }}</td>
+			<td>{{ row.description }}</td>
+			<td>{{ row.reference_no }}</td>
+			<td class="num">{{ row.amount }}</td>
+		</tr>
+		{% else %}
+		<tr class="empty-row">
+			<td colspan="5">No cash outflow for this date.</td>
+		</tr>
+		{% endfor %}
+		{% if expense_rows %}
+		<tr class="total-row">
+			<td colspan="4">Total Cash Out</td>
+			<td class="num">{{ expense_total }}</td>
+		</tr>
+		{% endif %}
+	</tbody>
+</table>
+
+<div class="section-title">BSP Deposit</div>
+<table class="data-table">
+	<thead>
+		<tr>
+			<th style="width: 6%;">S.L</th>
+			<th>Deposit Type</th>
+			<th>Bank Name</th>
+			<th>Reference No.</th>
+			<th class="num">Amount</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in deposit_rows %}
+		<tr>
+			<td>{{ row.sl }}</td>
+			<td>{{ row.deposit_type }}</td>
+			<td>{{ row.bank_name }}</td>
+			<td>{{ row.reference_no }}</td>
+			<td class="num">{{ row.amount }}</td>
+		</tr>
+		{% else %}
+		<tr class="empty-row">
+			<td colspan="5">No deposits for this date.</td>
+		</tr>
+		{% endfor %}
+		{% if deposit_rows %}
+		<tr class="total-row">
+			<td colspan="4">Total Deposited</td>
+			<td class="num">{{ deposit_total }}</td>
+		</tr>
+		{% endif %}
+	</tbody>
+</table>
+
+<table class="info-table">
+	<tr>
+		<td>Expected Deposit (Collection - Expense): {{ expected_deposit }}</td>
+		<td class="right">Closing Balance: {{ closing_balance }}</td>
+	</tr>
+</table>
+
+</body>
+</html>

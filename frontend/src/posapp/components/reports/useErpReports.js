@@ -125,6 +125,20 @@ const reportGroups = [
 			},
 		],
 	},
+	{
+		title: 'Cash Management',
+		icon: 'mdi-cash-multiple',
+		reports: [
+			{
+				title: 'Daily Cash Summary Report',
+				name: 'Daily Cash Summary Report',
+				icon: 'mdi-file-pdf-box',
+				// No role restriction -- the backend scopes it to the user's own
+				// permitted warehouse(s), same as the Deposit/Expense lists.
+				route: '/reports/daily-cash-summary',
+			},
+		],
+	},
 ];
 
 // Shared by ErpNextReports.vue (the standalone /reports page) and

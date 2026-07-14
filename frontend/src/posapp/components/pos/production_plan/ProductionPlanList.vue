@@ -181,7 +181,7 @@
 								variant="tonal"
 								:color="actionColor(action)"
 								class="text-none"
-								@click.stop="advanceStatus(item.name, action)"
+								@click.stop="requestAdvanceStatus(item.name, action)"
 							>
 								{{ __(action) }}
 							</v-btn>
@@ -271,6 +271,16 @@
 				<v-progress-circular indeterminate color="primary" />
 			</div>
 		</v-card>
+
+		<ConfirmActionDialog
+			v-model="confirmDialogOpen"
+			:title="confirmDialogTitle"
+			:message="confirmDialogMessage"
+			:confirm-label="__(pendingAction?.action || 'Confirm')"
+			:confirm-color="actionColor(pendingAction?.action)"
+			:loading="confirmLoading"
+			@confirm="performAdvanceStatus"
+		/>
 	</div>
 </template>
 
@@ -280,10 +290,19 @@ import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+
+const ACTION_CONFIRM_MESSAGES = {
+	'Start Production': __('Start production for this plan? This will submit it and lock in the planned quantities.'),
+	'Mark Production Complete': __('Mark this plan as Production Complete? This finalizes it.'),
+	Cancel: __(
+		'Cancel this production plan? This will also cancel any linked Work Orders, Stock Entries and Job Cards, and reverse stock already consumed or produced.',
+	),
+};
 
 export default {
 	name: 'ProductionPlanList',
-	components: { DateFilterField },
+	components: { DateFilterField, ConfirmActionDialog },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -501,7 +520,28 @@ export default {
 			router.push('/production-plans/new');
 		};
 
-		const advanceStatus = async (name, action) => {
+		const confirmDialogOpen = ref(false);
+		const confirmLoading = ref(false);
+		const pendingAction = ref(null);
+
+		const confirmDialogTitle = computed(() =>
+			pendingAction.value ? __('{0}?', [__(pendingAction.value.action)]) : '',
+		);
+		const confirmDialogMessage = computed(() =>
+			pendingAction.value
+				? ACTION_CONFIRM_MESSAGES[pendingAction.value.action] || __('Are you sure you want to continue?')
+				: '',
+		);
+
+		const requestAdvanceStatus = (name, action) => {
+			pendingAction.value = { name, action };
+			confirmDialogOpen.value = true;
+		};
+
+		const performAdvanceStatus = async () => {
+			if (!pendingAction.value) return;
+			const { name, action } = pendingAction.value;
+			confirmLoading.value = true;
 			try {
 				await frappe.call({
 					method: 'posawesome.posawesome.api.production_plans.advance_production_plan_status',
@@ -513,9 +553,13 @@ export default {
 					title: __('Production Plan {0} updated', [name]),
 					color: 'success',
 				});
+				confirmDialogOpen.value = false;
+				pendingAction.value = null;
 				await loadPlans();
 			} catch (e) {
 				toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
+			} finally {
+				confirmLoading.value = false;
 			}
 		};
 
@@ -566,7 +610,13 @@ export default {
 			statusColor,
 			actionColor,
 			goToNew,
-			advanceStatus,
+			confirmDialogOpen,
+			confirmLoading,
+			pendingAction,
+			confirmDialogTitle,
+			confirmDialogMessage,
+			requestAdvanceStatus,
+			performAdvanceStatus,
 			openPlanDetail,
 		};
 	},

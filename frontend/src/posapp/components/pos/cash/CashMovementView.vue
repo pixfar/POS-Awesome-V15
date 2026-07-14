@@ -43,6 +43,16 @@
 				/>
 			</v-col>
 		</v-row>
+
+		<ConfirmActionDialog
+			v-model="confirmDialogOpen"
+			:title="confirmDialogTitle"
+			:message="confirmDialogMessage"
+			:confirm-label="pendingAction?.type === 'delete' ? __('Delete') : __('Cancel Movement')"
+			confirm-color="error"
+			:loading="actionLoading"
+			@confirm="performPendingAction"
+		/>
 	</div>
 </template>
 
@@ -54,6 +64,7 @@ import { useCashMovement } from "../../../composables/pos/cash/useCashMovement";
 import { getPendingOfflineCashMovementCount } from "../../../../offline";
 import CashMovementForm from "./CashMovementForm.vue";
 import CashMovementHistory from "./CashMovementHistory.vue";
+import ConfirmActionDialog from "../shared/ConfirmActionDialog.vue";
 
 const __ = window.__ || ((text: string, _args?: any[]) => text);
 
@@ -179,33 +190,52 @@ function handleDuplicate(row: any) {
 	toastStore.show({ title: __("Data loaded in form. Review and submit."), color: "info" });
 }
 
-async function handleCancel(row: any) {
+const confirmDialogOpen = ref(false);
+const pendingAction = ref<{ type: "cancel" | "delete"; name: string } | null>(null);
+
+const confirmDialogTitle = computed(() =>
+	pendingAction.value?.type === "delete" ? __("Delete Cash Movement?") : __("Cancel Cash Movement?"),
+);
+const confirmDialogMessage = computed(() => {
+	if (!pendingAction.value) return "";
+	return pendingAction.value.type === "delete"
+		? __("Delete cancelled cash movement {0}? This cannot be undone.", [pendingAction.value.name])
+		: __("Cancel cash movement {0}?", [pendingAction.value.name]);
+});
+
+function handleCancel(row: any) {
 	if (!row?.name) return;
-	try {
-		const confirmed = window.confirm(__("Cancel cash movement {0}?", [row.name]));
-		if (!confirmed) {
-			return;
-		}
-		await cancelMovement(row.name);
-		toastStore.show({ title: __("Cash movement cancelled"), color: "warning" });
-		await refreshHistory();
-	} catch (err: any) {
-		toastStore.show({ title: err?.message || __("Failed to cancel cash movement"), color: "error" });
-	}
+	pendingAction.value = { type: "cancel", name: row.name };
+	confirmDialogOpen.value = true;
 }
 
-async function handleDelete(row: any) {
+function handleDelete(row: any) {
 	if (!row?.name) return;
+	pendingAction.value = { type: "delete", name: row.name };
+	confirmDialogOpen.value = true;
+}
+
+async function performPendingAction() {
+	if (!pendingAction.value) return;
+	const { type, name } = pendingAction.value;
 	try {
-		const confirmed = window.confirm(__("Delete cancelled cash movement {0}?", [row.name]));
-		if (!confirmed) {
-			return;
+		if (type === "delete") {
+			await deleteMovement(name);
+			toastStore.show({ title: __("Cash movement deleted"), color: "success" });
+		} else {
+			await cancelMovement(name);
+			toastStore.show({ title: __("Cash movement cancelled"), color: "warning" });
 		}
-		await deleteMovement(row.name);
-		toastStore.show({ title: __("Cash movement deleted"), color: "success" });
+		confirmDialogOpen.value = false;
+		pendingAction.value = null;
 		await refreshHistory();
 	} catch (err: any) {
-		toastStore.show({ title: err?.message || __("Failed to delete cash movement"), color: "error" });
+		toastStore.show({
+			title:
+				err?.message ||
+				(type === "delete" ? __("Failed to delete cash movement") : __("Failed to cancel cash movement")),
+			color: "error",
+		});
 	}
 }
 

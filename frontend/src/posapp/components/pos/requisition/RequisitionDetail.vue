@@ -1,19 +1,31 @@
 <template>
-	<DocumentDetailView
-		:eyebrow="__('Stock Movement')"
-		:title="name"
-		:subtitle="__('Requisition')"
-		:loading="loading"
-		:not-found="notFound"
-		:status="detail.transfer_status"
-		:status-color="statusColor(detail.transfer_status)"
-		:meta-fields="metaFields"
-		:item-columns="itemColumns"
-		:items="itemRows"
-		:totals="totals"
-		:actions="actions"
-		@back="goBack"
-	/>
+	<div class="h-100">
+		<DocumentDetailView
+			:eyebrow="__('Stock Movement')"
+			:title="name"
+			:subtitle="__('Requisition')"
+			:loading="loading"
+			:not-found="notFound"
+			:status="detail.transfer_status"
+			:status-color="statusColor(detail.transfer_status)"
+			:meta-fields="metaFields"
+			:item-columns="itemColumns"
+			:items="itemRows"
+			:totals="totals"
+			:actions="actions"
+			@back="goBack"
+		/>
+
+		<ConfirmActionDialog
+			v-model="confirmDialogOpen"
+			:title="confirmDialogTitle"
+			:message="confirmDialogMessage"
+			:confirm-label="__(pendingAction || 'Confirm')"
+			:confirm-color="pendingAction === 'Received' ? 'success' : 'error'"
+			:loading="actionLoading"
+			@confirm="performUpdateStatus"
+		/>
+	</div>
 </template>
 
 <script>
@@ -22,10 +34,16 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToastStore } from '../../../stores/toastStore';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
+import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+
+const STATUS_CONFIRM_MESSAGES = {
+	Received: __('Mark this requisition as Received? This confirms the stock transfer is complete.'),
+	Rejected: __('Reject this requisition? This cannot be undone.'),
+};
 
 export default {
 	name: 'RequisitionDetail',
-	components: { DocumentDetailView },
+	components: { DocumentDetailView, ConfirmActionDialog },
 	setup() {
 		const route = useRoute();
 		const router = useRouter();
@@ -100,7 +118,26 @@ export default {
 			return map[status] || 'grey';
 		};
 
-		const updateStatus = async (status) => {
+		const confirmDialogOpen = ref(false);
+		const pendingAction = ref(null);
+
+		const confirmDialogTitle = computed(() =>
+			pendingAction.value ? __('{0}?', [__(pendingAction.value)]) : '',
+		);
+		const confirmDialogMessage = computed(() =>
+			pendingAction.value
+				? STATUS_CONFIRM_MESSAGES[pendingAction.value] || __('Are you sure you want to continue?')
+				: '',
+		);
+
+		const requestUpdateStatus = (status) => {
+			pendingAction.value = status;
+			confirmDialogOpen.value = true;
+		};
+
+		const performUpdateStatus = async () => {
+			if (!pendingAction.value) return;
+			const status = pendingAction.value;
 			actionLoading.value = true;
 			try {
 				await frappe.call({
@@ -114,6 +151,8 @@ export default {
 					title: __('Requisition {0} marked {1}', [name, status]),
 					color: status === 'Received' ? 'success' : 'warning',
 				});
+				confirmDialogOpen.value = false;
+				pendingAction.value = null;
 				await loadDetail();
 			} catch (e) {
 				toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
@@ -132,13 +171,13 @@ export default {
 						label: __('Received'),
 						color: 'success',
 						loading: actionLoading.value,
-						onClick: () => updateStatus('Received'),
+						onClick: () => requestUpdateStatus('Received'),
 					},
 					{
 						label: __('Rejected'),
 						color: 'error',
 						loading: actionLoading.value,
-						onClick: () => updateStatus('Rejected'),
+						onClick: () => requestUpdateStatus('Rejected'),
 					},
 				);
 			}
@@ -183,6 +222,12 @@ export default {
 			totals,
 			actions,
 			statusColor,
+			confirmDialogOpen,
+			pendingAction,
+			confirmDialogTitle,
+			confirmDialogMessage,
+			actionLoading,
+			performUpdateStatus,
 			goBack,
 		};
 	},

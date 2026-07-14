@@ -338,6 +338,51 @@ def get_production_plan_detail(name):
 	}
 
 
+def _cancel_linked_production_documents(production_plan_name):
+	"""Cancel every submitted document this Production Plan produced, in
+	dependency order, so raw-material consumption and finished-goods
+	production are both reversed in the stock ledger:
+
+	Stock Entry (and Job Card) -> Work Order -> Production Plan.
+
+	Work Order.validate_cancel blocks cancellation while a submitted Stock
+	Entry against it still exists, so those must go first. Job Cards aren't
+	stock documents and don't block Work Order cancel, but they're still
+	"related documents" the user expects cleaned up rather than left
+	orphaned against a cancelled Work Order.
+	"""
+	work_orders = frappe.get_all(
+		'Work Order',
+		filters={'production_plan': production_plan_name, 'docstatus': 1},
+		pluck='name',
+	)
+
+	for wo_name in work_orders:
+		stock_entries = frappe.get_all(
+			'Stock Entry',
+			filters={'work_order': wo_name, 'docstatus': 1},
+			pluck='name',
+		)
+		for se_name in stock_entries:
+			se_doc = frappe.get_doc('Stock Entry', se_name)
+			se_doc.flags.ignore_permissions = True
+			se_doc.cancel()
+
+		job_cards = frappe.get_all(
+			'Job Card',
+			filters={'work_order': wo_name, 'docstatus': 1},
+			pluck='name',
+		)
+		for jc_name in job_cards:
+			jc_doc = frappe.get_doc('Job Card', jc_name)
+			jc_doc.flags.ignore_permissions = True
+			jc_doc.cancel()
+
+		wo_doc = frappe.get_doc('Work Order', wo_name)
+		wo_doc.flags.ignore_permissions = True
+		wo_doc.cancel()
+
+
 @frappe.whitelist()
 def advance_production_plan_status(name, action):
 	"""Transition a Production Plan through Draft -> Work In Progress ->
@@ -369,6 +414,12 @@ def advance_production_plan_status(name, action):
 	if action == 'Mark Production Complete':
 		doc.submit()
 	elif action == 'Cancel':
+		_cancel_linked_production_documents(doc.name)
+		# Cancelling the linked Work Order(s) updates fields (ordered_qty etc.)
+		# on this same Production Plan, bumping its modified timestamp -- reload
+		# so the in-memory doc's timestamp matches before cancel's own save.
+		doc.reload()
+		doc.flags.ignore_permissions = True
 		doc.cancel()
 
 	doc.db_set('workflow_state', next_state, update_modified=False)

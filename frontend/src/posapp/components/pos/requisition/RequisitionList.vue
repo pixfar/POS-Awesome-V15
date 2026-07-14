@@ -189,7 +189,7 @@
 								variant="tonal"
 								color="success"
 								class="text-none"
-								@click.stop="updateStatus(item.name, 'Received')"
+								@click.stop="requestUpdateStatus(item.name, 'Received')"
 							>
 								{{ __("Received") }}
 							</v-btn>
@@ -198,7 +198,7 @@
 								variant="tonal"
 								color="error"
 								class="text-none"
-								@click.stop="updateStatus(item.name, 'Rejected')"
+								@click.stop="requestUpdateStatus(item.name, 'Rejected')"
 							>
 								{{ __("Rejected") }}
 							</v-btn>
@@ -288,6 +288,16 @@
 				<v-progress-circular indeterminate color="primary" />
 			</div>
 		</v-card>
+
+		<ConfirmActionDialog
+			v-model="confirmDialogOpen"
+			:title="confirmDialogTitle"
+			:message="confirmDialogMessage"
+			:confirm-label="__(pendingAction?.status || 'Confirm')"
+			:confirm-color="pendingAction?.status === 'Received' ? 'success' : 'error'"
+			:loading="confirmLoading"
+			@confirm="performUpdateStatus"
+		/>
 	</div>
 </template>
 
@@ -297,10 +307,16 @@ import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+
+const STATUS_CONFIRM_MESSAGES = {
+	Received: __('Mark this requisition as Received? This confirms the stock transfer is complete.'),
+	Rejected: __('Reject this requisition? This cannot be undone.'),
+};
 
 export default {
 	name: 'RequisitionList',
-	components: { DateFilterField },
+	components: { DateFilterField, ConfirmActionDialog },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -504,7 +520,28 @@ export default {
 			router.push('/requisitions/new');
 		};
 
-		const updateStatus = async (requisition, status) => {
+		const confirmDialogOpen = ref(false);
+		const confirmLoading = ref(false);
+		const pendingAction = ref(null);
+
+		const confirmDialogTitle = computed(() =>
+			pendingAction.value ? __('{0}?', [__(pendingAction.value.status)]) : '',
+		);
+		const confirmDialogMessage = computed(() =>
+			pendingAction.value
+				? STATUS_CONFIRM_MESSAGES[pendingAction.value.status] || __('Are you sure you want to continue?')
+				: '',
+		);
+
+		const requestUpdateStatus = (requisition, status) => {
+			pendingAction.value = { requisition, status };
+			confirmDialogOpen.value = true;
+		};
+
+		const performUpdateStatus = async () => {
+			if (!pendingAction.value) return;
+			const { requisition, status } = pendingAction.value;
+			confirmLoading.value = true;
 			try {
 				await frappe.call({
 					method: 'posawesome.posawesome.api.requisitions.set_requisition_status',
@@ -517,9 +554,13 @@ export default {
 					title: __('Requisition {0} marked {1}', [requisition, status]),
 					color: status === 'Received' ? 'success' : 'warning',
 				});
+				confirmDialogOpen.value = false;
+				pendingAction.value = null;
 				await loadRequisitions();
 			} catch (e) {
 				toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
+			} finally {
+				confirmLoading.value = false;
 			}
 		};
 
@@ -569,7 +610,13 @@ export default {
 			formatDisplayDate,
 			statusColor,
 			goToNew,
-			updateStatus,
+			confirmDialogOpen,
+			confirmLoading,
+			pendingAction,
+			confirmDialogTitle,
+			confirmDialogMessage,
+			requestUpdateStatus,
+			performUpdateStatus,
 			openRequisitionDetail,
 		};
 	},

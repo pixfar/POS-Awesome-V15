@@ -352,6 +352,16 @@ const routes = [
 		},
 	},
 	{
+		path: "/reports/daily-cash-summary",
+		component: () =>
+			import("../components/pos/reports/DailyCashSummaryReport.vue"),
+		meta: {
+			title: "Daily Cash Summary Report",
+			layout: "default",
+			loadingMessage: "Loading daily cash summary report...",
+		},
+	},
+	{
 		path: "/barcode",
 		component: () => import("../components/pos/shell/BarcodePrinting.vue"),
 		meta: {
