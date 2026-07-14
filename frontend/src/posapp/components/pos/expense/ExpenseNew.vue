@@ -21,6 +21,33 @@
 											readonly
 											:loading="employeeLoading"
 											prepend-inner-icon="mdi-account-outline"
+											class="pos-themed-input mb-2"
+										/>
+										<v-autocomplete
+											v-if="canChangeWarehouse && warehouseOptions.length"
+											v-model="warehouse"
+											:items="warehouseOptions"
+											item-title="warehouse_name"
+											item-value="name"
+											:label="__('Warehouse')"
+											density="compact"
+											variant="outlined"
+											color="primary"
+											hide-details
+											:loading="warehouseLoading"
+											class="pos-themed-input"
+										/>
+										<v-text-field
+											v-else
+											:model-value="warehouseLabel || warehouse"
+											:label="__('Warehouse')"
+											density="compact"
+											variant="outlined"
+											color="primary"
+											hide-details
+											readonly
+											:loading="warehouseLoading"
+											prepend-inner-icon="mdi-warehouse"
 											class="pos-themed-input"
 										/>
 									</div>
@@ -184,7 +211,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
+import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
+import { isPosWarehouseSwitcher } from '../../../utils/posWarehouseAccess';
 import DateFilterField from '../shared/DateFilterField.vue';
 
 const getTodayDate = () =>
@@ -205,10 +234,23 @@ export default {
 	components: { DateFilterField },
 	setup() {
 		const router = useRouter();
+		const uiStore = useUIStore();
 		const toastStore = useToastStore();
+		const pos_profile = ref(uiStore.posProfile || {});
 
 		const employee = ref(null);
 		const employeeLoading = ref(false);
+
+		// Warehouse follows the same rule used across Sales/Purchase/Material
+		// Transfer/Requisition/Deposit: only System Manager can pick a
+		// different warehouse -- everyone else is locked to their POS
+		// profile's default.
+		const canChangeWarehouse = computed(() => isPosWarehouseSwitcher());
+		const warehouseOptions = ref([]);
+		const warehouseLabel = ref('');
+		const warehouseLoading = ref(false);
+		const warehouse = ref(null);
+
 		const expenseTypeOptions = ref([]);
 		const expenseDate = ref(getTodayDate());
 		const remark = ref('');
@@ -263,6 +305,74 @@ export default {
 			}
 		};
 
+		const loadPermittedWarehouses = async () => {
+			try {
+				const { message } = await frappe.call({
+					method: 'bsp_engineering.api.pos_warehouse.get_pos_warehouses',
+					args: {
+						company: pos_profile.value?.company,
+						pos_profile: pos_profile.value ? JSON.stringify(pos_profile.value) : null,
+					},
+				});
+				const msg = message || {};
+				const warehouseList = Array.isArray(msg) ? msg : (msg.warehouses || []);
+				const suggestedDefault = Array.isArray(msg) ? null : (msg.default_warehouse || null);
+				warehouseOptions.value = warehouseList;
+				const permitted = warehouseList.map((row) => row.name);
+				let defaultWh = suggestedDefault || pos_profile.value?.warehouse || null;
+				if (defaultWh && permitted.length && !permitted.includes(defaultWh)) {
+					defaultWh = permitted[0];
+				}
+				if (!defaultWh && warehouseOptions.value.length) {
+					defaultWh = warehouseOptions.value[0].name;
+				}
+				warehouse.value = defaultWh || null;
+			} catch (e) {
+				console.error('Failed to load permitted warehouses', e);
+				warehouseOptions.value = [];
+			}
+			if (!warehouseOptions.value.length && pos_profile.value?.warehouse) {
+				const profileWh = pos_profile.value.warehouse;
+				warehouseOptions.value = [{ name: profileWh, warehouse_name: profileWh }];
+				warehouse.value = profileWh;
+			}
+		};
+
+		const loadActiveWarehouse = async () => {
+			try {
+				const { message } = await frappe.call({
+					method: 'bsp_engineering.api.pos_warehouse.get_pos_active_warehouse',
+					args: {
+						company: pos_profile.value?.company,
+						pos_profile: pos_profile.value ? JSON.stringify(pos_profile.value) : null,
+					},
+				});
+				const row = message || {};
+				if (row.name) {
+					warehouse.value = row.name;
+					warehouseLabel.value = row.warehouse_name || row.name;
+					return;
+				}
+			} catch (e) {
+				console.error('Failed to load active warehouse', e);
+			}
+			const profileWh = pos_profile.value?.warehouse || null;
+			if (profileWh) {
+				warehouse.value = profileWh;
+				warehouseLabel.value = profileWh;
+			}
+		};
+
+		const loadWarehouse = async () => {
+			warehouseLoading.value = true;
+			if (canChangeWarehouse.value) {
+				await loadPermittedWarehouses();
+			} else {
+				await loadActiveWarehouse();
+			}
+			warehouseLoading.value = false;
+		};
+
 		const resetForm = () => {
 			expenseDate.value = getTodayDate();
 			remark.value = '';
@@ -289,6 +399,7 @@ export default {
 					args: {
 						data: {
 							expense_date: expenseDate.value,
+							warehouse: warehouse.value,
 							remark: remark.value,
 							expenses: validRows.map((row) => ({
 								expense_type: row.expense_type,
@@ -315,13 +426,18 @@ export default {
 		};
 
 		onMounted(async () => {
-			await Promise.all([loadEmployee(), loadExpenseTypes()]);
+			await Promise.all([loadEmployee(), loadExpenseTypes(), loadWarehouse()]);
 		});
 
 		return {
 			employee,
 			employeeLoading,
 			employeeDisplay,
+			canChangeWarehouse,
+			warehouseOptions,
+			warehouseLabel,
+			warehouseLoading,
+			warehouse,
 			expenseTypeOptions,
 			expenseDate,
 			remark,

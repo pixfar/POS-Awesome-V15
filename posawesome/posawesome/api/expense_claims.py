@@ -73,6 +73,12 @@ def create_expense_claim(data):
 		doc.department = employee.department
 	if employee.expense_approver:
 		doc.expense_approver = employee.expense_approver
+	# Warehouse the expense is attributed to, for warehouse-wise cash summary
+	# reporting -- same trust model as Material Transfer/Requisition/Daily
+	# Deposit: the frontend already locks this to the user's permitted
+	# warehouse for non-System-Manager users.
+	if data.get('warehouse'):
+		doc.custom_warehouse = data.get('warehouse')
 
 	doc.posting_date = expense_date
 	doc.approval_status = 'Approved'
@@ -146,6 +152,7 @@ def get_expense_claims_list(page_start=0, page_length=20, from_date=None, to_dat
 		'grand_total',
 		'is_paid',
 		'docstatus',
+		'custom_warehouse as warehouse',
 	]
 
 	rows = frappe.get_all(
@@ -187,6 +194,7 @@ def get_expense_claim_detail(expense_claim):
 		'posting_date': doc.posting_date,
 		'employee': doc.employee,
 		'employee_name': doc.employee_name,
+		'warehouse': doc.custom_warehouse,
 		'approval_status': doc.approval_status,
 		'status': doc.status,
 		'is_paid': doc.is_paid,

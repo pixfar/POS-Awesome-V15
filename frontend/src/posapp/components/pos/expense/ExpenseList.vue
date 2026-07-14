@@ -167,6 +167,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Expense Claim'), key: 'name', sortable: true },
 			{ title: __('Employee'), key: 'employee_name', sortable: true },
+			{ title: __('Warehouse'), key: 'warehouse', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
 			{ title: __('Remark'), key: 'remark', sortable: false },
 			{ title: __('Amount'), key: 'grand_total', sortable: true, align: 'end' },

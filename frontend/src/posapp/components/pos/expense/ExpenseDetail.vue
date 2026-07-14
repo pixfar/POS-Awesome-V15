@@ -45,6 +45,7 @@ export default {
 		const metaFields = computed(() => [
 			{ label: __('Date'), value: formatDisplayDate(detail.value.posting_date) },
 			{ label: __('Employee'), value: detail.value.employee_name || detail.value.employee },
+			{ label: __('Warehouse'), value: detail.value.warehouse },
 			{ label: __('Approval Status'), value: detail.value.approval_status },
 			{ label: __('Mode of Payment'), value: detail.value.mode_of_payment },
 			{ label: __('Payable Account'), value: detail.value.payable_account },
