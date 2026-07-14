@@ -79,24 +79,20 @@
 				</div>
 			</div>
 
-			<div v-if="footerAction" class="drawer-footer" data-test="drawer-footer-settings">
+			<div class="drawer-footer" data-test="drawer-footer-settings">
 				<v-divider class="drawer-footer-divider" />
-				<button
-					type="button"
-					class="drawer-footer-action"
-					data-test="drawer-footer-action"
-					@click="handleFooterActionClick"
-				>
-					<span class="drawer-footer-action__icon">
-						<v-icon class="drawer-icon">{{ footerAction.icon }}</v-icon>
-					</span>
-					<span v-if="!mini" class="drawer-footer-action__copy">
-						<span class="drawer-footer-action__title">{{ footerAction.text }}</span>
-						<span v-if="footerAction.subtitle" class="drawer-footer-action__subtitle">
-							{{ footerAction.subtitle }}
-						</span>
-					</span>
-				</button>
+				<div class="drawer-user-bar">
+					<span v-if="!mini" class="drawer-user-bar__name">{{ currentUserInfo.fullname }}</span>
+					<button
+						type="button"
+						class="drawer-user-bar__logout"
+						data-test="drawer-logout-action"
+						@click="handleLogoutClick"
+					>
+						<v-icon size="18">mdi-logout</v-icon>
+						<span v-if="!mini">{{ __("Logout") }}</span>
+					</button>
+				</div>
 			</div>
 		</div>
 	</v-navigation-drawer>
@@ -117,13 +113,16 @@ const props = defineProps({
 	items: Array,
 	item: Number,
 	isDark: Boolean,
-	footerAction: {
-		type: Object,
-		default: null,
-	},
 });
 
-const emit = defineEmits(["update:drawer", "update:item", "open-settings"]);
+const emit = defineEmits(["update:drawer", "update:item", "logout"]);
+
+const currentUserInfo = computed(() => {
+	const info = frappe?.user_info?.(frappe?.session?.user) || {};
+	return {
+		fullname: info.fullname || frappe?.session?.user || "",
+	};
+});
 const { isRtl, rtlClasses } = useRtl();
 
 const mini = ref(false);
@@ -180,8 +179,8 @@ function handleItemClick() {
 	}
 }
 
-function handleFooterActionClick() {
-	emit("open-settings");
+function handleLogoutClick() {
+	emit("logout");
 	closeDrawer();
 }
 
@@ -311,6 +310,42 @@ function closeDrawer() {
 	font-size: 11px;
 	line-height: 1.35;
 	color: var(--pos-text-secondary);
+}
+
+.drawer-user-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 6px 2px;
+}
+
+.drawer-user-bar__name {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--pos-text-primary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.drawer-user-bar__logout {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+	border: none;
+	background: none;
+	padding: 4px 6px;
+	font-size: 13px;
+	font-weight: 600;
+	color: #d32f2f;
+	border-radius: 8px;
+	transition: background-color 0.15s ease;
+}
+
+.drawer-user-bar__logout:hover {
+	background-color: rgba(211, 47, 47, 0.1);
 }
 
 /* Styling for the actively selected list item in the navigation drawer */

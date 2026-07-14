@@ -3,10 +3,10 @@
 		<v-card flat class="invoice-section-card pos-themed-card pos-list-card">
 			<div class="pos-list-header">
 				<div class="pos-list-header__main">
-					<p class="pos-list-header__eyebrow">{{ __("Expenses & Advances") }}</p>
-					<h3 class="pos-list-header__title">{{ __("Expenses") }}</h3>
+					<p class="pos-list-header__eyebrow">{{ __("BSP Daily Deposit") }}</p>
+					<h3 class="pos-list-header__title">{{ __("Daily Deposits") }}</h3>
 					<p class="pos-list-header__subtitle">
-						{{ __("Track the expense claims you have submitted") }}
+						{{ __("Track the daily deposits you have submitted") }}
 					</p>
 				</div>
 				<div class="pos-list-header__actions">
@@ -17,7 +17,7 @@
 						prepend-icon="mdi-plus"
 						@click="goToNew"
 					>
-						{{ __("New Expense") }}
+						{{ __("New Deposit") }}
 					</v-btn>
 				</div>
 			</div>
@@ -28,15 +28,15 @@
 					<strong class="pos-list-stat__value">{{ total }}</strong>
 				</div>
 				<div class="pos-list-stat pos-list-stat--success">
-					<span class="pos-list-stat__label">{{ __("Total Claimed") }}</span>
-					<strong class="pos-list-stat__value">{{ formatCurrency(totalClaimed) }}</strong>
+					<span class="pos-list-stat__label">{{ __("Total Deposited") }}</span>
+					<strong class="pos-list-stat__value">{{ formatCurrency(totalDeposited) }}</strong>
 				</div>
 			</div>
 
 			<div class="pos-list-toolbar">
 				<v-text-field
 					v-model="searchQuery"
-					:label="__('Search expense claim or remark')"
+					:label="__('Search deposit or bank')"
 					density="compact"
 					variant="solo"
 					hide-details
@@ -53,7 +53,7 @@
 						prepend-icon="mdi-sync"
 						:loading="listLoading"
 						class="text-none"
-						@click="loadExpenseClaims"
+						@click="loadDeposits"
 					>
 						{{ __("Sync") }}
 					</v-btn>
@@ -80,16 +80,16 @@
 				</v-btn>
 			</div>
 
-			<div v-if="expenseList.length" class="pos-list-table-wrap">
+			<div v-if="depositList.length" class="pos-list-table-wrap">
 				<v-data-table
 					:headers="listHeaders"
-					:items="expenseList"
+					:items="depositList"
 					:loading="listLoading"
 					density="comfortable"
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table"
-					@click:row="(_, row) => openExpenseDetail(row.item)"
+					@click:row="(_, row) => openDepositDetail(row.item)"
 				>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
@@ -97,27 +97,24 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
-					<template #item.remark="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.remark">{{ item.remark || "—" }}</span>
+					<template #item.amount="{ item }">
+						{{ formatCurrency(item.amount) }}
 					</template>
-					<template #item.grand_total="{ item }">
-						{{ formatCurrency(item.grand_total) }}
-					</template>
-					<template #item.status="{ item }">
-						<v-chip size="small" variant="tonal" :color="statusColor(item.status)">
-							{{ item.status }}
+					<template #item.docstatus="{ item }">
+						<v-chip size="small" variant="tonal" :color="statusColor(item.docstatus)">
+							{{ statusLabel(item.docstatus) }}
 						</v-chip>
 					</template>
 				</v-data-table>
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
-				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-receipt-text-edit-outline</v-icon>
-				<h4 class="pos-list-empty__title">{{ __("No expenses found") }}</h4>
+				<v-icon size="48" color="primary" class="pos-list-empty__icon">mdi-bank-outline</v-icon>
+				<h4 class="pos-list-empty__title">{{ __("No deposits found") }}</h4>
 				<p class="pos-list-empty__subtitle">
 					{{ hasActiveFilters
 						? __("Try different filters or clear them.")
-						: __("Submit a new expense claim to see it listed here.") }}
+						: __("Submit a new daily deposit to see it listed here.") }}
 				</p>
 				<v-btn
 					v-if="!hasActiveFilters"
@@ -127,7 +124,7 @@
 					prepend-icon="mdi-plus"
 					@click="goToNew"
 				>
-					{{ __("New Expense") }}
+					{{ __("New Deposit") }}
 				</v-btn>
 			</div>
 
@@ -145,19 +142,19 @@ import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
 
 export default {
-	name: 'ExpenseList',
+	name: 'DepositList',
 	components: { DateFilterField },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
-		const expenseList = ref([]);
+		const depositList = ref([]);
 		const listLoading = ref(false);
 		const searchQuery = ref('');
 		let searchTimeout = null;
 
-		// Single page view: the whole (per-employee) list fits comfortably
-		// within the backend's max page_length, so it's fetched and shown in
-		// one continuous table instead of paginated.
+		// Single page view: the whole (per-user) list fits comfortably within
+		// the backend's max page_length, so it's fetched and shown in one
+		// continuous table instead of paginated.
 		const PAGE_LENGTH = 100;
 		const total = ref(0);
 
@@ -165,20 +162,21 @@ export default {
 		const toDate = ref('');
 
 		const listHeaders = [
-			{ title: __('Expense Claim'), key: 'name', sortable: true },
-			{ title: __('Employee'), key: 'employee_name', sortable: true },
+			{ title: __('Deposit'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
-			{ title: __('Remark'), key: 'remark', sortable: false },
-			{ title: __('Amount'), key: 'grand_total', sortable: true, align: 'end' },
-			{ title: __('Status'), key: 'status', sortable: true },
+			{ title: __('Warehouse'), key: 'warehouse', sortable: true },
+			{ title: __('Deposit Type'), key: 'deposit_type', sortable: true },
+			{ title: __('Bank Name'), key: 'bank_name', sortable: true },
+			{ title: __('Amount'), key: 'amount', sortable: true, align: 'end' },
+			{ title: __('Status'), key: 'docstatus', sortable: true },
 		];
 
 		const hasActiveFilters = computed(() =>
 			Boolean(searchQuery.value || fromDate.value || toDate.value),
 		);
 
-		const totalClaimed = computed(() =>
-			expenseList.value.reduce((sum, row) => sum + (Number(row.grand_total) || 0), 0),
+		const totalDeposited = computed(() =>
+			depositList.value.reduce((sum, row) => sum + (Number(row.amount) || 0), 0),
 		);
 
 		const formatDisplayDate = (value) => {
@@ -187,22 +185,21 @@ export default {
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 		};
 
-		const statusColor = (status) => {
-			const map = {
-				Paid: 'green',
-				Unpaid: 'orange',
-				Rejected: 'red',
-				Submitted: 'blue',
-				Draft: 'grey',
-			};
-			return map[status] || 'grey';
+		const statusLabel = (docstatus) => {
+			const map = { 0: __('Draft'), 1: __('Submitted'), 2: __('Cancelled') };
+			return map[docstatus] || __('Draft');
 		};
 
-		const loadExpenseClaims = async () => {
+		const statusColor = (docstatus) => {
+			const map = { 0: 'grey', 1: 'green', 2: 'red' };
+			return map[docstatus] || 'grey';
+		};
+
+		const loadDeposits = async () => {
 			listLoading.value = true;
 			try {
 				const { message } = await frappe.call({
-					method: 'posawesome.posawesome.api.expense_claims.get_expense_claims_list',
+					method: 'posawesome.posawesome.api.bsp_daily_deposit.get_daily_deposits_list',
 					args: {
 						page_start: 0,
 						page_length: PAGE_LENGTH,
@@ -211,18 +208,18 @@ export default {
 						search: searchQuery.value || undefined,
 					},
 				});
-				expenseList.value = message?.expense_claims || [];
+				depositList.value = message?.deposits || [];
 				total.value = message?.total || 0;
 			} catch (e) {
-				console.error('Failed to load expense claims', e);
-				expenseList.value = [];
+				console.error('Failed to load daily deposits', e);
+				depositList.value = [];
 			} finally {
 				listLoading.value = false;
 			}
 		};
 
 		const resetAndLoad = () => {
-			loadExpenseClaims();
+			loadDeposits();
 		};
 
 		const handleSearchUpdate = () => {
@@ -238,19 +235,19 @@ export default {
 		};
 
 		const goToNew = () => {
-			router.push('/expenses/new');
+			router.push('/deposits/new');
 		};
 
-		const openExpenseDetail = (item) => {
-			router.push(`/expenses/${item.name}`);
+		const openDepositDetail = (item) => {
+			router.push(`/deposits/${item.name}`);
 		};
 
 		onMounted(() => {
-			loadExpenseClaims();
+			loadDeposits();
 		});
 
 		return {
-			expenseList,
+			depositList,
 			listLoading,
 			searchQuery,
 			listHeaders,
@@ -258,15 +255,16 @@ export default {
 			fromDate,
 			toDate,
 			hasActiveFilters,
-			totalClaimed,
-			loadExpenseClaims,
+			totalDeposited,
+			loadDeposits,
 			resetAndLoad,
 			handleSearchUpdate,
 			clearFilters,
 			formatDisplayDate,
+			statusLabel,
 			statusColor,
 			goToNew,
-			openExpenseDetail,
+			openDepositDetail,
 		};
 	},
 };

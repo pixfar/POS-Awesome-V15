@@ -15,6 +15,7 @@ from erpnext.accounts.party import get_party_account
 from erpnext.accounts.utils import get_account_currency
 from erpnext.setup.utils import get_exchange_rate
 from posawesome.posawesome.api.payment_processing.creation import create_payment_entry
+from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
 from posawesome.posawesome.api.payment_processing.utils import (
     get_bank_cash_account,
     set_paid_amount_and_received_amount,
@@ -376,7 +377,9 @@ def get_payment_entries_list(
     ]
     if company:
         filters.append([doctype, "company", "=", company])
-    if int(mine_only or 0):
+    # Payment Entry has no warehouse field, so restricted users (not System
+    # Manager) simply only ever see their own payments.
+    if int(mine_only or 0) or not is_system_manager():
         filters.append([doctype, "owner", "=", frappe.session.user])
     if party_type:
         filters.append([doctype, "party_type", "=", party_type])

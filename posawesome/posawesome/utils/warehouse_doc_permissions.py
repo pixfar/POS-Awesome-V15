@@ -59,6 +59,29 @@ def get_expanded_permitted_warehouses(user=None):
 	return list(expanded)
 
 
+def get_permission_scoped_names(doctype, warehouse_field, owner_field='owner', user=None):
+	"""For doctypes with a single warehouse field (Sales/Purchase Invoice, BSP
+	Daily Deposit): returns the list of doc names this user may see -- their
+	own records OR records touching their permitted warehouse(s) -- or None if
+	the user is unrestricted (System Manager) and should see everything."""
+	user = user or frappe.session.user
+	if not user_has_warehouse_restrictions(user):
+		return None
+
+	permitted = get_expanded_permitted_warehouses(user) or []
+	or_filters = [[doctype, owner_field, '=', user]]
+	if permitted:
+		or_filters.append([doctype, warehouse_field, 'in', permitted])
+
+	return frappe.get_all(
+		doctype,
+		or_filters=or_filters,
+		pluck='name',
+		limit_page_length=0,
+		ignore_permissions=True,
+	)
+
+
 def _sql_in_list(values):
 	if not values:
 		return ''

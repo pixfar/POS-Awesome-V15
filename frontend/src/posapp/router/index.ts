@@ -101,6 +101,46 @@ const routes = [
 		},
 	},
 	{
+		path: "/expenses/:name",
+		component: () => import("../components/pos/expense/ExpenseDetail.vue"),
+		meta: {
+			title: "Expense",
+			layout: "default",
+			loadingMessage: "Loading expense...",
+		},
+	},
+	{
+		path: "/deposits",
+		redirect: "/deposits/list",
+	},
+	{
+		path: "/deposits/list",
+		component: () => import("../components/pos/deposit/DepositList.vue"),
+		meta: {
+			title: "Daily Deposits",
+			layout: "default",
+			loadingMessage: "Loading deposits...",
+		},
+	},
+	{
+		path: "/deposits/new",
+		component: () => import("../components/pos/deposit/DepositNew.vue"),
+		meta: {
+			title: "New Deposit",
+			layout: "default",
+			loadingMessage: "Loading new deposit...",
+		},
+	},
+	{
+		path: "/deposits/:name",
+		component: () => import("../components/pos/deposit/DepositDetail.vue"),
+		meta: {
+			title: "Deposit",
+			layout: "default",
+			loadingMessage: "Loading deposit...",
+		},
+	},
+	{
 		path: "/material-transfers",
 		redirect: "/material-transfers/list",
 	},

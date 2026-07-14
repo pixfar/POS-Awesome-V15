@@ -11,6 +11,7 @@ from erpnext.accounts.party import get_party_account
 
 from .utils import get_active_pos_profile, get_default_warehouse
 from .invoice_processing.creation import _resolve_territory_for_warehouse
+from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission_scoped_names
 
 
 def _resolve_pos_profile(pos_profile):
@@ -866,6 +867,12 @@ def get_purchase_invoices_list(
     ]
     if int(mine_only or 0):
         filters.append([doctype, "owner", "=", frappe.session.user])
+    else:
+        # Warehouse-restricted users (not System Manager) only ever see their
+        # own purchase invoices or ones drawn into their permitted warehouse(s).
+        scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
+        if scoped_names is not None:
+            filters.append([doctype, "name", "in", scoped_names])
     if status:
         filters.append([doctype, "status", "=", status])
     if from_date:

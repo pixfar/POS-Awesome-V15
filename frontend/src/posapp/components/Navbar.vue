@@ -55,22 +55,6 @@
 				/>
 			</template>
 
-			<!-- Slot for menu -->
-			<template #menu>
-				<NavbarMenu
-					:pos-profile="posProfile"
-					:cashier-name="currentCashierDisplay"
-					:manual-offline="manualOffline"
-					:network-online="networkOnline"
-					:server-online="serverOnline"
-					@close-shift="openCloseShift"
-					@open-customer-display="$emit('open-customer-display')"
-					@clear-cache="clearCache"
-					@show-about="showAboutDialog = true"
-					@toggle-theme="toggleTheme"
-					@logout="logOut"
-				/>
-			</template>
 		</NavbarAppBar>
 
 		<!-- Use the modular NavbarDrawer component -->
@@ -83,6 +67,7 @@
 			:footer-action="drawerFooterAction"
 			@open-settings="openSettingsPanel"
 			@change-page="changePage"
+			@logout="logOut"
 		/>
 		<NavbarSettingsPanel
 			v-model="settingsPanelOpen"
@@ -130,7 +115,6 @@
 import { defineAsyncComponent } from "vue";
 import NavbarAppBar from "./navbar/NavbarAppBar.vue";
 import NavbarDrawer from "./navbar/NavbarDrawer.vue";
-import NavbarMenu from "./navbar/NavbarMenu.vue";
 import NavbarSettingsPanel from "./navbar/NavbarSettingsPanel.vue";
 import NotificationBell from "./navbar/NotificationBell.vue";
 import StatusIndicator from "./navbar/StatusIndicator.vue";
@@ -199,7 +183,6 @@ export default {
 	components: {
 		NavbarAppBar,
 		NavbarDrawer,
-		NavbarMenu,
 		NavbarSettingsPanel,
 		NotificationBell,
 		StatusIndicator,
@@ -309,6 +292,14 @@ export default {
 					children: [
 						{ text: "New Expense", icon: "mdi-plus-circle-outline", to: "/expenses/new" },
 						{ text: "Expenses", icon: "mdi-format-list-bulleted", to: "/expenses/list" },
+					],
+				},
+				{
+					text: "Daily Deposit",
+					icon: "mdi-bank-outline",
+					children: [
+						{ text: "New Deposit", icon: "mdi-plus-circle-outline", to: "/deposits/new" },
+						{ text: "Deposits", icon: "mdi-format-list-bulleted", to: "/deposits/list" },
 					],
 				},
 				{

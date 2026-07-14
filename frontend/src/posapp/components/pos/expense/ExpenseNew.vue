@@ -76,7 +76,6 @@
 											<th style="min-width: 180px">{{ __("Expense Claim Type") }}</th>
 											<th style="min-width: 200px">{{ __("Description") }}</th>
 											<th style="width: 140px">{{ __("Amount") }}</th>
-											<th style="width: 160px">{{ __("Sanctioned Amount") }}</th>
 											<th style="width: 48px"></th>
 										</tr>
 									</thead>
@@ -114,17 +113,6 @@
 													hide-details
 													class="pos-themed-input"
 													@update:model-value="syncSanctionedAmount(row)"
-												/>
-											</td>
-											<td>
-												<v-text-field
-													v-model.number="row.sanctioned_amount"
-													type="number"
-													min="0"
-													density="compact"
-													variant="outlined"
-													hide-details
-													class="pos-themed-input"
 												/>
 											</td>
 											<td>

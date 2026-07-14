@@ -41,6 +41,7 @@ from posawesome.posawesome.api.invoice_processing.returns import (
 from posawesome.posawesome.api.invoice_processing.payment import _create_change_payment_entries
 from posawesome.posawesome.api.invoice_processing.data import get_last_invoice_rates
 from posawesome.posawesome.api.utils import log_perf_event
+from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission_scoped_names
 
 
 @frappe.whitelist()
@@ -140,6 +141,12 @@ def get_sales_invoices_list(
     ]
     if int(mine_only or 0):
         filters.append([doctype, "owner", "=", frappe.session.user])
+    else:
+        # Warehouse-restricted users (not System Manager) only ever see their
+        # own invoices or ones drawn from their permitted warehouse(s).
+        scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
+        if scoped_names is not None:
+            filters.append([doctype, "name", "in", scoped_names])
     if status:
         filters.append([doctype, "status", "=", status])
     if from_date:

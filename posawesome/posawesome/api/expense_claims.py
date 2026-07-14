@@ -8,6 +8,8 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today
 
+from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
+
 DEFAULT_MODE_OF_PAYMENT = 'Cash'
 DEFAULT_PAYABLE_ACCOUNT = 'Creditors - BSP'
 
@@ -110,13 +112,16 @@ def create_expense_claim(data):
 
 @frappe.whitelist()
 def get_expense_claims_list(page_start=0, page_length=20, from_date=None, to_date=None, search=None):
-	"""Paginated list of the logged-in user's own Expense Claims."""
+	"""Paginated list of Expense Claims -- all of them for System Manager,
+	otherwise only the logged-in user's own."""
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
 
-	employee = _get_employee_for_user()
+	filters = {}
+	if not is_system_manager():
+		employee = _get_employee_for_user()
+		filters['employee'] = employee.name
 
-	filters = {'employee': employee.name}
 	if from_date and to_date:
 		filters['posting_date'] = ['between', [from_date, to_date]]
 	elif from_date:
@@ -131,6 +136,7 @@ def get_expense_claims_list(page_start=0, page_length=20, from_date=None, to_dat
 
 	fields = [
 		'name',
+		'employee_name',
 		'posting_date',
 		'remark',
 		'approval_status',
@@ -170,10 +176,11 @@ def get_expense_claims_list(page_start=0, page_length=20, from_date=None, to_dat
 
 @frappe.whitelist()
 def get_expense_claim_detail(expense_claim):
-	employee = _get_employee_for_user()
 	doc = frappe.get_doc('Expense Claim', expense_claim)
-	if doc.employee != employee.name:
-		frappe.throw(_('You are not permitted to view this Expense Claim.'), exc=frappe.PermissionError)
+	if not is_system_manager():
+		employee = _get_employee_for_user()
+		if doc.employee != employee.name:
+			frappe.throw(_('You are not permitted to view this Expense Claim.'), exc=frappe.PermissionError)
 
 	return {
 		'name': doc.name,
