@@ -21,6 +21,12 @@ function getChunkFileName(bundle, chunkName) {
 	return match?.fileName || null;
 }
 
+function getAllChunkFileNames(bundle) {
+	return Object.values(bundle || {})
+		.filter((entry) => entry?.type === "chunk" && typeof entry.fileName === "string")
+		.map((entry) => toPublicAssetUrl(entry.fileName));
+}
+
 export function buildVersionPayload(version, bundle = {}) {
 	const offlineIndexFile = getChunkFileName(bundle, "offline/index");
 
@@ -34,5 +40,12 @@ export function buildVersionPayload(version, bundle = {}) {
 				? toPublicAssetUrl(offlineIndexFile)
 				: toPublicAssetUrl("offline/index.js"),
 		},
+		// Every dynamically-imported chunk (vendor, route views, composables, ...)
+		// is requested by the browser with no cache-busting query param, so a
+		// long-lived HTTP cache entry for one of these can outlive a rebuild that
+		// deleted it, leaving a page importing a stale, now-nonexistent chunk
+		// alongside otherwise-current ones. Recovery force-revalidates each of
+		// these URLs (fetch with cache:"reload") before retrying the boot.
+		chunkFiles: getAllChunkFileNames(bundle),
 	};
 }

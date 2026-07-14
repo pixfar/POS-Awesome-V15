@@ -37,6 +37,11 @@ describe("chunk load recovery helpers", () => {
 				"SyntaxError: The requested module './offline/index.js' does not provide an export named 'ag'",
 			),
 		).toBe(true);
+		expect(
+			isDynamicImportFailure(
+				new TypeError("Cannot read properties of undefined (reading '_s')"),
+			),
+		).toBe(true);
 	});
 
 	it("ignores non-chunk errors", () => {

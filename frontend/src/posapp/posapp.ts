@@ -141,25 +141,41 @@ class PosAppController {
 		this.app.use(vuetify);
 		this.app.use(themePlugin, { vuetify });
 
+		const showGlobalErrorToast = (err: any, info: string) => {
+			if (isBenignGlobalError(err)) {
+				return;
+			}
+			console.error("Global Error:", err, info);
+			const toastStore = useToastStore();
+			toastStore.show({
+				message: `An unexpected error occurred: ${err?.message || err}`,
+				color: "error",
+				timeout: 5000,
+			});
+		};
+
 		this.app.config.errorHandler = (
 			err: any,
 			_instance: any,
 			info: string,
 		) => {
 			if (isDynamicImportFailure(err)) {
-				void recoverFromChunkLoadError(err, "vue-error-handler");
+				// recoverFromChunkLoadError only actually navigates away (via
+				// window.location.replace) on its first two attempts; once a
+				// prior failure already exhausted those (or storage says this
+				// session already gave up), it resolves false without doing
+				// anything. Fall back to the normal toast in that case instead
+				// of silently leaving the user on a blank page with zero
+				// feedback -- a stuck reload is still better shown than hidden.
+				void recoverFromChunkLoadError(err, "vue-error-handler").then((recovered) => {
+					if (!recovered) {
+						showGlobalErrorToast(err, info);
+					}
+				});
 				return;
 			}
 
-			if (!isBenignGlobalError(err)) {
-				console.error("Global Error:", err, info);
-				const toastStore = useToastStore();
-				toastStore.show({
-					message: `An unexpected error occurred: ${err?.message || err}`,
-					color: "error",
-					timeout: 5000,
-				});
-			}
+			showGlobalErrorToast(err, info);
 		};
 
 		installGlobalErrorHandlers(this.app);

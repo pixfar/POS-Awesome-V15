@@ -30,7 +30,32 @@ describe("build manifest helpers", () => {
 				offlineIndex:
 					"/assets/posawesome/dist/js/offline/index-AbCd1234.js",
 			},
+			chunkFiles: ["/assets/posawesome/dist/js/offline/index-AbCd1234.js"],
 		});
+	});
+
+	it("lists every emitted chunk so recovery can revalidate them all", () => {
+		const payload = buildVersionPayload("build-3000", {
+			"vendor-AAA.js": {
+				type: "chunk",
+				name: "vendor",
+				fileName: "vendor-AAA.js",
+			},
+			"DefaultLayout-BBB.js": {
+				type: "chunk",
+				name: "DefaultLayout",
+				fileName: "DefaultLayout-BBB.js",
+			},
+			"posawesome.css": {
+				type: "asset",
+				fileName: "posawesome.css",
+			},
+		});
+
+		expect(payload.chunkFiles).toEqual([
+			"/assets/posawesome/dist/js/vendor-AAA.js",
+			"/assets/posawesome/dist/js/DefaultLayout-BBB.js",
+		]);
 	});
 
 	it("cache-busts stable shell asset URLs with the build version", () => {

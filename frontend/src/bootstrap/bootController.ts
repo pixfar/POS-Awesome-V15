@@ -41,6 +41,7 @@ export type BuildMetadata = {
 	version?: string;
 	buildVersion?: string;
 	assets?: Record<string, string>;
+	chunkFiles?: string[];
 };
 
 export type BootAssetResult =
