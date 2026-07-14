@@ -79,6 +79,28 @@ const routes = [
 		},
 	},
 	{
+		path: "/expenses",
+		redirect: "/expenses/list",
+	},
+	{
+		path: "/expenses/list",
+		component: () => import("../components/pos/expense/ExpenseList.vue"),
+		meta: {
+			title: "Expenses",
+			layout: "default",
+			loadingMessage: "Loading expenses...",
+		},
+	},
+	{
+		path: "/expenses/new",
+		component: () => import("../components/pos/expense/ExpenseNew.vue"),
+		meta: {
+			title: "New Expense",
+			layout: "default",
+			loadingMessage: "Loading new expense...",
+		},
+	},
+	{
 		path: "/material-transfers",
 		redirect: "/material-transfers/list",
 	},

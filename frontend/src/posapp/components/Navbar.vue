@@ -304,6 +304,14 @@ export default {
 					],
 				},
 				{
+					text: "Expense",
+					icon: "mdi-receipt-text-edit-outline",
+					children: [
+						{ text: "New Expense", icon: "mdi-plus-circle-outline", to: "/expenses/new" },
+						{ text: "Expenses", icon: "mdi-format-list-bulleted", to: "/expenses/list" },
+					],
+				},
+				{
 					text: "Payment",
 					icon: "mdi-cash-multiple",
 					children: [
