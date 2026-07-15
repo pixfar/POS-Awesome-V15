@@ -80,6 +80,11 @@ const reportGroups = [
 		icon: 'mdi-warehouse',
 		reports: [
 			{
+				title: 'BSP Stock Balance',
+				name: 'BSP Stock Balance',
+				icon: 'mdi-clipboard-list-outline',
+			},
+			{
 				title: 'Stock Balance',
 				name: 'Stock Balance',
 				icon: 'mdi-scale-balance',
