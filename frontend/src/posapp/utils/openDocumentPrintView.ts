@@ -1,10 +1,16 @@
-import { openDocumentPdfPrint } from './openDocumentPdfPrint';
+import { silentPrint } from '../plugins/print';
 
 declare const frappe: any;
 
 /**
- * Open a document print using PDF (not HTML printview) so browser chrome
- * (date, title, URL, page numbers) is not stamped on the page.
+ * Print a document via the same HTML printview Frappe already renders
+ * correctly (e.g. /printview?doctype=...&no_letterhead=1). A generated PDF
+ * embedded in a hidden iframe was tried previously, but a fixed-size iframe
+ * can't reliably display/print a PDF that may span multiple pages, so
+ * content beyond the iframe's viewport silently never printed. The HTML
+ * printview paginates natively under the browser's print engine, and the
+ * print formats already set `@page { margin: 0 }` in their print CSS, which
+ * suppresses the browser's date/title/URL/page-number chrome.
  */
 export async function openDocumentPrintView(
 	doctype: string,
@@ -15,30 +21,21 @@ export async function openDocumentPrintView(
 		return;
 	}
 
-	try {
-		await openDocumentPdfPrint({
-			doctype,
-			name,
-			printFormat: printFormat || undefined,
-			autoPrint: true,
-		});
-	} catch (error) {
-		console.warn('PDF print failed, falling back to printview', error);
-		const params = new URLSearchParams({
-			doctype,
-			name,
-			trigger_print: '1',
-		});
-		if (printFormat) {
-			params.set('format', printFormat);
-		}
-		const baseUrl = frappe?.urllib?.get_base_url
-			? frappe.urllib.get_base_url()
-			: '';
-		window.open(
-			`${baseUrl}/printview?${params.toString()}`,
-			'_blank',
-			'noopener,noreferrer',
-		);
+	const params = new URLSearchParams({
+		doctype,
+		name,
+		trigger_print: '1',
+		no_letterhead: '1',
+		letterhead: 'No Letterhead',
+	});
+	if (printFormat) {
+		params.set('format', printFormat);
 	}
+
+	const baseUrl = frappe?.urllib?.get_base_url
+		? frappe.urllib.get_base_url()
+		: '';
+	const url = `${baseUrl}/printview?${params.toString()}`;
+
+	silentPrint(url, { triggerPrint: '1' });
 }

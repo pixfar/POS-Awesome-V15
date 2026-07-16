@@ -79,14 +79,17 @@ export async function openDocumentPdfPrint(
 	const iframe = document.createElement('iframe');
 	iframe.setAttribute('title', 'Document Print');
 	iframe.setAttribute('aria-hidden', 'true');
+	// The iframe needs real rendering area for the browser's built-in PDF
+	// viewer to actually rasterize the document; a 0x0 iframe loads the
+	// blob but never paints anything, so print() fires on empty content.
+	// Keep it off-screen instead of zero-sized.
 	Object.assign(iframe.style, {
 		position: 'fixed',
-		right: '0',
-		bottom: '0',
-		width: '0',
-		height: '0',
+		top: '-10000px',
+		left: '-10000px',
+		width: '800px',
+		height: '1000px',
 		border: '0',
-		opacity: '0',
 		pointerEvents: 'none',
 	});
 
