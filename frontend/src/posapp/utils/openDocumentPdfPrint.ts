@@ -82,13 +82,15 @@ export async function openDocumentPdfPrint(
 	// The iframe needs real rendering area for the browser's built-in PDF
 	// viewer to actually rasterize the document; a 0x0 iframe loads the
 	// blob but never paints anything, so print() fires on empty content.
-	// Keep it off-screen instead of zero-sized.
+	// Must be at least as tall as an A4 page (~1123px at 96dpi) or the PDF
+	// viewer only paints what's within its box, cropping content near the
+	// bottom when printed. Keep it off-screen instead of zero-sized.
 	Object.assign(iframe.style, {
 		position: 'fixed',
 		top: '-10000px',
 		left: '-10000px',
-		width: '800px',
-		height: '1000px',
+		width: '850px',
+		height: '1250px',
 		border: '0',
 		pointerEvents: 'none',
 	});

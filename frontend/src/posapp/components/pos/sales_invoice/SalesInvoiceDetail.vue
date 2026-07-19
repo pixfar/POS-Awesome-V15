@@ -20,6 +20,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import format from '../../../format';
+import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
@@ -174,8 +175,18 @@ export default {
 		goBack() {
 			this.router.push('/sales-invoices/list');
 		},
-		printDocument() {
-			openDocumentPrintView(this.doctype, this.name);
+		async printDocument() {
+			try {
+				await openDocumentPdfPrint({
+					doctype: this.doctype,
+					name: this.name,
+					noLetterhead: 1,
+					autoPrint: false,
+				});
+			} catch (error) {
+				console.warn('PDF print failed, falling back to printview', error);
+				openDocumentPrintView(this.doctype, this.name);
+			}
 		},
 	},
 };

@@ -62,6 +62,16 @@
 								<!-- Col 3: Purchase Options (Warehouse, Date, Toggles) -->
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
 									<div class="sale-options-body">
+										<VueDatePicker
+											v-model="postingDateTime"
+											model-type="format"
+											format="dd-MM-yyyy HH:mm"
+											enable-time-picker
+											auto-apply
+											teleport
+											:placeholder="frappe._('Purchase Date')"
+											class="sleek-field pos-themed-input mb-2"
+										/>
 										<div class="sale-options-toggles">
 											<v-switch
 												v-model="updateStock"

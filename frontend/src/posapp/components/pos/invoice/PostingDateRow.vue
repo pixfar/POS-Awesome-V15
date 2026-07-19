@@ -1,52 +1,29 @@
 <template>
-	<v-row align="center" class="items px-3 py-2 mt-0" v-if="pos_profile.posa_allow_change_posting_date">
-		<v-col cols="12" sm="6" class="pb-2">
-			<VueDatePicker
-				ref="postingDatePicker"
-				v-model="internal_posting_date_display"
-				model-type="format"
-				format="dd-MM-yyyy"
-				auto-apply
-				teleport
-				:placeholder="placeholderText"
-				class="sleek-field posting-date-input pos-themed-input"
-				@update:model-value="onUpdate"
-			/>
-		</v-col>
-		<v-col
+	<div class="posting-date-row">
+		<VueDatePicker
+			ref="postingDatePicker"
+			v-model="internal_posting_date_display"
+			model-type="format"
+			format="dd-MM-yyyy"
+			auto-apply
+			teleport
+			:placeholder="placeholderText"
+			class="sleek-field posting-date-input pos-themed-input mb-2"
+			@update:model-value="onUpdate"
+		/>
+		<v-select
 			v-if="pos_profile.posa_enable_price_list_dropdown"
-			cols="12"
-			sm="6"
-			class="pb-2 d-flex align-center posting-meta-col"
-		>
-			<v-select
-				density="comfortable"
-				variant="solo"
-				color="primary"
-				:items="priceLists"
-				:label="priceListLabel"
-				v-model="internal_price_list"
-				hide-details
-				class="flex-grow-1 sleek-field"
-				@update:model-value="onPriceListUpdate"
-			/>
-			<div v-if="pos_profile.posa_show_customer_balance" class="balance-field ml-3">
-				<strong>{{ __("Customer Balance") }}:</strong>
-				<span class="balance-value">{{ formatCurrency(customer_balance) }}</span>
-			</div>
-		</v-col>
-		<v-col
-			v-else-if="pos_profile.posa_show_customer_balance"
-			cols="12"
-			sm="6"
-			class="pb-2 d-flex align-center posting-meta-col"
-		>
-			<div class="balance-field">
-				<strong>{{ __("Customer Balance") }}:</strong>
-				<span class="balance-value">{{ formatCurrency(customer_balance) }}</span>
-			</div>
-		</v-col>
-	</v-row>
+			density="comfortable"
+			variant="solo"
+			color="primary"
+			:items="priceLists"
+			:label="priceListLabel"
+			v-model="internal_price_list"
+			hide-details
+			class="sleek-field mb-2"
+			@update:model-value="onPriceListUpdate"
+		/>
+	</div>
 </template>
 
 <script setup lang="ts">
@@ -75,7 +52,7 @@ const internal_posting_date_display = ref(props.posting_date_display);
 const internal_price_list = ref(props.priceList);
 const postingDatePicker = ref<any>(null);
 
-const placeholderText = computed(() => frappe._("Posting Date"));
+const placeholderText = computed(() => frappe._("Sales Date"));
 const priceListLabel = computed(() => frappe._("Price List"));
 
 watch(
@@ -138,15 +115,6 @@ defineExpose({
 	background-color: var(--pos-card-bg) !important;
 	color: var(--pos-text-primary) !important;
 	z-index: 4000 !important;
-}
-
-.posting-meta-col {
-	justify-content: flex-end;
-}
-
-.balance-field {
-	margin-left: auto;
-	text-align: right;
 }
 
 /* Ensure calendar numbers remain visible across themes */

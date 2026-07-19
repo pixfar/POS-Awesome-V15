@@ -70,7 +70,7 @@
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
 									<div class="invoice-section-heading">
 										<h3 class="invoice-section-heading__title">
-											{{ __("Items Required Date") }}
+											{{ __("Transfer Date") }}
 										</h3>
 									</div>
 									<div class="sale-options-body">
@@ -80,7 +80,7 @@
 											format="dd-MM-yyyy"
 											auto-apply
 											teleport
-											:placeholder="__('Items Required Date')"
+											:placeholder="__('Transfer Date')"
 											class="sleek-field pos-themed-input"
 										/>
 									</div>

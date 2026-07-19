@@ -44,12 +44,39 @@
 			</v-card-actions>
 		</v-card>
 	</v-dialog>
+
+	<v-dialog v-model="printFormatDialog" max-width="380">
+		<v-card class="pos-themed-card">
+			<v-card-title class="d-flex align-center gap-2">
+				<v-icon color="primary">mdi-printer-outline</v-icon>
+				<span>{{ __("Select Print Format") }}</span>
+			</v-card-title>
+			<v-card-text>
+				<v-select
+					v-model="selectedPrintFormat"
+					:items="printFormatOptions"
+					:label="__('Print Format')"
+					variant="outlined"
+					density="comfortable"
+					hide-details
+				/>
+			</v-card-text>
+			<v-card-actions>
+				<v-spacer />
+				<v-btn variant="text" @click="printFormatDialog = false">{{ __("Cancel") }}</v-btn>
+				<v-btn color="primary" variant="flat" :loading="printLoading" @click="confirmPrint">
+					{{ __("Print") }}
+				</v-btn>
+			</v-card-actions>
+		</v-card>
+	</v-dialog>
 </template>
 
 <script>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToastStore } from '../../../stores/toastStore';
+import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
 import ConfirmReceiptDialog from '../requisition/ConfirmReceiptDialog.vue';
@@ -71,6 +98,10 @@ export default {
 		const confirmLoading = ref(false);
 		const rejectDialog = ref(false);
 		const rejectLoading = ref(false);
+		const printFormatDialog = ref(false);
+		const printLoading = ref(false);
+		const printFormatOptions = ['BSP Material Transfer', 'BSP Delivery Note'];
+		const selectedPrintFormat = ref(printFormatOptions[0]);
 
 		const formatDisplayDate = (value) => {
 			if (!value) return '—';
@@ -224,7 +255,29 @@ export default {
 			}
 		};
 
-		const printDocument = () => openDocumentPrintView('Material Transfer', name);
+		const openPrintFormatDialog = () => {
+			printFormatDialog.value = true;
+		};
+
+		const confirmPrint = async () => {
+			printLoading.value = true;
+			try {
+				await openDocumentPdfPrint({
+					doctype: 'Material Transfer',
+					name,
+					printFormat: selectedPrintFormat.value,
+					noLetterhead: 1,
+					autoPrint: false,
+				});
+				printFormatDialog.value = false;
+			} catch (error) {
+				console.warn('PDF print failed, falling back to printview', error);
+				openDocumentPrintView('Material Transfer', name, selectedPrintFormat.value);
+				printFormatDialog.value = false;
+			} finally {
+				printLoading.value = false;
+			}
+		};
 
 		const actions = computed(() => {
 			const list = [];
@@ -232,7 +285,7 @@ export default {
 				list.push({ label: __('Received'), color: 'primary', onClick: openConfirmReceipt });
 				list.push({ label: __('Rejected'), color: 'error', onClick: openRejectDialog });
 			}
-			list.push({ label: __('Print'), color: 'primary', onClick: printDocument });
+			list.push({ label: __('Print'), color: 'primary', onClick: openPrintFormatDialog });
 			return list;
 		});
 
@@ -260,6 +313,11 @@ export default {
 			rejectDialog,
 			rejectLoading,
 			handleRejectTransfer,
+			printFormatDialog,
+			printLoading,
+			printFormatOptions,
+			selectedPrintFormat,
+			confirmPrint,
 			goBack,
 		};
 	},
