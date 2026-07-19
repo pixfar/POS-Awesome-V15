@@ -80,6 +80,21 @@ def get_purchase_invoice_detail(name):
 	return po.get_purchase_invoice_detail(name)
 
 
+@frappe.whitelist()
+def cancel_purchase_invoice(invoice):
+	return po.cancel_purchase_invoice(invoice)
+
+
+@frappe.whitelist()
+def delete_cancelled_purchase_invoice(invoice):
+	return po.delete_cancelled_purchase_invoice(invoice)
+
+
+@frappe.whitelist()
+def create_purchase_return(invoice):
+	return po.create_purchase_return(invoice)
+
+
 # Generic item search used by ItemsSelector in purchase context.
 @frappe.whitelist()
 def search_items(search_text=None, limit=20):

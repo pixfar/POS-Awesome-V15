@@ -359,6 +359,81 @@ def delete_invoice(invoice):
     return _("Invoice {0} Deleted").format(invoice)
 
 
+def _resolve_invoice_doctype(invoice, doctype):
+    from frappe import _
+
+    if doctype:
+        if not frappe.db.exists(doctype, invoice):
+            frappe.throw(_("Invoice {0} does not exist").format(invoice))
+        return doctype
+    if frappe.db.exists("Sales Invoice", invoice):
+        return "Sales Invoice"
+    if frappe.db.exists("POS Invoice", invoice):
+        return "POS Invoice"
+    frappe.throw(_("Invoice {0} does not exist").format(invoice))
+
+
+@frappe.whitelist()
+def cancel_sales_invoice(invoice, doctype=None):
+    """Cancel a submitted Sales/POS Invoice. Restricted to System Manager so
+    front-line POS users can't reverse a sale's stock/payment/GL effects."""
+    from frappe import _
+
+    if "System Manager" not in frappe.get_roles(frappe.session.user):
+        frappe.throw(
+            _("Only a user with the System Manager role can cancel this document."),
+            frappe.PermissionError,
+        )
+
+    doctype = _resolve_invoice_doctype(invoice, doctype)
+    doc = frappe.get_doc(doctype, invoice)
+    if doc.docstatus != 1:
+        frappe.throw(_("Only a submitted document can be cancelled."))
+
+    doc.cancel()
+    return {"name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def delete_cancelled_sales_invoice(invoice, doctype=None):
+    """Permanently delete a Sales/POS Invoice, but only once it is Cancelled —
+    submitted/draft documents must go through cancel_sales_invoice first."""
+    from frappe import _
+    from posawesome.posawesome.api.invoice import delete_invoice_submission_ledger_entries_for_invoice
+
+    doctype = _resolve_invoice_doctype(invoice, doctype)
+    if frappe.db.get_value(doctype, invoice, "docstatus") != 2:
+        frappe.throw(_("Only a cancelled document can be deleted."))
+
+    frappe.delete_doc(doctype, invoice)
+    delete_invoice_submission_ledger_entries_for_invoice(doctype, invoice)
+    return {"name": invoice}
+
+
+@frappe.whitelist()
+def create_sales_return(invoice, doctype=None):
+    """Create and submit a full return against a submitted Sales/POS Invoice
+    using ERPNext's own return-mapping logic (make_return_doc), so stock,
+    payments, and GL entries are reversed exactly as ERPNext does natively."""
+    from frappe import _
+    from erpnext.controllers.sales_and_purchase_return import make_return_doc
+
+    doctype = _resolve_invoice_doctype(invoice, doctype)
+    source = frappe.get_doc(doctype, invoice)
+    if source.docstatus != 1:
+        frappe.throw(_("Only a submitted document can be returned."))
+    if source.is_return:
+        frappe.throw(_("This document is already a return."))
+
+    enable_validity, _default_days = _get_return_validity_settings(source.get("pos_profile"))
+
+    return_doc = make_return_doc(doctype, invoice)
+    _validate_return_window(return_doc, doctype, enable_validity)
+    return_doc.insert()
+    return_doc.submit()
+    return {"name": return_doc.name}
+
+
 @frappe.whitelist()
 def fetch_exchange_rate_pair(from_currency, to_currency):
     """Return exchange rate payload expected by POS multi-currency UI."""

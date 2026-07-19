@@ -911,6 +911,7 @@ def get_purchase_invoices_list(
         "status",
         "currency",
         "owner",
+        "is_return",
     ]
 
     rows = frappe.get_list(
@@ -1121,3 +1122,51 @@ def _create_purchase_invoice(po_doc, payload, default_warehouse, transaction_dat
     invoice.insert()
     invoice.submit()
     return invoice.name
+
+
+@frappe.whitelist()
+def cancel_purchase_invoice(invoice):
+    """Cancel a submitted Purchase Invoice. Restricted to System Manager so
+    front-line POS users can't reverse a purchase's stock/payment/GL effects."""
+    if "System Manager" not in frappe.get_roles(frappe.session.user):
+        frappe.throw(
+            _("Only a user with the System Manager role can cancel this document."),
+            frappe.PermissionError,
+        )
+
+    doc = frappe.get_doc("Purchase Invoice", invoice)
+    if doc.docstatus != 1:
+        frappe.throw(_("Only a submitted document can be cancelled."))
+
+    doc.cancel()
+    return {"name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def delete_cancelled_purchase_invoice(invoice):
+    """Permanently delete a Purchase Invoice, but only once it is Cancelled —
+    submitted/draft documents must go through cancel_purchase_invoice first."""
+    if frappe.db.get_value("Purchase Invoice", invoice, "docstatus") != 2:
+        frappe.throw(_("Only a cancelled document can be deleted."))
+
+    frappe.delete_doc("Purchase Invoice", invoice)
+    return {"name": invoice}
+
+
+@frappe.whitelist()
+def create_purchase_return(invoice):
+    """Create and submit a full return against a submitted Purchase Invoice
+    using ERPNext's own return-mapping logic (make_return_doc), so stock,
+    payments, and GL entries are reversed exactly as ERPNext does natively."""
+    from erpnext.controllers.sales_and_purchase_return import make_return_doc
+
+    source = frappe.get_doc("Purchase Invoice", invoice)
+    if source.docstatus != 1:
+        frappe.throw(_("Only a submitted document can be returned."))
+    if source.is_return:
+        frappe.throw(_("This document is already a return."))
+
+    return_doc = make_return_doc("Purchase Invoice", invoice)
+    return_doc.insert()
+    return_doc.submit()
+    return {"name": return_doc.name}

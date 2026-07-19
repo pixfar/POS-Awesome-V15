@@ -205,16 +205,50 @@
 						</span>
 					</template>
 					<template #item.actions="{ item }">
-						<div class="d-flex justify-end ga-1 flex-wrap">
-							<v-btn
-								size="small"
-								variant="tonal"
-								color="primary"
-								class="text-none"
-								@click.stop="openInvoiceDetail(item)"
-							>
-								{{ __("View") }}
-							</v-btn>
+						<div class="d-flex justify-end">
+							<v-menu :close-on-content-click="true" location="bottom end">
+								<template #activator="{ props }">
+									<v-btn
+										v-bind="props"
+										icon
+										size="small"
+										variant="text"
+										class="pos-list-row-actions-btn"
+										:loading="actionLoadingName === item.name"
+										:aria-label="__('Actions')"
+										:title="__('Actions')"
+										@click.stop
+									>
+										<v-icon>mdi-dots-vertical</v-icon>
+									</v-btn>
+								</template>
+								<v-list density="compact" min-width="190">
+									<v-list-item @click="openInvoiceDetail(item)">
+										<template #prepend>
+											<v-icon size="18">mdi-eye-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("View") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item v-if="canReturn(item)" @click="openReturnConfirm(item)">
+										<template #prepend>
+											<v-icon size="18" color="blue">mdi-keyboard-return</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Purchase Return") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item v-if="canCancel(item)" @click="openCancelConfirm(item)">
+										<template #prepend>
+											<v-icon size="18" color="error">mdi-cancel</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Cancel") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item v-if="canDelete(item)" @click="openDeleteConfirm(item)">
+										<template #prepend>
+											<v-icon size="18" color="error">mdi-delete-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Delete") }}</v-list-item-title>
+									</v-list-item>
+								</v-list>
+							</v-menu>
 						</div>
 					</template>
 				</v-data-table>
@@ -301,6 +335,28 @@
 				<v-progress-circular indeterminate color="primary" />
 			</div>
 		</v-card>
+
+		<v-dialog v-model="confirmDialog" max-width="420">
+			<v-card class="pos-themed-card">
+				<v-card-title class="d-flex align-center gap-2">
+					<v-icon :color="confirmDialogColor">mdi-alert-circle-outline</v-icon>
+					<span>{{ confirmDialogTitle }}</span>
+				</v-card-title>
+				<v-card-text>{{ confirmDialogMessage }}</v-card-text>
+				<v-card-actions>
+					<v-spacer />
+					<v-btn variant="text" @click="confirmDialog = false">{{ __("Cancel") }}</v-btn>
+					<v-btn
+						:color="confirmDialogColor"
+						variant="flat"
+						:loading="actionLoadingName === confirmDialogItem?.name"
+						@click="runConfirmedAction"
+					>
+						{{ confirmDialogActionLabel }}
+					</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
 	</div>
 </template>
 
@@ -309,6 +365,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
+import { useToastStore } from '../../../stores/toastStore';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import DateFilterField from '../shared/DateFilterField.vue';
 
@@ -328,6 +385,107 @@ export default {
 	setup() {
 		const router = useRouter();
 		const uiStore = useUIStore();
+		const toastStore = useToastStore();
+
+		const isSystemManager = computed(() =>
+			(frappe?.boot?.user?.roles || []).includes('System Manager'),
+		);
+
+		const NON_CANCELLABLE_STATUSES = ['Draft', 'Cancelled'];
+		const canReturn = (item) =>
+			!item.is_return && !NON_CANCELLABLE_STATUSES.includes(item.status);
+		const canCancel = (item) =>
+			isSystemManager.value && !NON_CANCELLABLE_STATUSES.includes(item.status);
+		const canDelete = (item) => item.status === 'Cancelled';
+
+		const actionLoadingName = ref(null);
+		const confirmDialog = ref(false);
+		const confirmDialogItem = ref(null);
+		const confirmDialogAction = ref(null);
+		const confirmDialogTitle = ref('');
+		const confirmDialogMessage = ref('');
+		const confirmDialogActionLabel = ref('');
+		const confirmDialogColor = ref('error');
+
+		const openReturnConfirm = (item) => {
+			confirmDialogItem.value = item;
+			confirmDialogAction.value = 'return';
+			confirmDialogTitle.value = __('Create Purchase Return');
+			confirmDialogMessage.value = __(
+				'This will create and submit a full return against {0}, reversing its stock and payment effects. Continue?',
+				[item.name],
+			);
+			confirmDialogActionLabel.value = __('Create Return');
+			confirmDialogColor.value = 'blue';
+			confirmDialog.value = true;
+		};
+
+		const openCancelConfirm = (item) => {
+			confirmDialogItem.value = item;
+			confirmDialogAction.value = 'cancel';
+			confirmDialogTitle.value = __('Cancel Purchase Invoice');
+			confirmDialogMessage.value = __(
+				'This will cancel {0} and reverse its stock, payment, and accounting entries. This cannot be undone. Continue?',
+				[item.name],
+			);
+			confirmDialogActionLabel.value = __('Cancel Invoice');
+			confirmDialogColor.value = 'error';
+			confirmDialog.value = true;
+		};
+
+		const openDeleteConfirm = (item) => {
+			confirmDialogItem.value = item;
+			confirmDialogAction.value = 'delete';
+			confirmDialogTitle.value = __('Delete Purchase Invoice');
+			confirmDialogMessage.value = __(
+				'This will permanently delete cancelled invoice {0}. This cannot be undone. Continue?',
+				[item.name],
+			);
+			confirmDialogActionLabel.value = __('Delete');
+			confirmDialogColor.value = 'error';
+			confirmDialog.value = true;
+		};
+
+		const runConfirmedAction = async () => {
+			const item = confirmDialogItem.value;
+			const action = confirmDialogAction.value;
+			if (!item || !action) return;
+
+			actionLoadingName.value = item.name;
+			try {
+				if (action === 'return') {
+					const { message } = await frappe.call({
+						method: 'posawesome.posawesome.api.purchase_invoices.create_purchase_return',
+						args: { invoice: item.name },
+					});
+					toastStore.show({
+						title: __('Return {0} created', [message?.name]),
+						color: 'success',
+					});
+				} else if (action === 'cancel') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.purchase_invoices.cancel_purchase_invoice',
+						args: { invoice: item.name },
+					});
+					toastStore.show({ title: __('{0} cancelled', [item.name]), color: 'success' });
+				} else if (action === 'delete') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.purchase_invoices.delete_cancelled_purchase_invoice',
+						args: { invoice: item.name },
+					});
+					toastStore.show({ title: __('{0} deleted', [item.name]), color: 'success' });
+				}
+				confirmDialog.value = false;
+				await loadInvoices();
+			} catch (e) {
+				toastStore.show({
+					title: e?.message || __('Action failed'),
+					color: 'error',
+				});
+			} finally {
+				actionLoadingName.value = null;
+			}
+		};
 		const invoiceList = ref([]);
 		const listLoading = ref(false);
 		const mineOnly = ref(false);
@@ -668,6 +826,21 @@ export default {
 			statusColor,
 			goToNew,
 			openInvoiceDetail,
+			isSystemManager,
+			canReturn,
+			canCancel,
+			canDelete,
+			actionLoadingName,
+			confirmDialog,
+			confirmDialogItem,
+			confirmDialogTitle,
+			confirmDialogMessage,
+			confirmDialogActionLabel,
+			confirmDialogColor,
+			openReturnConfirm,
+			openCancelConfirm,
+			openDeleteConfirm,
+			runConfirmedAction,
 		};
 	},
 };
