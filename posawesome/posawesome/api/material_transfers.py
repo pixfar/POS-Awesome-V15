@@ -14,6 +14,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_warehouse_doc_read_access,
 	get_warehouse_doc_list_rows,
 	get_warehouse_doc_status_counts,
+	is_system_manager,
 )
 
 
@@ -109,8 +110,10 @@ def get_material_transfers_list(
 		search=search,
 		search_fields=['name', 'from_warehouse', 'to_warehouse', 'requested_by'],
 		# Rejecting a transfer cancels it (docstatus=2); it should still show up in
-		# the list with a Rejected status rather than disappearing.
+		# the list with a Rejected status rather than disappearing. Drafts
+		# (docstatus=0) stay visible too, so they remain deletable.
 		include_cancelled=True,
+		include_draft=True,
 	)
 
 	rows, total = get_warehouse_doc_list_rows(
@@ -124,6 +127,7 @@ def get_material_transfers_list(
 			'from_warehouse',
 			'to_warehouse',
 			'transfer_status',
+			'docstatus',
 			'modified',
 		],
 		page_start=page_start,
@@ -213,3 +217,27 @@ def search_items(search_text=None, limit=20):
 		order_by='item_name asc',
 		limit_page_length=limit,
 	)
+
+
+@frappe.whitelist()
+def delete_cancelled_material_transfer(transfer):
+	"""Permanently delete a Draft or Cancelled Material Transfer. A submitted
+	(In Transit / Received) transfer must be rejected first.
+
+	reject_transfer always creates and then cancels a linked Stock Entry
+	(custom_material_transfer points back at this doc), so every Cancelled
+	transfer is guaranteed to still be link-checked against that now-cancelled
+	Stock Entry. force=True skips that check the same way invoices.py's
+	delete_invoice already does for draft invoices -- the Stock Entry itself
+	is untouched and remains as the cancelled audit trail."""
+	if not is_system_manager():
+		frappe.throw(
+			_('Only a System Manager can delete Material Transfers.'),
+			exc=frappe.PermissionError,
+		)
+
+	if frappe.db.get_value('Material Transfer', transfer, 'docstatus') not in (0, 2):
+		frappe.throw(_('Only a draft or cancelled document can be deleted.'))
+
+	frappe.delete_doc('Material Transfer', transfer, ignore_permissions=True, force=True)
+	return {'name': transfer}

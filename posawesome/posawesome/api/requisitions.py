@@ -110,6 +110,11 @@ def get_requisitions_list(
 		warehouse=warehouse,
 		search=search,
 		search_fields=['name', 'source_warehouse', 'target_warehouse', 'requested_by'],
+		# A cancelled Requisition (docstatus=2) should still show up in the list
+		# rather than disappearing, matching Material Transfer's list behavior.
+		# Drafts (docstatus=0) stay visible too, so they remain deletable.
+		include_cancelled=True,
+		include_draft=True,
 	)
 
 	rows, total = get_warehouse_doc_list_rows(
@@ -123,6 +128,7 @@ def get_requisitions_list(
 			'source_warehouse',
 			'target_warehouse',
 			'transfer_status',
+			'docstatus',
 			'modified',
 		],
 		page_start=page_start,
@@ -211,6 +217,43 @@ def set_requisition_status(requisition, status):
 
 	doc.db_set('transfer_status', status, update_modified=False)
 	return {'name': doc.name, 'transfer_status': status}
+
+
+@frappe.whitelist()
+def cancel_requisition(requisition):
+	"""Cancel a submitted Requisition. Restricted to System Manager, matching
+	the Sales/Purchase Invoice cancel gate elsewhere in POS Awesome. Requisition
+	never creates a Stock Entry (unlike Material Transfer), so there is nothing
+	beyond docstatus for a plain cancel to reverse."""
+	if "System Manager" not in frappe.get_roles(frappe.session.user):
+		frappe.throw(
+			_("Only a user with the System Manager role can cancel this document."),
+			frappe.PermissionError,
+		)
+
+	doc = frappe.get_doc('Requisition', requisition)
+	if doc.docstatus != 1:
+		frappe.throw(_('Only a submitted document can be cancelled.'))
+
+	doc.flags.ignore_permissions = True
+	doc.cancel()
+	return {'name': doc.name, 'docstatus': doc.docstatus}
+
+
+@frappe.whitelist()
+def delete_cancelled_requisition(requisition):
+	"""Permanently delete a Draft or Cancelled Requisition."""
+	if not is_system_manager():
+		frappe.throw(
+			_('Only a System Manager can delete Requisitions.'),
+			exc=frappe.PermissionError,
+		)
+
+	if frappe.db.get_value('Requisition', requisition, 'docstatus') not in (0, 2):
+		frappe.throw(_('Only a draft or cancelled document can be deleted.'))
+
+	frappe.delete_doc('Requisition', requisition, ignore_permissions=True)
+	return {'name': requisition}
 
 
 @frappe.whitelist()

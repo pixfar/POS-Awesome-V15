@@ -178,30 +178,16 @@
 						</span>
 					</template>
 					<template #item.transfer_status="{ item }">
-						<v-chip size="small" variant="tonal" :color="statusColor(item.transfer_status)">
-							{{ item.transfer_status }}
+						<v-chip size="small" variant="tonal" :color="statusColor(displayStatus(item))">
+							{{ displayStatus(item) }}
 						</v-chip>
 					</template>
 					<template #item.actions="{ item }">
-						<div class="d-flex justify-end ga-1 flex-wrap" v-if="item.can_manage_status">
-							<v-btn
-								size="small"
-								variant="tonal"
-								color="success"
-								class="text-none"
-								@click.stop="requestUpdateStatus(item.name, 'Received')"
-							>
-								{{ __("Received") }}
-							</v-btn>
-							<v-btn
-								size="small"
-								variant="tonal"
-								color="error"
-								class="text-none"
-								@click.stop="requestUpdateStatus(item.name, 'Rejected')"
-							>
-								{{ __("Rejected") }}
-							</v-btn>
+						<div class="d-flex justify-end">
+							<RowActionsMenu
+								:actions="rowActions(item)"
+								@action="(key) => handleRowAction(key, item)"
+							/>
 						</div>
 					</template>
 				</v-data-table>
@@ -308,19 +294,27 @@ import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import RowActionsMenu from '../shared/RowActionsMenu.vue';
 
 const STATUS_CONFIRM_MESSAGES = {
 	Received: __('Mark this requisition as Received? This confirms the stock transfer is complete.'),
 	Rejected: __('Reject this requisition? This cannot be undone.'),
+	Cancel: __('Cancel this requisition? This cannot be undone.'),
+	Delete: __('Permanently delete this cancelled requisition? This cannot be undone.'),
 };
 
 export default {
 	name: 'RequisitionList',
-	components: { DateFilterField, ConfirmActionDialog },
+	components: { DateFilterField, ConfirmActionDialog, RowActionsMenu },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
 		const toastStore = useToastStore();
+
+		const isSystemManager = computed(() =>
+			(frappe?.boot?.user?.roles || []).includes('System Manager'),
+		);
+
 		const requisitionList = ref([]);
 		const listLoading = ref(false);
 		const mineOnly = ref(false);
@@ -512,8 +506,66 @@ export default {
 				Sent: 'orange',
 				Received: 'green',
 				Rejected: 'red',
+				Cancelled: 'red',
+				Draft: 'grey',
 			};
 			return map[status] || 'grey';
+		};
+
+		// A Requisition can be cancelled (docstatus=2) independently of its
+		// transfer_status label (Sent/Received/Rejected never changes on
+		// cancel) -- show the real docstatus-derived state so a cancelled row
+		// doesn't misleadingly still read "Sent" in orange.
+		const displayStatus = (item) => {
+			if (item.docstatus === 2) return __('Cancelled');
+			if (item.docstatus === 0) return __('Draft');
+			return item.transfer_status;
+		};
+
+		const rowActions = (item) => [
+			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },
+			{
+				key: 'received',
+				label: __('Received'),
+				icon: 'mdi-check-circle-outline',
+				color: 'success',
+				show: item.can_manage_status,
+			},
+			{
+				key: 'rejected',
+				label: __('Rejected'),
+				icon: 'mdi-close-circle-outline',
+				color: 'error',
+				show: item.can_manage_status,
+			},
+			{
+				key: 'cancel',
+				label: __('Cancel'),
+				icon: 'mdi-cancel',
+				color: 'error',
+				show: isSystemManager.value && item.docstatus === 1,
+			},
+			{
+				key: 'delete',
+				label: __('Delete'),
+				icon: 'mdi-delete-outline',
+				color: 'error',
+				show: item.docstatus === 0 || item.docstatus === 2,
+			},
+		];
+
+		const handleRowAction = (key, item) => {
+			if (key === 'view') {
+				openRequisitionDetail(item);
+			} else if (key === 'received') {
+				requestUpdateStatus(item.name, 'Received');
+			} else if (key === 'rejected') {
+				requestUpdateStatus(item.name, 'Rejected');
+			} else if (key === 'cancel') {
+				requestUpdateStatus(item.name, 'Cancel');
+			} else if (key === 'delete') {
+				requestUpdateStatus(item.name, 'Delete');
+			}
 		};
 
 		const goToNew = () => {
@@ -543,17 +595,35 @@ export default {
 			const { requisition, status } = pendingAction.value;
 			confirmLoading.value = true;
 			try {
-				await frappe.call({
-					method: 'posawesome.posawesome.api.requisitions.set_requisition_status',
-					args: { requisition, status },
-					freeze: true,
-					freeze_message:
-						status === 'Received' ? __('Marking as received...') : __('Marking as rejected...'),
-				});
-				toastStore.show({
-					title: __('Requisition {0} marked {1}', [requisition, status]),
-					color: status === 'Received' ? 'success' : 'warning',
-				});
+				if (status === 'Cancel') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.requisitions.cancel_requisition',
+						args: { requisition },
+						freeze: true,
+						freeze_message: __('Cancelling...'),
+					});
+					toastStore.show({ title: __('Requisition {0} cancelled', [requisition]), color: 'success' });
+				} else if (status === 'Delete') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.requisitions.delete_cancelled_requisition',
+						args: { requisition },
+						freeze: true,
+						freeze_message: __('Deleting...'),
+					});
+					toastStore.show({ title: __('Requisition {0} deleted', [requisition]), color: 'success' });
+				} else {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.requisitions.set_requisition_status',
+						args: { requisition, status },
+						freeze: true,
+						freeze_message:
+							status === 'Received' ? __('Marking as received...') : __('Marking as rejected...'),
+					});
+					toastStore.show({
+						title: __('Requisition {0} marked {1}', [requisition, status]),
+						color: status === 'Received' ? 'success' : 'warning',
+					});
+				}
 				confirmDialogOpen.value = false;
 				pendingAction.value = null;
 				await loadRequisitions();
@@ -609,6 +679,9 @@ export default {
 			goToPage,
 			formatDisplayDate,
 			statusColor,
+			displayStatus,
+			rowActions,
+			handleRowAction,
 			goToNew,
 			confirmDialogOpen,
 			confirmLoading,
@@ -618,6 +691,7 @@ export default {
 			requestUpdateStatus,
 			performUpdateStatus,
 			openRequisitionDetail,
+			isSystemManager,
 		};
 	},
 };

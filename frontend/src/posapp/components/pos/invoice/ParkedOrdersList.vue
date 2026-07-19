@@ -22,13 +22,16 @@
 		</div>
 
 		<div v-if="parkedOrders.length" class="drafts-list__cards">
-			<button
+			<div
 				v-for="draft in parkedOrders"
 				:key="draft.name"
-				type="button"
+				role="button"
+				tabindex="0"
 				class="drafts-list__card"
 				:data-test="`draft-list-card-${draft.name}`"
 				@click="$emit('resume', draft)"
+				@keydown.enter="$emit('resume', draft)"
+				@keydown.space.prevent="$emit('resume', draft)"
 			>
 				<div class="drafts-list__card-top">
 					<strong>{{ draft.customer_name || __("Walk-in Customer") }}</strong>
@@ -41,16 +44,45 @@
 					<span>{{ draft.posting_date }}</span>
 					<span>{{ draft.posting_time?.split(".")[0] || "" }}</span>
 				</div>
-			</button>
+				<div class="drafts-list__card-actions">
+					<v-btn
+						icon
+						size="x-small"
+						variant="text"
+						color="error"
+						:aria-label="__('Delete')"
+						:title="__('Delete')"
+						@click.stop="openDeleteConfirm(draft)"
+					>
+						<v-icon size="18">mdi-delete-outline</v-icon>
+					</v-btn>
+				</div>
+			</div>
 		</div>
 		<div v-else class="drafts-list__empty">
 			<strong>{{ emptyTitle || __("No records found") }}</strong>
 			<span>{{ emptySubtitle || __("Try another source or refresh the list.") }}</span>
 		</div>
+
+		<ConfirmActionDialog
+			v-model="deleteDialog"
+			:title="__('Delete Draft')"
+			:message="__('This will permanently delete draft {0}. This cannot be undone. Continue?', [deleteTarget?.name])"
+			:confirm-label="__('Delete')"
+			confirm-color="error"
+			:loading="deleteLoading"
+			@confirm="confirmDelete"
+		/>
 	</section>
 </template>
 
 <script setup>
+import { ref } from "vue";
+import ConfirmActionDialog from "../shared/ConfirmActionDialog.vue";
+import { useToastStore } from "../../../stores/toastStore";
+
+const toastStore = useToastStore();
+
 defineProps({
 	parkedOrders: {
 		type: Array,
@@ -90,9 +122,36 @@ defineProps({
 	},
 });
 
-defineEmits(["resume", "manage-all"]);
+const emit = defineEmits(["resume", "manage-all", "deleted"]);
 
 const __ = window.__;
+
+const deleteDialog = ref(false);
+const deleteLoading = ref(false);
+const deleteTarget = ref(null);
+
+function openDeleteConfirm(draft) {
+	deleteTarget.value = draft;
+	deleteDialog.value = true;
+}
+
+async function confirmDelete() {
+	if (!deleteTarget.value) return;
+	deleteLoading.value = true;
+	try {
+		await frappe.call({
+			method: "posawesome.posawesome.api.invoices.delete_invoice",
+			args: { invoice: deleteTarget.value.name },
+		});
+		toastStore.show({ title: __("Draft {0} deleted", [deleteTarget.value.name]), color: "success" });
+		deleteDialog.value = false;
+		emit("deleted", deleteTarget.value);
+	} catch (e) {
+		toastStore.show({ title: e?.message || __("Delete failed"), color: "error" });
+	} finally {
+		deleteLoading.value = false;
+	}
+}
 </script>
 
 <style scoped>
@@ -216,5 +275,11 @@ const __ = window.__;
 	gap: 6px 10px;
 	font-size: 0.8rem;
 	color: var(--pos-text-secondary);
+}
+
+.drafts-list__card-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: -4px;
 }
 </style>

@@ -199,7 +199,7 @@ def get_boms_list(
 		)
 
 	doctype = 'BOM'
-	filters = [[doctype, 'docstatus', '!=', 2]]
+	filters = []
 	if item_code:
 		filters.append([doctype, 'item', '=', item_code])
 	if is_active not in (None, ''):
@@ -301,3 +301,37 @@ def get_bom_detail(name):
 			for row in doc.items
 		],
 	}
+
+
+@frappe.whitelist()
+def cancel_bom(name):
+	"""Cancel a submitted BOM. Restricted to System Manager, matching the
+	Sales/Purchase Invoice cancel gate elsewhere in POS Awesome."""
+	if "System Manager" not in frappe.get_roles(frappe.session.user):
+		frappe.throw(
+			_("Only a user with the System Manager role can cancel this document."),
+			frappe.PermissionError,
+		)
+
+	doc = frappe.get_doc("BOM", name)
+	if doc.docstatus != 1:
+		frappe.throw(_("Only a submitted document can be cancelled."))
+
+	doc.cancel()
+	return {"name": doc.name, "docstatus": doc.docstatus}
+
+
+@frappe.whitelist()
+def delete_cancelled_bom(name):
+	"""Permanently delete a Draft or Cancelled BOM."""
+	if not is_system_manager():
+		frappe.throw(
+			_("Only a System Manager can delete BOMs."),
+			exc=frappe.PermissionError,
+		)
+
+	if frappe.db.get_value("BOM", name, "docstatus") not in (0, 2):
+		frappe.throw(_("Only a draft or cancelled document can be deleted."))
+
+	frappe.delete_doc("BOM", name)
+	return {"name": name}

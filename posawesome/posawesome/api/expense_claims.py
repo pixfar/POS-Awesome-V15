@@ -215,3 +215,38 @@ def get_expense_claim_detail(expense_claim):
 			for row in doc.expenses
 		],
 	}
+
+
+@frappe.whitelist()
+def cancel_expense_claim(expense_claim):
+	"""Cancel a submitted Expense Claim. Restricted to System Manager, matching
+	the Sales/Purchase Invoice cancel gate elsewhere in POS Awesome. ERPNext's
+	own Expense Claim controller reverses its GL Entries on cancel."""
+	if "System Manager" not in frappe.get_roles(frappe.session.user):
+		frappe.throw(
+			_("Only a user with the System Manager role can cancel this document."),
+			frappe.PermissionError,
+		)
+
+	doc = frappe.get_doc("Expense Claim", expense_claim)
+	if doc.docstatus != 1:
+		frappe.throw(_("Only a submitted document can be cancelled."))
+
+	doc.cancel()
+	return {"name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def delete_cancelled_expense_claim(expense_claim):
+	"""Permanently delete a Draft or Cancelled Expense Claim."""
+	if not is_system_manager():
+		frappe.throw(
+			_("Only a System Manager can delete expense claims."),
+			exc=frappe.PermissionError,
+		)
+
+	if frappe.db.get_value("Expense Claim", expense_claim, "docstatus") not in (0, 2):
+		frappe.throw(_("Only a draft or cancelled document can be deleted."))
+
+	frappe.delete_doc("Expense Claim", expense_claim)
+	return {"name": expense_claim}

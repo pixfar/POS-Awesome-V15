@@ -119,17 +119,35 @@ def _build_context(warehouse, date):
 			}
 		)
 
-	expense_rows = []
+	# Cash Out Outflow is broken down per expense LINE (Expense Claim Type +
+	# its own Description), not one generic "Expense" row per claim -- the
+	# claim's own grand_total still drives the income/closing-balance math
+	# below, so expense_total is summed separately from the claim rows.
 	expense_total = 0.0
-	for idx, row in enumerate(expenses, start=1):
-		amount = flt(row.grand_total)
-		expense_total += amount
+	for row in expenses:
+		expense_total += flt(row.grand_total)
+
+	expense_claim_names = [row.name for row in expenses]
+	expense_lines = (
+		frappe.get_all(
+			"Expense Claim Detail",
+			filters={"parent": ["in", expense_claim_names]},
+			fields=["parent", "expense_type", "description", "amount", "sanctioned_amount"],
+			order_by="parent, idx",
+		)
+		if expense_claim_names
+		else []
+	)
+
+	expense_rows = []
+	for idx, row in enumerate(expense_lines, start=1):
+		amount = flt(row.sanctioned_amount) or flt(row.amount)
 		expense_rows.append(
 			{
 				"sl": idx,
-				"cash_out_type": _("Expense"),
-				"description": row.remark or "",
-				"reference_no": row.name,
+				"cash_out_type": row.expense_type or _("Expense"),
+				"description": row.description or "",
+				"reference_no": row.parent,
 				"amount": money(amount),
 			}
 		)
@@ -181,7 +199,7 @@ def download_pdf(warehouse, date=None):
 	html = frappe.render_template(TEMPLATE_PATH, context, is_path=True)
 	pdf_content = get_pdf(html)
 
-	filename = f"Daily-Cash-Summary-{warehouse}-{report_date}.pdf".replace(" ", "-").replace("/", "-")
+	filename = f"Daily Cash Summary Report- {formatdate(report_date, 'dd-mm-yyyy')}.pdf"
 	frappe.local.response.filename = filename
 	frappe.local.response.filecontent = pdf_content
 	frappe.local.response.type = "pdf"

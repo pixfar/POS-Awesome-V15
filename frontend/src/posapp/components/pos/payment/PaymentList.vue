@@ -195,17 +195,18 @@
 							{{ formatCurrency(item.amount) }}
 						</span>
 					</template>
+					<template #item.docstatus="{ item }">
+						<v-chip size="small" variant="tonal" :color="item.docstatus === 2 ? 'red' : 'green'">
+							{{ item.docstatus === 2 ? __("Cancelled") : __("Submitted") }}
+						</v-chip>
+					</template>
 					<template #item.actions="{ item }">
-						<div class="d-flex justify-end ga-1 flex-wrap">
-							<v-btn
-								size="small"
-								variant="tonal"
-								color="primary"
-								class="text-none"
-								@click.stop="openPaymentDetail(item)"
-							>
-								{{ __("View") }}
-							</v-btn>
+						<div class="d-flex justify-end">
+							<RowActionsMenu
+								:actions="rowActions(item)"
+								:loading="actionLoadingName === item.name"
+								@action="(key) => handleRowAction(key, item)"
+							/>
 						</div>
 					</template>
 				</v-data-table>
@@ -292,6 +293,16 @@
 				<v-progress-circular indeterminate color="primary" />
 			</div>
 		</v-card>
+
+		<ConfirmActionDialog
+			v-model="confirmDialog"
+			:title="confirmDialogTitle"
+			:message="confirmDialogMessage"
+			:confirm-label="confirmDialogActionLabel"
+			:confirm-color="confirmDialogColor"
+			:loading="actionLoadingName === confirmDialogItem?.name"
+			@confirm="runConfirmedAction"
+		/>
 	</div>
 </template>
 
@@ -302,14 +313,118 @@ import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import DateFilterField from '../shared/DateFilterField.vue';
+import RowActionsMenu from '../shared/RowActionsMenu.vue';
+import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import { useToastStore } from '../../../stores/toastStore';
 
 export default {
 	name: 'PaymentList',
-	components: { DateFilterField },
+	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
 		const uiStore = useUIStore();
+		const toastStore = useToastStore();
+
+		const isSystemManager = computed(() =>
+			(frappe?.boot?.user?.roles || []).includes('System Manager'),
+		);
+
+		const actionLoadingName = ref(null);
+		const confirmDialog = ref(false);
+		const confirmDialogItem = ref(null);
+		const confirmDialogAction = ref(null);
+		const confirmDialogTitle = ref('');
+		const confirmDialogMessage = ref('');
+		const confirmDialogActionLabel = ref('');
+		const confirmDialogColor = ref('error');
+
+		const canCancel = (item) => isSystemManager.value && item.docstatus === 1;
+		const canDelete = (item) => item.docstatus === 0 || item.docstatus === 2;
+
+		const rowActions = (item) => [
+			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },
+			{
+				key: 'cancel',
+				label: __('Cancel'),
+				icon: 'mdi-cancel',
+				color: 'error',
+				show: canCancel(item),
+			},
+			{
+				key: 'delete',
+				label: __('Delete'),
+				icon: 'mdi-delete-outline',
+				color: 'error',
+				show: canDelete(item),
+			},
+		];
+
+		const handleRowAction = (key, item) => {
+			if (key === 'view') {
+				openPaymentDetail(item);
+			} else if (key === 'cancel') {
+				openCancelConfirm(item);
+			} else if (key === 'delete') {
+				openDeleteConfirm(item);
+			}
+		};
+
+		const openCancelConfirm = (item) => {
+			confirmDialogItem.value = item;
+			confirmDialogAction.value = 'cancel';
+			confirmDialogTitle.value = __('Cancel Payment Entry');
+			confirmDialogMessage.value = __(
+				'This will cancel {0} and reverse its accounting entries. This cannot be undone. Continue?',
+				[item.name],
+			);
+			confirmDialogActionLabel.value = __('Cancel Payment');
+			confirmDialogColor.value = 'error';
+			confirmDialog.value = true;
+		};
+
+		const openDeleteConfirm = (item) => {
+			confirmDialogItem.value = item;
+			confirmDialogAction.value = 'delete';
+			confirmDialogTitle.value = __('Delete Payment Entry');
+			confirmDialogMessage.value = __(
+				'This will permanently delete cancelled payment {0}. This cannot be undone. Continue?',
+				[item.name],
+			);
+			confirmDialogActionLabel.value = __('Delete');
+			confirmDialogColor.value = 'error';
+			confirmDialog.value = true;
+		};
+
+		const runConfirmedAction = async () => {
+			const item = confirmDialogItem.value;
+			const action = confirmDialogAction.value;
+			if (!item || !action) return;
+
+			actionLoadingName.value = item.name;
+			try {
+				if (action === 'cancel') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.payment_entry.cancel_payment_entry',
+						args: { name: item.name },
+					});
+					toastStore.show({ title: __('{0} cancelled', [item.name]), color: 'success' });
+				} else if (action === 'delete') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.payment_entry.delete_cancelled_payment_entry',
+						args: { name: item.name },
+					});
+					toastStore.show({ title: __('{0} deleted', [item.name]), color: 'success' });
+				}
+				confirmDialog.value = false;
+				await loadPayments();
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Action failed'), color: 'error' });
+			} finally {
+				actionLoadingName.value = null;
+			}
+		};
+
 		const paymentList = ref([]);
 		const listLoading = ref(false);
 		const mineOnly = ref(false);
@@ -350,6 +465,7 @@ export default {
 			{ title: __('Type'), key: 'payment_type', sortable: true },
 			{ title: __('Mode'), key: 'mode_of_payment', sortable: true },
 			{ title: __('Amount'), key: 'amount', sortable: true, align: 'end' },
+			{ title: __('Status'), key: 'docstatus', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
 		];
 
@@ -620,6 +736,17 @@ export default {
 			paymentTypeColor,
 			goToNew,
 			openPaymentDetail,
+			isSystemManager,
+			actionLoadingName,
+			confirmDialog,
+			confirmDialogItem,
+			confirmDialogTitle,
+			confirmDialogMessage,
+			confirmDialogActionLabel,
+			confirmDialogColor,
+			rowActions,
+			handleRowAction,
+			runConfirmedAction,
 		};
 	},
 };

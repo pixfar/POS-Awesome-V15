@@ -141,6 +141,7 @@ def _build_warehouse_doc_conditions(
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
+	include_draft=False,
 ):
 	"""Build the shared WHERE conditions/values for warehouse-scoped doc list queries.
 
@@ -150,8 +151,16 @@ def _build_warehouse_doc_conditions(
 	include_cancelled=True also matches docstatus=2 records — for doctypes (like
 	Material Transfer's Rejected flow) where cancelling is a normal terminal status
 	that should still show up in the list, not just submitted ones.
+
+	include_draft=True also matches docstatus=0 records, so a Draft row stays
+	visible (and deletable) instead of disappearing before it's ever submitted.
 	"""
-	conditions = ['main.docstatus IN (1, 2)'] if include_cancelled else ['main.docstatus = 1']
+	docstatuses = [1]
+	if include_draft:
+		docstatuses.append(0)
+	if include_cancelled:
+		docstatuses.append(2)
+	conditions = [f"main.docstatus IN ({', '.join(str(d) for d in docstatuses)})"]
 	values = {}
 
 	if extra_filters:
@@ -225,6 +234,7 @@ def get_warehouse_doc_list_rows(
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
+	include_draft=False,
 ):
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
@@ -245,6 +255,7 @@ def get_warehouse_doc_list_rows(
 		search=search,
 		search_fields=search_fields,
 		include_cancelled=include_cancelled,
+		include_draft=include_draft,
 	)
 	where_clause = ' AND '.join(conditions)
 	table = f'`tab{doctype}`'
@@ -291,6 +302,7 @@ def get_warehouse_doc_status_counts(
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
+	include_draft=False,
 ):
 	"""Grouped status counts using the same scoping as get_warehouse_doc_list_rows,
 	but without a status filter, so every status tile stays accurate."""
@@ -309,6 +321,7 @@ def get_warehouse_doc_status_counts(
 		search=search,
 		search_fields=search_fields,
 		include_cancelled=include_cancelled,
+		include_draft=include_draft,
 	)
 	where_clause = ' AND '.join(conditions)
 	table = f'`tab{doctype}`'

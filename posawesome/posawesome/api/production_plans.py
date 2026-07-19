@@ -171,8 +171,20 @@ def create_production_plan(data):
 	return {'name': doc.name, 'workflow_state': doc.workflow_state}
 
 
+def _available_actions(workflow_state, docstatus):
+	actions = list(ALLOWED_TRANSITIONS.get(workflow_state, {}).keys())
+	# Legacy rows can carry a workflow_state label that predates the current
+	# ALLOWED_TRANSITIONS keys (e.g. "Completed" instead of "Production
+	# Complete"), which made Cancel silently disappear for them. Cancel is
+	# valid from any submitted, not-yet-cancelled plan regardless of the
+	# exact label, so key it off docstatus instead of the state string.
+	if docstatus == 1 and workflow_state != 'Cancelled' and 'Cancel' not in actions:
+		actions.append('Cancel')
+	return actions
+
+
 def _enrich_list_row(row):
-	row['available_actions'] = list(ALLOWED_TRANSITIONS.get(row.get('workflow_state'), {}).keys())
+	row['available_actions'] = _available_actions(row.get('workflow_state'), row.get('docstatus'))
 	return row
 
 
@@ -229,6 +241,7 @@ def get_production_plans_list(
 		'company',
 		'for_warehouse',
 		'workflow_state',
+		'docstatus',
 		'total_planned_qty',
 		'modified',
 	]
@@ -334,7 +347,8 @@ def get_production_plan_detail(name):
 			}
 			for row in doc.po_items
 		],
-		'available_actions': list(ALLOWED_TRANSITIONS.get(doc.workflow_state, {}).keys()),
+		'docstatus': doc.docstatus,
+		'available_actions': _available_actions(doc.workflow_state, doc.docstatus),
 	}
 
 
@@ -401,14 +415,27 @@ def advance_production_plan_status(name, action):
 		)
 
 	doc = frappe.get_doc('Production Plan', name)
-	next_state = (ALLOWED_TRANSITIONS.get(doc.workflow_state) or {}).get(action)
-	if not next_state:
-		frappe.throw(
-			_('Production Plan {0} cannot perform {1} from {2}.').format(
-				doc.name, action, doc.workflow_state
-			),
-			title=_('Invalid Status Change'),
-		)
+	if action == 'Cancel':
+		# Keyed off docstatus, not the workflow_state label -- see
+		# _available_actions for why (legacy "Completed" vs "Production
+		# Complete" rows must still be cancellable).
+		if doc.docstatus != 1 or doc.workflow_state == 'Cancelled':
+			frappe.throw(
+				_('Production Plan {0} cannot perform {1} from {2}.').format(
+					doc.name, action, doc.workflow_state
+				),
+				title=_('Invalid Status Change'),
+			)
+		next_state = 'Cancelled'
+	else:
+		next_state = (ALLOWED_TRANSITIONS.get(doc.workflow_state) or {}).get(action)
+		if not next_state:
+			frappe.throw(
+				_('Production Plan {0} cannot perform {1} from {2}.').format(
+					doc.name, action, doc.workflow_state
+				),
+				title=_('Invalid Status Change'),
+			)
 
 	doc.flags.ignore_permissions = True
 	if action == 'Mark Production Complete':
@@ -424,3 +451,29 @@ def advance_production_plan_status(name, action):
 
 	doc.db_set('workflow_state', next_state, update_modified=False)
 	return {'name': doc.name, 'workflow_state': next_state}
+
+
+@frappe.whitelist()
+def delete_cancelled_production_plan(name):
+	"""Permanently delete a Draft or Cancelled Production Plan. A submitted
+	(docstatus=1, i.e. Production Complete) plan must be cancelled first.
+
+	A Draft plan may already have an auto-created Work Order (bsp_engineering's
+	on_update hook creates one as soon as items are added), and a Cancelled
+	plan's Work Orders/Job Cards/Stock Entries still exist -- now cancelled --
+	and still link back to this plan, so the link check would otherwise
+	always block deletion. force=True skips that check, same as
+	delete_cancelled_material_transfer; the linked documents themselves are
+	untouched and remain as the audit trail."""
+	if not is_system_manager():
+		frappe.throw(
+			_('Only a System Manager can delete Production Plans.'),
+			exc=frappe.PermissionError,
+		)
+
+	doc = frappe.get_doc('Production Plan', name)
+	if doc.docstatus not in (0, 2):
+		frappe.throw(_('Only a draft or cancelled document can be deleted.'))
+
+	frappe.delete_doc('Production Plan', name, ignore_permissions=True, force=True)
+	return {'name': name}

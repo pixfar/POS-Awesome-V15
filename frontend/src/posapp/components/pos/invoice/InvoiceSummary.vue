@@ -143,6 +143,7 @@
 				:empty-subtitle="__(currentDraftSourceOption.emptySubtitle)"
 				@resume="handleResumeDraft"
 				@manage-all="handleManageAllDrafts"
+				@deleted="handleDraftDeleted"
 			/>
 		</div>
 	</v-navigation-drawer>
@@ -512,6 +513,12 @@ function handleResumeDraft(draft) {
 	desktopDraftsDrawer.value = false;
 	mobileDraftsDialog.value = false;
 	emit("resume-parked-order", draft);
+}
+
+async function handleDraftDeleted() {
+	const nextSource = getDefaultDocumentSource(props.pos_profile, currentDraftSource.value);
+	uiStore.setParkedOrders([]);
+	await emit("load-drafts", nextSource);
 }
 
 defineExpose({

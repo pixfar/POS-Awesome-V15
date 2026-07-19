@@ -151,6 +151,15 @@
 							{{ item.status }}
 						</v-chip>
 					</template>
+					<template #item.actions="{ item }">
+						<div class="d-flex justify-end">
+							<RowActionsMenu
+								:actions="rowActions(item)"
+								:loading="actionLoadingName === item.name"
+								@action="(key) => handleRowAction(key, item)"
+							/>
+						</div>
+					</template>
 				</v-data-table>
 
 				<div class="pos-list-pagination">
@@ -235,6 +244,16 @@
 				<v-progress-circular indeterminate color="primary" />
 			</div>
 		</v-card>
+
+		<ConfirmActionDialog
+			v-model="confirmDialog"
+			:title="confirmDialogTitle"
+			:message="confirmDialogMessage"
+			:confirm-label="confirmDialogActionLabel"
+			:confirm-color="confirmDialogColor"
+			:loading="actionLoadingName === confirmDialogItem?.name"
+			@confirm="runConfirmedAction"
+		/>
 	</div>
 </template>
 
@@ -242,12 +261,115 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToastStore } from '../../../stores/toastStore';
+import RowActionsMenu from '../shared/RowActionsMenu.vue';
+import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 
 export default {
 	name: 'BomList',
+	components: { RowActionsMenu, ConfirmActionDialog },
 	setup() {
 		const router = useRouter();
 		const toastStore = useToastStore();
+
+		const isSystemManager = computed(() =>
+			(frappe?.boot?.user?.roles || []).includes('System Manager'),
+		);
+
+		const actionLoadingName = ref(null);
+		const confirmDialog = ref(false);
+		const confirmDialogItem = ref(null);
+		const confirmDialogAction = ref(null);
+		const confirmDialogTitle = ref('');
+		const confirmDialogMessage = ref('');
+		const confirmDialogActionLabel = ref('');
+		const confirmDialogColor = ref('error');
+
+		const canCancel = (item) => isSystemManager.value && item.docstatus === 1;
+		const canDelete = (item) => item.docstatus === 0 || item.docstatus === 2;
+
+		const rowActions = (item) => [
+			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },
+			{
+				key: 'cancel',
+				label: __('Cancel'),
+				icon: 'mdi-cancel',
+				color: 'error',
+				show: canCancel(item),
+			},
+			{
+				key: 'delete',
+				label: __('Delete'),
+				icon: 'mdi-delete-outline',
+				color: 'error',
+				show: canDelete(item),
+			},
+		];
+
+		const handleRowAction = (key, item) => {
+			if (key === 'view') {
+				openBomDetail(item);
+			} else if (key === 'cancel') {
+				openCancelConfirm(item);
+			} else if (key === 'delete') {
+				openDeleteConfirm(item);
+			}
+		};
+
+		const openCancelConfirm = (item) => {
+			confirmDialogItem.value = item;
+			confirmDialogAction.value = 'cancel';
+			confirmDialogTitle.value = __('Cancel BOM');
+			confirmDialogMessage.value = __(
+				'This will cancel {0}. This cannot be undone. Continue?',
+				[item.name],
+			);
+			confirmDialogActionLabel.value = __('Cancel BOM');
+			confirmDialogColor.value = 'error';
+			confirmDialog.value = true;
+		};
+
+		const openDeleteConfirm = (item) => {
+			confirmDialogItem.value = item;
+			confirmDialogAction.value = 'delete';
+			confirmDialogTitle.value = __('Delete BOM');
+			confirmDialogMessage.value = __(
+				'This will permanently delete cancelled BOM {0}. This cannot be undone. Continue?',
+				[item.name],
+			);
+			confirmDialogActionLabel.value = __('Delete');
+			confirmDialogColor.value = 'error';
+			confirmDialog.value = true;
+		};
+
+		const runConfirmedAction = async () => {
+			const item = confirmDialogItem.value;
+			const action = confirmDialogAction.value;
+			if (!item || !action) return;
+
+			actionLoadingName.value = item.name;
+			try {
+				if (action === 'cancel') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.boms.cancel_bom',
+						args: { name: item.name },
+					});
+					toastStore.show({ title: __('{0} cancelled', [item.name]), color: 'success' });
+				} else if (action === 'delete') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.boms.delete_cancelled_bom',
+						args: { name: item.name },
+					});
+					toastStore.show({ title: __('{0} deleted', [item.name]), color: 'success' });
+				}
+				confirmDialog.value = false;
+				await loadBoms();
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Action failed'), color: 'error' });
+			} finally {
+				actionLoadingName.value = null;
+			}
+		};
+
 		const bomList = ref([]);
 		const listLoading = ref(false);
 		const searchQuery = ref('');
@@ -279,6 +401,7 @@ export default {
 			{ title: __('Active'), key: 'is_active', sortable: true },
 			{ title: __('Default'), key: 'is_default', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
 		];
 
 		const activeCount = computed(() => bomList.value.filter((row) => row.is_active).length);
@@ -433,6 +556,17 @@ export default {
 			statusColor,
 			goToNew,
 			openBomDetail,
+			isSystemManager,
+			actionLoadingName,
+			confirmDialog,
+			confirmDialogItem,
+			confirmDialogTitle,
+			confirmDialogMessage,
+			confirmDialogActionLabel,
+			confirmDialogColor,
+			rowActions,
+			handleRowAction,
+			runConfirmedAction,
 		};
 	},
 };

@@ -192,27 +192,11 @@
 						</v-chip>
 					</template>
 					<template #item.actions="{ item }">
-						<div class="d-flex justify-end ga-1">
-							<v-btn
-								v-if="item.can_confirm"
-								size="small"
-								variant="flat"
-								color="primary"
-								class="text-none"
-								@click.stop="openConfirmReceipt(item.name)"
-							>
-								{{ __("Received") }}
-							</v-btn>
-							<v-btn
-								v-if="item.can_confirm"
-								size="small"
-								variant="tonal"
-								color="error"
-								class="text-none"
-								@click.stop="openRejectDialog(item.name)"
-							>
-								{{ __("Rejected") }}
-							</v-btn>
+						<div class="d-flex justify-end">
+							<RowActionsMenu
+								:actions="rowActions(item)"
+								@action="(key) => handleRowAction(key, item)"
+							/>
 						</div>
 					</template>
 				</v-data-table>
@@ -329,6 +313,16 @@
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
+
+		<ConfirmActionDialog
+			v-model="deleteDialog"
+			:title="__('Delete Material Transfer')"
+			:message="__('This will permanently delete cancelled transfer {0}. This cannot be undone. Continue?', [deleteTransferName])"
+			:confirm-label="__('Delete')"
+			confirm-color="error"
+			:loading="deleteLoading"
+			@confirm="handleDeleteTransfer"
+		/>
 	</div>
 </template>
 
@@ -339,6 +333,8 @@ import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
 import ConfirmReceiptDialog from '../requisition/ConfirmReceiptDialog.vue';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import RowActionsMenu from '../shared/RowActionsMenu.vue';
 
 export default {
 	name: 'MaterialTransferList',
@@ -346,6 +342,8 @@ export default {
 	components: {
 		ConfirmReceiptDialog,
 		DateFilterField,
+		ConfirmActionDialog,
+		RowActionsMenu,
 	},
 	setup() {
 		const router = useRouter();
@@ -362,6 +360,9 @@ export default {
 		const rejectDialog = ref(false);
 		const rejectLoading = ref(false);
 		const rejectTransferName = ref('');
+		const deleteDialog = ref(false);
+		const deleteLoading = ref(false);
+		const deleteTransferName = ref('');
 
 		const page = ref(1);
 		const pageSize = ref(20);
@@ -632,6 +633,65 @@ export default {
 			router.push(`/material-transfers/${item.name}`);
 		};
 
+		const openDeleteConfirm = (transfer) => {
+			deleteTransferName.value = transfer;
+			deleteDialog.value = true;
+		};
+
+		const rowActions = (item) => [
+			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },
+			{
+				key: 'received',
+				label: __('Received'),
+				icon: 'mdi-check-circle-outline',
+				color: 'success',
+				show: item.can_confirm,
+			},
+			{
+				key: 'rejected',
+				label: __('Rejected'),
+				icon: 'mdi-close-circle-outline',
+				color: 'error',
+				show: item.can_confirm,
+			},
+			{
+				key: 'delete',
+				label: __('Delete'),
+				icon: 'mdi-delete-outline',
+				color: 'error',
+				show: item.docstatus === 0 || item.docstatus === 2,
+			},
+		];
+
+		const handleRowAction = (key, item) => {
+			if (key === 'view') {
+				openTransferDetail(item);
+			} else if (key === 'received') {
+				openConfirmReceipt(item.name);
+			} else if (key === 'rejected') {
+				openRejectDialog(item.name);
+			} else if (key === 'delete') {
+				openDeleteConfirm(item.name);
+			}
+		};
+
+		const handleDeleteTransfer = async () => {
+			deleteLoading.value = true;
+			try {
+				await frappe.call({
+					method: 'posawesome.posawesome.api.material_transfers.delete_cancelled_material_transfer',
+					args: { transfer: deleteTransferName.value },
+				});
+				toastStore.show({ title: __('Transfer deleted'), color: 'success' });
+				deleteDialog.value = false;
+				await loadTransfers();
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Delete failed'), color: 'error' });
+			} finally {
+				deleteLoading.value = false;
+			}
+		};
+
 		onMounted(() => {
 			loadItemGroups();
 			loadWarehouses();
@@ -685,6 +745,13 @@ export default {
 			rejectLoading,
 			handleRejectTransfer,
 			openTransferDetail,
+			deleteDialog,
+			deleteLoading,
+			deleteTransferName,
+			openDeleteConfirm,
+			handleDeleteTransfer,
+			rowActions,
+			handleRowAction,
 		};
 	},
 };

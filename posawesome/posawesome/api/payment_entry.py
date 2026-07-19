@@ -372,9 +372,7 @@ def get_payment_entries_list(
     company = company or _default_company()
 
     doctype = "Payment Entry"
-    filters = [
-        [doctype, "docstatus", "=", 1],
-    ]
+    filters = []
     if company:
         filters.append([doctype, "company", "=", company])
     # Payment Entry has no warehouse field, so restricted users (not System
@@ -420,6 +418,7 @@ def get_payment_entries_list(
         "reference_no",
         "company",
         "owner",
+        "docstatus",
     ]
 
     rows = frappe.get_list(
@@ -517,7 +516,43 @@ def get_payment_entry_detail(name):
             }
             for row in (doc.get("references") or [])
         ],
+        "docstatus": doc.docstatus,
     }
+
+
+@frappe.whitelist()
+def cancel_payment_entry(name):
+    """Cancel a submitted Payment Entry. Restricted to System Manager, matching
+    the Sales/Purchase Invoice cancel gate elsewhere in POS Awesome. ERPNext's
+    own Payment Entry controller reverses its GL Entries on cancel."""
+    if "System Manager" not in frappe.get_roles(frappe.session.user):
+        frappe.throw(
+            _("Only a user with the System Manager role can cancel this document."),
+            frappe.PermissionError,
+        )
+
+    doc = frappe.get_doc("Payment Entry", name)
+    if doc.docstatus != 1:
+        frappe.throw(_("Only a submitted document can be cancelled."))
+
+    doc.cancel()
+    return {"name": doc.name, "docstatus": doc.docstatus}
+
+
+@frappe.whitelist()
+def delete_cancelled_payment_entry(name):
+    """Permanently delete a Draft or Cancelled Payment Entry."""
+    if not is_system_manager():
+        frappe.throw(
+            _("Only a System Manager can delete Payment Entries."),
+            exc=frappe.PermissionError,
+        )
+
+    if frappe.db.get_value("Payment Entry", name, "docstatus") not in (0, 2):
+        frappe.throw(_("Only a draft or cancelled document can be deleted."))
+
+    frappe.delete_doc("Payment Entry", name)
+    return {"name": name}
 
 
 @frappe.whitelist()

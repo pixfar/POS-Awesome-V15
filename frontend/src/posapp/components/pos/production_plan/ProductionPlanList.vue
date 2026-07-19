@@ -173,18 +173,11 @@
 						</v-chip>
 					</template>
 					<template #item.actions="{ item }">
-						<div class="d-flex justify-end ga-1 flex-wrap">
-							<v-btn
-								v-for="action in item.available_actions"
-								:key="action"
-								size="small"
-								variant="tonal"
-								:color="actionColor(action)"
-								class="text-none"
-								@click.stop="requestAdvanceStatus(item.name, action)"
-							>
-								{{ __(action) }}
-							</v-btn>
+						<div class="d-flex justify-end">
+							<RowActionsMenu
+								:actions="rowActions(item)"
+								@action="(key) => handleRowAction(key, item)"
+							/>
 						</div>
 					</template>
 				</v-data-table>
@@ -291,6 +284,7 @@ import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import RowActionsMenu from '../shared/RowActionsMenu.vue';
 
 const ACTION_CONFIRM_MESSAGES = {
 	'Start Production': __('Start production for this plan? This will submit it and lock in the planned quantities.'),
@@ -298,11 +292,12 @@ const ACTION_CONFIRM_MESSAGES = {
 	Cancel: __(
 		'Cancel this production plan? This will also cancel any linked Work Orders, Stock Entries and Job Cards, and reverse stock already consumed or produced.',
 	),
+	Delete: __('Permanently delete this cancelled production plan? This cannot be undone.'),
 };
 
 export default {
 	name: 'ProductionPlanList',
-	components: { DateFilterField, ConfirmActionDialog },
+	components: { DateFilterField, ConfirmActionDialog, RowActionsMenu },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -502,6 +497,10 @@ export default {
 				Draft: 'grey',
 				'Work In Progress': 'orange',
 				'Production Complete': 'green',
+				// "Completed" is a legacy workflow_state label some older plans
+				// still carry (predates a rename to "Production Complete") --
+				// color it the same as its current equivalent.
+				Completed: 'green',
 				Cancelled: 'red',
 			};
 			return map[status] || 'grey';
@@ -512,6 +511,7 @@ export default {
 				'Start Production': 'primary',
 				'Mark Production Complete': 'success',
 				Cancel: 'error',
+				Delete: 'error',
 			};
 			return map[action] || 'primary';
 		};
@@ -538,21 +538,66 @@ export default {
 			confirmDialogOpen.value = true;
 		};
 
+		const ACTION_ICONS = {
+			'Start Production': 'mdi-play-circle-outline',
+			'Mark Production Complete': 'mdi-check-circle-outline',
+			Cancel: 'mdi-cancel',
+			Delete: 'mdi-delete-outline',
+		};
+
+		const rowActions = (item) => {
+			const actions = [{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' }];
+			for (const action of item.available_actions || []) {
+				actions.push({
+					key: action,
+					label: __(action),
+					icon: ACTION_ICONS[action] || 'mdi-arrow-right-circle-outline',
+					color: actionColor(action),
+				});
+			}
+			actions.push({
+				key: 'Delete',
+				label: __('Delete'),
+				icon: ACTION_ICONS.Delete,
+				color: 'error',
+				show: item.docstatus === 0 || item.docstatus === 2,
+			});
+			return actions;
+		};
+
+		const handleRowAction = (key, item) => {
+			if (key === 'view') {
+				openPlanDetail(item);
+			} else {
+				requestAdvanceStatus(item.name, key);
+			}
+		};
+
 		const performAdvanceStatus = async () => {
 			if (!pendingAction.value) return;
 			const { name, action } = pendingAction.value;
 			confirmLoading.value = true;
 			try {
-				await frappe.call({
-					method: 'posawesome.posawesome.api.production_plans.advance_production_plan_status',
-					args: { name, action },
-					freeze: true,
-					freeze_message: __('Updating status...'),
-				});
-				toastStore.show({
-					title: __('Production Plan {0} updated', [name]),
-					color: 'success',
-				});
+				if (action === 'Delete') {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.production_plans.delete_cancelled_production_plan',
+						args: { name },
+						freeze: true,
+						freeze_message: __('Deleting...'),
+					});
+					toastStore.show({ title: __('Production Plan {0} deleted', [name]), color: 'success' });
+				} else {
+					await frappe.call({
+						method: 'posawesome.posawesome.api.production_plans.advance_production_plan_status',
+						args: { name, action },
+						freeze: true,
+						freeze_message: __('Updating status...'),
+					});
+					toastStore.show({
+						title: __('Production Plan {0} updated', [name]),
+						color: 'success',
+					});
+				}
 				confirmDialogOpen.value = false;
 				pendingAction.value = null;
 				await loadPlans();
@@ -609,6 +654,8 @@ export default {
 			formatQty,
 			statusColor,
 			actionColor,
+			rowActions,
+			handleRowAction,
 			goToNew,
 			confirmDialogOpen,
 			confirmLoading,
