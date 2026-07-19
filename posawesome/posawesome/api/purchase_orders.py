@@ -5,7 +5,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, nowdate, getdate
+from frappe.utils import cint, flt, nowdate, getdate, now_datetime
 from erpnext.accounts.party import get_party_account
 
 
@@ -1167,6 +1167,22 @@ def create_purchase_return(invoice):
         frappe.throw(_("This document is already a return."))
 
     return_doc = make_return_doc("Purchase Invoice", invoice)
+    # make_return_doc otherwise just copies the source invoice's own
+    # naming_series, so a return would be indistinguishable from a regular
+    # purchase in the numbering sequence.
+    return_doc.naming_series = "ACC-PINV-RET-.YYYY.-"
+    # Purchase Invoice's posting_date field is copied from the source (unlike
+    # Sales Invoice, its no_copy isn't set), but posting_time is not (defaults
+    # to "Now"'s time-of-day). That mismatch -- source's date + this moment's
+    # time -- reads as *before* the source whenever the return happens to be
+    # created earlier in the day than the original posting_time, and
+    # ERPNext's own return validation rejects it ("Posting timestamp must be
+    # after ..."). Pin both to the current moment so the return is always at
+    # or after the (already-submitted, i.e. past) source.
+    now = now_datetime()
+    return_doc.set_posting_time = 1
+    return_doc.posting_date = now.date()
+    return_doc.posting_time = now.time()
     return_doc.insert()
     return_doc.submit()
     return {"name": return_doc.name}

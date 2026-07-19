@@ -428,6 +428,11 @@ def create_sales_return(invoice, doctype=None):
     enable_validity, _default_days = _get_return_validity_settings(source.get("pos_profile"))
 
     return_doc = make_return_doc(doctype, invoice)
+    if doctype == "Sales Invoice":
+        # make_return_doc otherwise just copies the source invoice's own
+        # naming_series, so a return would be indistinguishable from a
+        # regular sale in the numbering sequence.
+        return_doc.naming_series = "ACC-SIN-RET-.YYYY.-"
     _validate_return_window(return_doc, doctype, enable_validity)
     return_doc.insert()
     return_doc.submit()
