@@ -448,6 +448,7 @@ export function usePaymentSubmission(options: PaymentSubmissionOptions) {
 
 		if (
 			!unref(options.is_credit_sale) &&
+			!profile.posa_allow_partial_payment &&
 			!doc.is_return &&
 			!hasAnySettlement &&
 			invoice_total > 0

@@ -672,11 +672,14 @@ def _append_purchase_invoice_items(invoice, items, warehouse, item_map):
         )
 
 
-def _resolve_purchase_invoice_custom_is_paid(payload, payments, grand_total):
+def _resolve_purchase_invoice_custom_is_paid(payments, grand_total):
+    # Always derive from what was actually entered in the payment dialog --
+    # not the "Is Paid" toggle's default (it only seeds the dialog's initial
+    # amount, so trusting it here marked invoices "Paid" even when every
+    # payment method was left at 0, and worse, let the Purchase Invoice
+    # on_submit hook create a full Payment Entry for money never received.
     total_paid = sum(flt(pay.get("amount")) for pay in (payments or []))
-    if payments:
-        return 1 if total_paid >= flt(grand_total) - 0.001 else 0
-    return cint(payload.get("custom_is_paid"))
+    return 1 if total_paid >= flt(grand_total) - 0.001 else 0
 
 
 def _create_purchase_invoice_from_pos(payload):
@@ -801,7 +804,7 @@ def _create_purchase_invoice_from_pos(payload):
 
     if _purchase_invoice_has_custom_is_paid():
         resolved_is_paid = _resolve_purchase_invoice_custom_is_paid(
-            payload, meaningful_payments, invoice.grand_total
+            meaningful_payments, invoice.grand_total
         )
         initial_is_paid = 0 if pos_handles_payment else resolved_is_paid
         # Keep in-memory doc aligned with DB before submit. db_set alone left
