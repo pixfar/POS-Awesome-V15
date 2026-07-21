@@ -344,6 +344,7 @@ export default {
 		const warehouseLabel = ref(null);
 		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
 		const payments = ref([]);
+		const discountAmount = ref(0);
 		const itemSearchQuery = ref("");
 		const selectedSearchItemCode = ref(null);
 		const itemSearchResults = ref([]);
@@ -582,8 +583,9 @@ export default {
 			paymentDialog.value = true;
 		};
 
-		const handlePaymentSubmit = ({ payments: p, print, print_format, print_invoice }) => {
+		const handlePaymentSubmit = ({ payments: p, print, print_format, print_invoice, discount_amount }) => {
 			payments.value = p;
+			discountAmount.value = discount_amount || 0;
 			paymentDialog.value = false;
 			submitPurchaseInvoice(print, print_format);
 		};
@@ -692,6 +694,7 @@ export default {
 					custom_is_paid: customIsPaid.value ? 1 : 0,
 					pos_profile: pos_profile.value,
 					payments: payments.value,
+					discount_amount: discountAmount.value,
 					items: purchaseItems.value.map((item) => ({
 						item_code: item.item_code,
 						item_name: item.item_name,

@@ -115,7 +115,7 @@
 							:currencySymbol="currencySymbol"
 							:formatCurrency="formatCurrency"
 						/>
-						<div class="payment-section__subsection">
+						<div v-if="false" class="payment-section__subsection">
 							<h3 class="payment-section__title payment-section__title--subsection">
 								{{ __("Fulfillment Details") }}
 							</h3>
@@ -1977,7 +1977,7 @@ onBeforeUnmount(() => {
 }
 
 .payment-shell--dialog {
-	height: calc(100dvh - 48px);
+	max-height: calc(100dvh - 48px);
 	display: flex;
 	flex-direction: column;
 	gap: 0;

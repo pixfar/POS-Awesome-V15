@@ -411,10 +411,18 @@ def delete_cancelled_sales_invoice(invoice, doctype=None):
 
 
 @frappe.whitelist()
-def create_sales_return(invoice, doctype=None):
-    """Create and submit a full return against a submitted Sales/POS Invoice
-    using ERPNext's own return-mapping logic (make_return_doc), so stock,
-    payments, and GL entries are reversed exactly as ERPNext does natively."""
+def create_sales_return(invoice, doctype=None, items=None):
+    """Create and submit a return against a submitted Sales/POS Invoice using
+    ERPNext's own return-mapping logic (make_return_doc), so stock, payments,
+    and GL entries are reversed exactly as ERPNext does natively.
+
+    When `items` is omitted, every item is returned at its full remaining
+    quantity (today's behavior, unchanged). When provided, it must be a list
+    of {"row_name": <original item row name>, "qty": <positive qty>} and only
+    those rows/quantities are returned — `row_name` is the source item row's
+    own docname (not item_code, since an invoice can list the same item on
+    more than one row), matched against the `sales_invoice_item`/
+    `pos_invoice_item` reference make_return_doc stamps on each output row."""
     from frappe import _
     from erpnext.controllers.sales_and_purchase_return import make_return_doc
 
@@ -427,7 +435,44 @@ def create_sales_return(invoice, doctype=None):
 
     enable_validity, _default_days = _get_return_validity_settings(source.get("pos_profile"))
 
+    if isinstance(items, str):
+        items = frappe.parse_json(items)
+
+    selected_qty_by_row = None
+    if items:
+        fresh = get_invoice_for_return(invoice, source.get("pos_profile"), doctype)
+        remaining_by_row = {row["name"]: flt(row["qty"]) for row in fresh.get("items") or []}
+
+        selected_qty_by_row = {}
+        for row in items:
+            row_name = row.get("row_name")
+            qty = abs(flt(row.get("qty")))
+            if not row_name or qty <= 0:
+                continue
+            max_qty = remaining_by_row.get(row_name)
+            if max_qty is None:
+                frappe.throw(_("Item row {0} is not returnable.").format(row_name))
+            if qty > max_qty + 0.0001:
+                frappe.throw(_("Cannot return more than the remaining quantity for {0}.").format(row_name))
+            selected_qty_by_row[row_name] = qty
+
+        if not selected_qty_by_row:
+            frappe.throw(_("Select at least one item to return."))
+
     return_doc = make_return_doc(doctype, invoice)
+
+    if selected_qty_by_row is not None:
+        ref_field = "pos_invoice_item" if doctype == "POS Invoice" else "sales_invoice_item"
+        kept_rows = []
+        for row in return_doc.items:
+            source_row_name = row.get(ref_field)
+            if source_row_name in selected_qty_by_row:
+                row.qty = -selected_qty_by_row[source_row_name]
+                kept_rows.append(row)
+        if not kept_rows:
+            frappe.throw(_("None of the selected items could be matched to the original invoice."))
+        return_doc.set("items", kept_rows)
+
     if doctype == "Sales Invoice":
         # make_return_doc otherwise just copies the source invoice's own
         # naming_series, so a return would be indistinguishable from a

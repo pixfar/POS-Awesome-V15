@@ -224,11 +224,17 @@ def get_invoice_for_return(invoice_name, pos_profile=None, doctype="Sales Invoic
     enforce_return_validity, _ = _get_return_validity_settings(pos_profile)
 
     invoice_doc = frappe.get_cached_doc(doctype, invoice_name)
+    # Purchase Invoice has no `customer`/`customer_name` fields — it uses
+    # `supplier`/`supplier_name` instead. Keep the output keys the same for
+    # both doctypes since existing (Sales-only) callers already read
+    # `customer`/`customer_name` regardless of whether the source doc is a
+    # Sales or POS Invoice.
+    is_purchase = doctype == "Purchase Invoice"
     invoice = {
         "name": invoice_doc.name,
         "doctype": doctype,
-        "customer": invoice_doc.customer,
-        "customer_name": invoice_doc.customer_name,
+        "customer": invoice_doc.supplier if is_purchase else invoice_doc.customer,
+        "customer_name": invoice_doc.supplier_name if is_purchase else invoice_doc.customer_name,
         "grand_total": invoice_doc.grand_total,
         "total": invoice_doc.total,
         "net_total": invoice_doc.net_total,

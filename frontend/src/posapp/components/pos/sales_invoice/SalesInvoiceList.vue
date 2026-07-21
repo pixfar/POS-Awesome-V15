@@ -363,6 +363,16 @@
 				</v-card-actions>
 			</v-card>
 		</v-dialog>
+
+		<ReturnItemsDialog
+			v-model="returnDialogOpen"
+			:invoice="returnDialogItem"
+			:doctype="returnDialogItem?.doctype || 'Sales Invoice'"
+			:pos-profile="uiStore.posProfile?.name"
+			return-method="posawesome.posawesome.api.invoices.create_sales_return"
+			@returned="onInvoiceReturned"
+			@error="onReturnError"
+		/>
 	</div>
 </template>
 
@@ -374,6 +384,7 @@ import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ReturnItemsDialog from '../shared/ReturnItemsDialog.vue';
 
 const UNPAID_STATUSES = [
 	'Unpaid',
@@ -387,7 +398,7 @@ const RETURN_STATUSES = ['Return', 'Credit Note Issued'];
 
 export default {
 	name: 'SalesInvoiceList',
-	components: { DateFilterField },
+	components: { DateFilterField, ReturnItemsDialog },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -414,17 +425,27 @@ export default {
 		const confirmDialogActionLabel = ref('');
 		const confirmDialogColor = ref('error');
 
+		const returnDialogOpen = ref(false);
+		const returnDialogItem = ref(null);
+
 		const openReturnConfirm = (item) => {
-			confirmDialogItem.value = item;
-			confirmDialogAction.value = 'return';
-			confirmDialogTitle.value = __('Create Sales Return');
-			confirmDialogMessage.value = __(
-				'This will create and submit a full return against {0}, reversing its stock and payment effects. Continue?',
-				[item.name],
-			);
-			confirmDialogActionLabel.value = __('Create Return');
-			confirmDialogColor.value = 'blue';
-			confirmDialog.value = true;
+			returnDialogItem.value = item;
+			returnDialogOpen.value = true;
+		};
+
+		const onInvoiceReturned = async (result) => {
+			toastStore.show({
+				title: __('Return {0} created', [result?.name]),
+				color: 'success',
+			});
+			await loadInvoices();
+		};
+
+		const onReturnError = (message) => {
+			toastStore.show({
+				title: message || __('Action failed'),
+				color: 'error',
+			});
 		};
 
 		const openCancelConfirm = (item) => {
@@ -460,16 +481,7 @@ export default {
 
 			actionLoadingName.value = item.name;
 			try {
-				if (action === 'return') {
-					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.invoices.create_sales_return',
-						args: { invoice: item.name, doctype: item.doctype || 'Sales Invoice' },
-					});
-					toastStore.show({
-						title: __('Return {0} created', [message?.name]),
-						color: 'success',
-					});
-				} else if (action === 'cancel') {
+				if (action === 'cancel') {
 					await frappe.call({
 						method: 'posawesome.posawesome.api.invoices.cancel_sales_invoice',
 						args: { invoice: item.name, doctype: item.doctype || 'Sales Invoice' },
@@ -858,6 +870,11 @@ export default {
 			openCancelConfirm,
 			openDeleteConfirm,
 			runConfirmedAction,
+			returnDialogOpen,
+			returnDialogItem,
+			onInvoiceReturned,
+			onReturnError,
+			uiStore,
 		};
 	},
 };

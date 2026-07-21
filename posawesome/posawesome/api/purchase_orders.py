@@ -11,6 +11,7 @@ from erpnext.accounts.party import get_party_account
 
 from .utils import get_active_pos_profile, get_default_warehouse
 from .invoice_processing.creation import _resolve_territory_for_warehouse
+from .invoice_processing.returns import get_invoice_for_return
 from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission_scoped_names
 
 
@@ -612,7 +613,32 @@ def _create_payment_entry(reference_doc, payments, company, transaction_date):
         pe.submit()
         created_payments.append(pe.name)
 
+        if ref_doctype == "Purchase Invoice":
+            _record_purchase_payment_split(ref_name, mode, amount, paid_from_account, pe.name, len(created_payments))
+
     return created_payments
+
+
+def _record_purchase_payment_split(purchase_invoice, mode_of_payment, amount, account, payment_entry_name, idx):
+    """Mirror each created Payment Entry onto the Purchase Invoice as a
+    Purchase Invoice Payment Split row, so the per-method breakdown is
+    visible on the submitted invoice — Purchase Invoice has no native
+    payments-style child table to show this otherwise. Inserted directly as
+    a child row since the invoice is already submitted at this point.
+    """
+    frappe.get_doc(
+        {
+            "doctype": "Purchase Invoice Payment Split",
+            "parent": purchase_invoice,
+            "parenttype": "Purchase Invoice",
+            "parentfield": "custom_payment_method_split",
+            "idx": idx,
+            "mode_of_payment": mode_of_payment,
+            "amount": amount,
+            "account": account,
+            "payment_entry": payment_entry_name,
+        }
+    ).insert(ignore_permissions=True)
 
 
 def _append_purchase_invoice_items(invoice, items, warehouse, item_map):
@@ -743,6 +769,11 @@ def _create_purchase_invoice_from_pos(payload):
     territory = _resolve_territory_for_warehouse(warehouse)
     if territory:
         invoice.territory = territory
+
+    discount_amount = flt(payload.get("discount_amount"))
+    if discount_amount:
+        invoice.discount_amount = discount_amount
+        invoice.apply_discount_on = "Grand Total"
 
     payments = payload.get("payments") or []
     meaningful_payments = [
@@ -1154,10 +1185,17 @@ def delete_cancelled_purchase_invoice(invoice):
 
 
 @frappe.whitelist()
-def create_purchase_return(invoice):
-    """Create and submit a full return against a submitted Purchase Invoice
-    using ERPNext's own return-mapping logic (make_return_doc), so stock,
-    payments, and GL entries are reversed exactly as ERPNext does natively."""
+def create_purchase_return(invoice, items=None):
+    """Create and submit a return against a submitted Purchase Invoice using
+    ERPNext's own return-mapping logic (make_return_doc), so stock, payments,
+    and GL entries are reversed exactly as ERPNext does natively.
+
+    When `items` is omitted, every item is returned at its full remaining
+    quantity (today's behavior, unchanged). When provided, it must be a list
+    of {"row_name": <original item row name>, "qty": <positive qty>} and only
+    those rows/quantities are returned — see create_sales_return's docstring
+    for why `row_name` (the source row's own docname) is used instead of
+    item_code."""
     from erpnext.controllers.sales_and_purchase_return import make_return_doc
 
     source = frappe.get_doc("Purchase Invoice", invoice)
@@ -1166,7 +1204,54 @@ def create_purchase_return(invoice):
     if source.is_return:
         frappe.throw(_("This document is already a return."))
 
+    if isinstance(items, str):
+        items = frappe.parse_json(items)
+
+    selected_qty_by_row = None
+    if items:
+        fresh = get_invoice_for_return(invoice, source.get("pos_profile"), "Purchase Invoice")
+        remaining_by_row = {row["name"]: flt(row["qty"]) for row in fresh.get("items") or []}
+
+        selected_qty_by_row = {}
+        for row in items:
+            row_name = row.get("row_name")
+            qty = abs(flt(row.get("qty")))
+            if not row_name or qty <= 0:
+                continue
+            max_qty = remaining_by_row.get(row_name)
+            if max_qty is None:
+                frappe.throw(_("Item row {0} is not returnable.").format(row_name))
+            if qty > max_qty + 0.0001:
+                frappe.throw(_("Cannot return more than the remaining quantity for {0}.").format(row_name))
+            selected_qty_by_row[row_name] = qty
+
+        if not selected_qty_by_row:
+            frappe.throw(_("Select at least one item to return."))
+
     return_doc = make_return_doc("Purchase Invoice", invoice)
+
+    if selected_qty_by_row is not None:
+        kept_rows = []
+        for row in return_doc.items:
+            source_row_name = row.get("purchase_invoice_item")
+            if source_row_name in selected_qty_by_row:
+                # make_return_doc set qty (and received_qty/rejected_qty) to
+                # the full negated remaining amount; scale received/rejected
+                # by the same ratio we're shrinking qty by, or ERPNext's own
+                # "Received Qty must be equal to Accepted + Rejected Qty"
+                # validation rejects the return.
+                original_qty = flt(row.qty)
+                new_qty = -selected_qty_by_row[source_row_name]
+                ratio = (new_qty / original_qty) if original_qty else 0
+                row.qty = new_qty
+                if row.get("received_qty") is not None:
+                    row.received_qty = flt(row.received_qty) * ratio
+                if row.get("rejected_qty") is not None:
+                    row.rejected_qty = flt(row.rejected_qty) * ratio
+                kept_rows.append(row)
+        if not kept_rows:
+            frappe.throw(_("None of the selected items could be matched to the original invoice."))
+        return_doc.set("items", kept_rows)
     # make_return_doc otherwise just copies the source invoice's own
     # naming_series, so a return would be indistinguishable from a regular
     # purchase in the numbering sequence.

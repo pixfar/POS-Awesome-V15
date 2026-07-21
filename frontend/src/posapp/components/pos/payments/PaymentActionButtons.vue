@@ -1,7 +1,7 @@
 <template>
-	<v-card flat :class="['cards mb-0 mt-3 pa-0', { compact }]">
+	<v-card flat :class="['cards mb-0 mt-3', { compact }]">
 		<v-row align="start" no-gutters>
-			<v-col cols="4">
+			<v-col cols="4" class="payment-action-col">
 				<v-btn
 					ref="submitButton"
 					block
@@ -63,6 +63,8 @@ const __ = window.__;
 <style scoped>
 .cards {
 	background: transparent !important;
+	padding: 12px !important;
+	margin-bottom: 12px !important;
 }
 
 .compact :deep(.v-btn),
@@ -122,7 +124,15 @@ const __ = window.__;
 }
 
 .payment-action-col {
-	padding-left: 4px;
+	padding: 0 6px;
+}
+
+.payment-action-col:first-child {
+	padding-left: 0;
+}
+
+.payment-action-col:last-child {
+	padding-right: 0;
 }
 
 .payment-footer-btn:active {

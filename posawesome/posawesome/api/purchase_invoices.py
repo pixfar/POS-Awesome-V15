@@ -91,8 +91,8 @@ def delete_cancelled_purchase_invoice(invoice):
 
 
 @frappe.whitelist()
-def create_purchase_return(invoice):
-	return po.create_purchase_return(invoice)
+def create_purchase_return(invoice, items=None):
+	return po.create_purchase_return(invoice, items=items)
 
 
 # Generic item search used by ItemsSelector in purchase context.

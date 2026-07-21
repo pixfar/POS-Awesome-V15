@@ -36,6 +36,11 @@ const reportGroups = [
 				// permitted warehouse(s), same as the Deposit/Expense lists.
 				route: '/reports/daily-cash-summary',
 			},
+			{
+				title: 'Warehouse Wise Daily Cash Summary Report',
+				name: 'Warehouse Wise Daily Cash Summary Report',
+				icon: 'mdi-table-large',
+			},
 		],
 	},
 	{
@@ -80,9 +85,9 @@ const reportGroups = [
 		icon: 'mdi-warehouse',
 		reports: [
 			{
-				title: 'BSP Stock Balance',
-				name: 'BSP Stock Balance',
-				icon: 'mdi-clipboard-list-outline',
+				title: 'Warehouse Wise Item Stock Balance',
+				name: 'Warehouse Wise Item Stock Balance',
+				icon: 'mdi-table-large',
 			},
 			{
 				title: 'Stock Balance',
@@ -103,11 +108,6 @@ const reportGroups = [
 				title: 'Low Stock Alert Report',
 				name: 'Low Stock Alert Report',
 				icon: 'mdi-alert-outline',
-			},
-			{
-				title: 'Warehouse Wise Item Stock Balance',
-				name: 'Warehouse Wise Item Stock Balance',
-				icon: 'mdi-table-large',
 			},
 		],
 	},
