@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import flt, json
+from frappe.utils import cint, flt, json
 from posawesome.posawesome.doctype.pos_closing_shift.closing_processing.utils import get_base_value
 from posawesome.posawesome.doctype.pos_closing_shift.closing_processing.data import (
     get_pos_invoices,
@@ -167,29 +167,33 @@ def make_closing_shift_from_opening(opening_shift):
                     )
                 )
 
-        for p in d.payments:
-            existing_pay = [pay for pay in payments if pay.mode_of_payment == p.mode_of_payment]
-            if existing_pay:
-                conversion_rate = d.get("conversion_rate")
-                if existing_pay[0].mode_of_payment == cash_mode_of_payment:
-                    amount = get_base_value(p, "amount", "base_amount", conversion_rate) - get_base_value(
-                        d, "change_amount", "base_change_amount", conversion_rate
-                    )
+        # Invoices settled via a per-payment-method Payment Entry (is_pos = 0)
+        # have their amounts counted below via get_payments_entries() instead;
+        # summing d.payments here too would double-count them.
+        if cint(d.get("is_pos")):
+            for p in d.payments:
+                existing_pay = [pay for pay in payments if pay.mode_of_payment == p.mode_of_payment]
+                if existing_pay:
+                    conversion_rate = d.get("conversion_rate")
+                    if existing_pay[0].mode_of_payment == cash_mode_of_payment:
+                        amount = get_base_value(
+                            p, "amount", "base_amount", conversion_rate
+                        ) - get_base_value(d, "change_amount", "base_change_amount", conversion_rate)
+                    else:
+                        amount = get_base_value(p, "amount", "base_amount", conversion_rate)
+                    existing_pay[0].expected_amount += flt(amount)
                 else:
-                    amount = get_base_value(p, "amount", "base_amount", conversion_rate)
-                existing_pay[0].expected_amount += flt(amount)
-            else:
-                payments.append(
-                    frappe._dict(
-                        {
-                            "mode_of_payment": p.mode_of_payment,
-                            "opening_amount": 0,
-                            "expected_amount": get_base_value(
-                                p, "amount", "base_amount", d.get("conversion_rate")
-                            ),
-                        }
+                    payments.append(
+                        frappe._dict(
+                            {
+                                "mode_of_payment": p.mode_of_payment,
+                                "opening_amount": 0,
+                                "expected_amount": get_base_value(
+                                    p, "amount", "base_amount", d.get("conversion_rate")
+                                ),
+                            }
+                        )
                     )
-                )
 
     pos_payments = get_payments_entries(opening_shift.get("name"))
 

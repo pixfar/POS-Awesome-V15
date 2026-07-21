@@ -1,7 +1,7 @@
 <template>
 	<v-card flat :class="['cards mb-0 mt-3 pa-0', { compact }]">
 		<v-row align="start" no-gutters>
-			<v-col cols="12" sm="6">
+			<v-col cols="4">
 				<v-btn
 					ref="submitButton"
 					block
@@ -17,7 +17,7 @@
 					{{ __("Submit") }}
 				</v-btn>
 			</v-col>
-			<v-col cols="12" sm="6" class="payment-action-col">
+			<v-col cols="4" class="payment-action-col">
 				<v-btn
 					block
 					size="large"
@@ -31,13 +31,13 @@
 					{{ __("Submit & Print") }}
 				</v-btn>
 			</v-col>
-			<v-col cols="12">
+			<v-col cols="4" class="payment-action-col">
 				<v-btn
 					block
 					size="large"
 					color="error"
 					variant="flat"
-					class="mt-2 pa-1 payment-cancel-btn payment-footer-btn"
+					class="pa-1 payment-cancel-btn payment-footer-btn"
 					@click="$emit('cancel')"
 				>
 					{{ __("Cancel Payment") }}
@@ -138,11 +138,6 @@ const __ = window.__;
 @media (max-width: 768px) {
 	.cards {
 		margin-top: 0 !important;
-	}
-
-	.payment-action-col {
-		padding-left: 0;
-		padding-top: 6px;
 	}
 
 	.payment-footer-btn {

@@ -157,7 +157,7 @@
 						/>
 					</section>
 
-					<section class="payment-section payment-section--settlement">
+					<section v-if="false" class="payment-section payment-section--settlement">
 						<div class="payment-section__header">
 							<h3 class="payment-section__title">{{ __("Credit and Output") }}</h3>
 						</div>
@@ -211,7 +211,7 @@
 						/>
 					</section>
 
-					<section class="payment-section payment-section--meta">
+					<section v-if="false" class="payment-section payment-section--meta">
 						<div class="payment-section__header">
 							<h3 class="payment-section__title">{{ __("Sales Person and Print") }}</h3>
 						</div>

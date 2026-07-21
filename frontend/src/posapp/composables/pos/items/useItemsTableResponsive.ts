@@ -25,7 +25,7 @@ export function getResponsiveVisibleHeaders(
 	headers: TableHeader[],
 	width: number,
 ) {
-	return headers
+	const visibleHeaders = headers
 		.filter((header) => {
 			if (
 				header.required ||
@@ -57,6 +57,21 @@ export function getResponsiveVisibleHeaders(
 			width: calculateColumnWidth(header, width),
 			minWidth: calculateMinColumnWidth(header),
 		}));
+
+	const totalWidth = visibleHeaders.reduce(
+		(sum, header) => sum + (Number(header.width) || 0),
+		0,
+	);
+
+	if (width > 0 && totalWidth > 0 && totalWidth < width) {
+		const scale = width / totalWidth;
+		return visibleHeaders.map((header) => ({
+			...header,
+			width: Math.floor(Number(header.width) * scale),
+		}));
+	}
+
+	return visibleHeaders;
 }
 
 export function buildFinalVisibleColumns(

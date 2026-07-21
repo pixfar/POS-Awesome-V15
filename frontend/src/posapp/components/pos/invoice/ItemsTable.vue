@@ -13,7 +13,6 @@
 			:headers="responsiveHeaders"
 			:items="items"
 			:expanded="expanded"
-			show-expand
 			item-value="posa_row_id"
 			class="posa-cart-table pos-themed-card"
 			:class="tableClasses"
@@ -131,10 +130,7 @@ import CartItemRow from "./CartItemRow.vue";
 import ItemsTableExpandedRow from "./ItemsTableExpandedRow.vue";
 
 import { useItemsTableDragDrop } from "../../../composables/pos/items/useItemsTableDragDrop";
-import {
-	DATA_TABLE_EXPAND_COLUMN,
-	useItemsTableResponsive,
-} from "../../../composables/pos/items/useItemsTableResponsive";
+import { useItemsTableResponsive } from "../../../composables/pos/items/useItemsTableResponsive";
 import { useItemsTableMerge } from "../../../composables/pos/items/useItemsTableMerge";
 import { useItemsTableNameEdit } from "../../../composables/pos/items/useItemsTableNameEdit";
 import { useFormatters } from "../../../composables/core/useFormatters";
@@ -238,7 +234,7 @@ const dynamicHeaderProps = computed(() => ({
 	class: `responsive-header container-${breakpoint.value}`,
 }));
 
-const finalVisibleColumns = computed(() => [...responsiveHeaders.value, DATA_TABLE_EXPAND_COLUMN]);
+const finalVisibleColumns = computed(() => [...responsiveHeaders.value]);
 
 const virtualScrollConfig = computed(() => {
 	const itemCount = items.value?.length || 0;

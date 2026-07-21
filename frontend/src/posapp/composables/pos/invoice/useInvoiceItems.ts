@@ -5,9 +5,9 @@
  * `available_columns` lists every possible cart table column. `selected_columns`
  * is the operator-chosen subset, persisted to `localStorage` under the key
  * `posawesome_selected_columns`. The computed `items_headers` merges required
- * columns with the operator selection. `loadColumnPreferences` applies profile
- * defaults when no saved preference exists; `saveColumnPreferences` writes back
- * on every change.
+ * columns with the operator selection. `loadColumnPreferences` leaves optional
+ * columns unselected until the operator opts in when no saved preference
+ * exists; `saveColumnPreferences` writes back on every change.
  *
  * **Quantity editing (`setFormatedQty`)**
  * The central quantity setter enforces several layered rules in order:
@@ -149,27 +149,10 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 				selected_columns.value = parsed.map((key) =>
 					key === "discount_value" ? "discount_percentage" : key,
 				);
-			} else if (pos_profile.value) {
-				// Default selection based on POS Profile
-				selected_columns.value = available_columns.value
-					.filter((col) => {
-						if (col.required) return true;
-						if (col.key === "item_code") return true;
-						if (col.key === "actual_qty") return true;
-						if (col.key === "price_list_rate") return true;
-						if (
-							col.key === "discount_percentage" &&
-							pos_profile.value?.posa_display_discount_percentage
-						)
-							return true;
-						if (
-							col.key === "discount_amount" &&
-							pos_profile.value?.posa_display_discount_amount
-						)
-							return true;
-						return false;
-					})
-					.map((col) => col.key);
+			} else {
+				// No saved preference yet: show only required columns until the
+				// user opts in to optional ones via the column selector.
+				selected_columns.value = [];
 			}
 		} catch (e) {
 			console.error("Failed to load column preferences:", e);

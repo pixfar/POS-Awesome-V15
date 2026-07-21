@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import flt, json
+from frappe.utils import cint, flt, json
 from collections import defaultdict
 from frappe import _
 from posawesome.posawesome.doctype.pos_closing_shift.closing_processing.utils import get_base_value
@@ -372,19 +372,22 @@ def get_closing_shift_overview(pos_opening_shift):
                 if rate:
                     returns_entry["exchange_rates"].add(rate)
 
-        for payment in invoice.get("payments", []):
-            mode = payment.get("mode_of_payment")
-            payment_currency = resolve_payment_currency(payment, invoice_currency)
-            amount = flt(payment.get("amount") or 0)
-            base_amount = get_base_value(payment, "amount", "base_amount", conversion_rate)
-            accumulate_payment(
-                payments_by_mode,
-                mode,
-                payment_currency,
-                amount,
-                base_amount,
-                conversion_rate,
-            )
+        # Invoices settled via a per-payment-method Payment Entry (is_pos = 0) are
+        # counted below from payment_entries instead, to avoid double-counting.
+        if cint(invoice.get("is_pos")):
+            for payment in invoice.get("payments", []):
+                mode = payment.get("mode_of_payment")
+                payment_currency = resolve_payment_currency(payment, invoice_currency)
+                amount = flt(payment.get("amount") or 0)
+                base_amount = get_base_value(payment, "amount", "base_amount", conversion_rate)
+                accumulate_payment(
+                    payments_by_mode,
+                    mode,
+                    payment_currency,
+                    amount,
+                    base_amount,
+                    conversion_rate,
+                )
 
     for entry in payment_entries:
         mode = entry.get("mode_of_payment")
@@ -748,13 +751,17 @@ def get_payment_reconciliation_details(closing_shift_doc):
         sales_breakdown[currency] += flt(invoice_doc.get("grand_total") or 0)
         net_breakdown[currency] += flt(invoice_doc.get("net_total") or 0)
 
-        for payment in invoice_doc.get("payments", []):
-            update_payment_breakdown(
-                payment.mode_of_payment,
-                get_base_value(payment, "amount", "base_amount", conversion_rate),
-                currency,
-                payment.amount,
-            )
+        # Invoices settled via a per-payment-method Payment Entry (is_pos = 0) are
+        # counted below via closing_shift_doc.pos_payments instead, to avoid
+        # double-counting.
+        if cint(invoice_doc.get("is_pos")):
+            for payment in invoice_doc.get("payments", []):
+                update_payment_breakdown(
+                    payment.mode_of_payment,
+                    get_base_value(payment, "amount", "base_amount", conversion_rate),
+                    currency,
+                    payment.amount,
+                )
 
         change_amount = invoice_doc.get("change_amount") or 0
         if change_amount:

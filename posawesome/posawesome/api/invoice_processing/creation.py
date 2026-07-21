@@ -1175,6 +1175,36 @@ def submit_invoice(invoice, data, submit_in_background=False):
                 invoice_doc.is_pos = 0
                 is_payment_entry = 1
 
+    # Hand payment posting off to a real Payment Entry per payment method
+    # (created by bsp_engineering's Sales Invoice on_submit hook) instead of
+    # ERPNext's direct is_pos GL posting. Flipping is_pos here — before submit
+    # — is what stops make_pos_gl_entries() from posting the payment-side GL
+    # itself; pos_profile stays set so the invoice is still recognised as a
+    # POS sale everywhere else (shift totals, etc.).
+    #
+    # NOTE: ERPNext's own calculate_paid_amount() (taxes_and_totals.py) wipes
+    # doc.payments to [] on every validate() once is_pos is falsy and the
+    # invoice isn't a return — that's standard behavior for non-POS invoices,
+    # since payments are normally tracked via Payment Entry instead. That
+    # means invoice_doc.payments will NOT survive past this point once is_pos
+    # is flipped, so the split has to be copied into a field ERPNext core
+    # doesn't know about (custom_payment_method_split) before the flip.
+    non_gift_card_rows = [
+        row for row in (invoice_doc.payments or []) if str(row.get("mode_of_payment") or "").strip() != "Gift Card"
+    ]
+    if not is_payment_entry and not invoice_doc.is_return and non_gift_card_rows:
+        for row in non_gift_card_rows:
+            split_row = invoice_doc.append("custom_payment_method_split", {})
+            split_row.update(
+                {
+                    "mode_of_payment": row.get("mode_of_payment"),
+                    "amount": row.get("amount"),
+                    "account": row.get("account"),
+                }
+            )
+        ensure_child_doctype(invoice_doc, "custom_payment_method_split", "Sales Invoice Payment Split")
+        invoice_doc.is_pos = 0
+
     _apply_invoice_gift_card_settlement(invoice_doc, data)
     _normalize_return_payment_rows(invoice_doc, invoice_doc.get("conversion_rate") or 1)
 
