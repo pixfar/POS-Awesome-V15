@@ -13,11 +13,21 @@ import frappe
 from frappe import _
 
 SYSTEM_MANAGER_ROLE = 'System Manager'
+BSP_ADMIN_ROLE = 'BSP Admin'
 
 
 def is_system_manager(user=None):
 	user = user or frappe.session.user
 	return user == 'Administrator' or SYSTEM_MANAGER_ROLE in frappe.get_roles(user)
+
+
+def is_privileged_invoice_viewer(user=None):
+	"""System Manager or BSP Admin may see every Sales/Purchase Invoice
+	regardless of who created it or which warehouse it touches."""
+	user = user or frappe.session.user
+	if user == 'Administrator' or is_system_manager(user):
+		return True
+	return BSP_ADMIN_ROLE in frappe.get_roles(user)
 
 
 def user_has_warehouse_restrictions(user=None):
@@ -63,9 +73,11 @@ def get_permission_scoped_names(doctype, warehouse_field, owner_field='owner', u
 	"""For doctypes with a single warehouse field (Sales/Purchase Invoice, BSP
 	Daily Deposit): returns the list of doc names this user may see -- their
 	own records OR records touching their permitted warehouse(s) -- or None if
-	the user is unrestricted (System Manager) and should see everything."""
+	the user is unrestricted (System Manager or BSP Admin) and should see
+	everything. Everyone else is scoped to their own records at minimum, even
+	if they have no warehouse User Permission set up at all."""
 	user = user or frappe.session.user
-	if not user_has_warehouse_restrictions(user):
+	if is_privileged_invoice_viewer(user):
 		return None
 
 	permitted = get_expanded_permitted_warehouses(user) or []

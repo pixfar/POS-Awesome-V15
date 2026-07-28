@@ -544,6 +544,22 @@ def _get_mode_of_payment_account(mode, company):
     return account
 
 
+def _get_pos_change_account():
+    """account_for_change_amount from the logged-in user's active POS Profile.
+
+    Purchase Invoice has no pos_profile field of its own, so (unlike the
+    Sales Invoice side) this can't be resolved from the document -- it's
+    read from whichever POS Profile the submitting cashier is assigned to.
+    """
+    try:
+        from bsp_engineering.posawesome.profile import get_active_pos_profile
+
+        profile = get_active_pos_profile() or {}
+    except Exception:
+        return None
+    return profile.get("account_for_change_amount")
+
+
 def _create_payment_entry(reference_doc, payments, company, transaction_date):
     if not payments:
         return []
@@ -562,6 +578,13 @@ def _create_payment_entry(reference_doc, payments, company, transaction_date):
     if outstanding_amount <= 0:
         return created_payments
 
+    # Every payment method's paid_from is the showroom's POS Profile
+    # account_for_change_amount, not each mode of payment's own account --
+    # this is what lets accounting be tracked per showroom instead of per
+    # payment method. Falls back to the mode of payment's own account only
+    # if the POS Profile has no change account configured.
+    change_account = _get_pos_change_account()
+
     for pay in payments:
         amount = flt(pay.get("amount"))
         mode = pay.get("mode_of_payment")
@@ -569,7 +592,7 @@ def _create_payment_entry(reference_doc, payments, company, transaction_date):
         if amount <= 0:
             continue
 
-        paid_from_account = _get_mode_of_payment_account(mode, company)
+        paid_from_account = change_account or _get_mode_of_payment_account(mode, company)
 
         pe = frappe.new_doc("Payment Entry")
         pe.payment_type = "Pay"
