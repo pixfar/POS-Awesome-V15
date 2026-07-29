@@ -126,7 +126,7 @@ import { forceClearAllCache } from "../../offline/index";
 import { clearAllCaches } from "../../utils/clearAllCaches";
 import { isOffline } from "../../offline/index";
 import { useRtl } from "../composables/core/useRtl";
-import { isPosWarehouseSwitcher } from "../utils/posWarehouseAccess";
+import { isPosWarehouseSwitcher, isFundTransferManager } from "../utils/posWarehouseAccess";
 
 const ServerUsageGadget = defineAsyncComponent(() => import("./navbar/ServerUsageGadget.vue"));
 const DatabaseUsageGadget = defineAsyncComponent(() => import("./navbar/DatabaseUsageGadget.vue"));
@@ -553,6 +553,19 @@ export default {
 					to: "/cash-movement",
 				});
 			}
+			// The list itself is visible to everyone -- it's scoped server-side
+			// to each user's own showroom account. Only "New Transfer" (creating
+			// one) is restricted to BSP Admin / System Manager.
+			items.push({
+				text: "Fund Transfer",
+				icon: "mdi-bank-transfer",
+				children: [
+					...(isFundTransferManager()
+						? [{ text: "New Transfer", icon: "mdi-plus-circle-outline", to: "/fund-transfer/new" }]
+						: []),
+					{ text: "Transfers", icon: "mdi-format-list-bulleted", to: "/fund-transfer/list" },
+				],
+			});
 			if (isPosWarehouseSwitcher()) {
 				items.push({
 					text: "Production Plan",

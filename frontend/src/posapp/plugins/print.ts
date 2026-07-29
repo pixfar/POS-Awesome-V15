@@ -458,11 +458,17 @@ export function silentPrint(url: string, options: PrintOptions = {}) {
 	if (!url) return;
 	try {
 		const iframe = document.createElement("iframe");
+		// Positioned off-screen (not width:0/height:0) so it stays invisible
+		// to the user while still giving the browser a real layout viewport
+		// to compute the print content against. A 0x0 iframe was causing
+		// percentage-width elements (e.g. width:100% header images, floated
+		// footer columns) to lay out against a degenerate viewport, cropping
+		// content and collapsing floats toward the center once printed.
 		iframe.style.position = "fixed";
-		iframe.style.right = "0";
-		iframe.style.bottom = "0";
-		iframe.style.width = "0";
-		iframe.style.height = "0";
+		iframe.style.top = "0";
+		iframe.style.left = "-10000px";
+		iframe.style.width = "794px";
+		iframe.style.height = "1123px";
 		iframe.style.border = "0";
 		iframe.onload = () => {
 			const contentWindow = iframe.contentWindow;

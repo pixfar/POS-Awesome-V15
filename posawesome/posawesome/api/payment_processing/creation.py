@@ -9,6 +9,7 @@ from erpnext.accounts.doctype.bank_account.bank_account import get_party_bank_ac
 from posawesome.posawesome.api.idempotency import doctype_supports_client_request_id
 from posawesome.posawesome.api.payment_processing.utils import (
     get_bank_cash_account,
+    get_pos_change_account,
     set_paid_amount_and_received_amount
 )
 
@@ -75,8 +76,14 @@ def create_payment_entry(
     pe.mode_of_payment = mode_of_payment
     pe.party_type = party_type
     pe.party = party
-    pe.paid_from = party_account if payment_type == "Receive" else bank.account
-    pe.paid_to = party_account if payment_type == "Pay" else bank.account
+    # Company-side account (paid_to for Receive/customer, paid_from for
+    # Pay/supplier) is the submitting cashier's POS Profile
+    # account_for_change_amount rather than the mode of payment's own
+    # account, so accounting can be tracked per showroom. Falls back to the
+    # mode of payment's account if the POS Profile has none configured.
+    company_account = get_pos_change_account() or bank.account
+    pe.paid_from = party_account if payment_type == "Receive" else company_account
+    pe.paid_to = party_account if payment_type == "Pay" else company_account
     pe.paid_from_account_currency = (
         party_account_currency if payment_type == "Receive" else bank.account_currency
     )

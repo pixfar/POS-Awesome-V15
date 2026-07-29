@@ -3,6 +3,11 @@ export function isPosWarehouseSwitcher(): boolean {
 	return roles.includes('System Manager');
 }
 
+export function isFundTransferManager(): boolean {
+	const roles = frappe?.boot?.user?.roles || [];
+	return roles.includes('BSP Admin') || roles.includes('System Manager');
+}
+
 export function resolveTransactionWarehouse(
 	selected: string | null | undefined,
 	profileWarehouse: string | null | undefined,

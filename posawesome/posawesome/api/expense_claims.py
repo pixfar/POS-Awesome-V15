@@ -9,6 +9,7 @@ from frappe import _
 from frappe.utils import flt, today
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
+from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
 
 DEFAULT_MODE_OF_PAYMENT = 'Cash'
 DEFAULT_PAYABLE_ACCOUNT = 'Creditors - BSP'
@@ -82,7 +83,11 @@ def create_expense_claim(data):
 
 	doc.posting_date = expense_date
 	doc.approval_status = 'Approved'
-	doc.is_paid = 1
+	# is_paid=0: the claim only books the liability (Dr Expense / Cr Payable)
+	# on submit. A separate Payment Entry below actually pays it out, so the
+	# cash leg posts against the showroom's account_for_change_amount instead
+	# of a generic mode-of-payment account.
+	doc.is_paid = 0
 	doc.mode_of_payment = DEFAULT_MODE_OF_PAYMENT
 	doc.payable_account = DEFAULT_PAYABLE_ACCOUNT
 	doc.remark = data.get('remark')
@@ -109,11 +114,45 @@ def create_expense_claim(data):
 	doc.insert(ignore_permissions=True)
 	doc.submit()
 
+	payment_entry = _pay_expense_claim(doc)
+	doc.reload()  # payment_entry's on_submit hook updates status to Paid
+
 	return {
 		'name': doc.name,
 		'status': doc.status,
 		'grand_total': doc.grand_total,
+		'payment_entry': payment_entry.name,
 	}
+
+
+def _pay_expense_claim(doc):
+	"""Pay out a just-submitted Expense Claim immediately, via the exact same
+	whitelisted call HRMS's own 'Make Payment Entry' button uses
+	(hrms.overrides.employee_payment_entry.get_payment_entry_for_employee) --
+	that builds a correctly populated Payment Entry (party_type Employee,
+	payment_type Pay, paid_to = the claim's payable account, references/
+	amounts computed by HRMS itself) so we don't have to re-derive those
+	amounts by hand.
+
+	The only thing overridden here is paid_from: the showroom's POS Profile
+	account_for_change_amount for the logged-in user instead of a generic
+	mode-of-payment account, so accounting can be tracked per showroom --
+	same convention as the Sales/Purchase Invoice and standalone Customer/
+	Supplier payment flows. Falls back to HRMS's own default bank/cash
+	account if the POS Profile has none configured.
+	"""
+	from hrms.overrides.employee_payment_entry import get_payment_entry_for_employee
+
+	pe = get_payment_entry_for_employee('Expense Claim', doc.name)
+
+	change_account = get_pos_change_account()
+	if change_account:
+		pe.paid_from = change_account
+
+	pe.flags.ignore_permissions = True
+	pe.insert(ignore_permissions=True)
+	pe.submit()
+	return pe
 
 
 @frappe.whitelist()

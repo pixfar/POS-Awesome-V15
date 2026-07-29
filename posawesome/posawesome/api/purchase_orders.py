@@ -12,6 +12,7 @@ from erpnext.accounts.party import get_party_account
 from .utils import get_active_pos_profile, get_default_warehouse
 from .invoice_processing.creation import _resolve_territory_for_warehouse
 from .invoice_processing.returns import get_invoice_for_return
+from .payment_processing.utils import get_pos_change_account
 from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission_scoped_names
 
 
@@ -544,22 +545,6 @@ def _get_mode_of_payment_account(mode, company):
     return account
 
 
-def _get_pos_change_account():
-    """account_for_change_amount from the logged-in user's active POS Profile.
-
-    Purchase Invoice has no pos_profile field of its own, so (unlike the
-    Sales Invoice side) this can't be resolved from the document -- it's
-    read from whichever POS Profile the submitting cashier is assigned to.
-    """
-    try:
-        from bsp_engineering.posawesome.profile import get_active_pos_profile
-
-        profile = get_active_pos_profile() or {}
-    except Exception:
-        return None
-    return profile.get("account_for_change_amount")
-
-
 def _create_payment_entry(reference_doc, payments, company, transaction_date):
     if not payments:
         return []
@@ -583,7 +568,7 @@ def _create_payment_entry(reference_doc, payments, company, transaction_date):
     # this is what lets accounting be tracked per showroom instead of per
     # payment method. Falls back to the mode of payment's own account only
     # if the POS Profile has no change account configured.
-    change_account = _get_pos_change_account()
+    change_account = get_pos_change_account()
 
     for pay in payments:
         amount = flt(pay.get("amount"))

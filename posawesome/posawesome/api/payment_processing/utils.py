@@ -31,6 +31,21 @@ def get_party_account(party_type, party, company):
         return None
 
 
+def get_pos_change_account(user=None):
+    """account_for_change_amount from the logged-in user's active POS Profile.
+
+    Used as the company-side account (paid_to for Receive, paid_from for
+    Pay) on Payment Entries instead of each mode of payment's own account,
+    so accounting can be tracked per showroom. Returns None if the user has
+    no active POS Profile or it has no change account set -- callers fall
+    back to the mode of payment's account in that case.
+    """
+    from posawesome.posawesome.api.utils import get_active_pos_profile
+
+    profile = get_active_pos_profile(user) or {}
+    return profile.get("account_for_change_amount")
+
+
 def get_bank_cash_account(company, mode_of_payment, bank_account=None):
     bank = get_default_bank_cash_account(
         company, "Bank", mode_of_payment=mode_of_payment, account=bank_account

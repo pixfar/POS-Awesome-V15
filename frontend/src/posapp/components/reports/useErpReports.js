@@ -41,6 +41,20 @@ const reportGroups = [
 				name: 'Warehouse Wise Daily Cash Summary Report',
 				icon: 'mdi-table-large',
 			},
+			{
+				title: 'Warehouse Wise Owner Fund Transfer Report',
+				name: 'Warehouse Wise Owner Fund Transfer Report',
+				icon: 'mdi-bank-transfer',
+				// Exposes cash movement between the company's central account and
+				// every showroom -- BSP Admin/System Manager only.
+				roles: ['BSP Admin', 'System Manager'],
+			},
+			{
+				title: 'Warehouse Wise Owner Fund Transfer Summary Report',
+				name: 'Warehouse Wise Owner Fund Transfer Summary Report',
+				icon: 'mdi-table-large',
+				roles: ['BSP Admin', 'System Manager'],
+			},
 		],
 	},
 	{

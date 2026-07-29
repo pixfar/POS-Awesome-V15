@@ -1024,6 +1024,26 @@ export default {
 			if (autoAllocate.value) autoSelectInvoicesForAmount();
 		});
 
+		// Customer and Supplier pages share this same component instance --
+		// Vue Router doesn't remount it when navigating between them via the
+		// menu (only the partyType prop changes), so without this the
+		// outstanding invoices list stayed stuck showing whichever party
+		// type loaded first until a full page reload.
+		watch(
+			() => props.partyType,
+			async () => {
+				partyName.value = "";
+				partySearchText.value = "";
+				partyOptions.value = [];
+				clearSelections();
+				partyOutstanding.value = 0;
+				paymentHistory.value = [];
+				resetPaymentMethodAmounts();
+				await fetchOutstandingInvoices();
+				if (props.partyType === "Supplier") onPartySearch("");
+			},
+		);
+
 		watch(
 			() => payment_methods.value.map((m) => m.amount),
 			() => {

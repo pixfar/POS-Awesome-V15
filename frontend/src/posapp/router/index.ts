@@ -141,6 +141,37 @@ const routes = [
 		},
 	},
 	{
+		path: "/fund-transfer",
+		redirect: "/fund-transfer/list",
+	},
+	{
+		path: "/fund-transfer/list",
+		component: () => import("../components/pos/fund_transfer/FundTransferList.vue"),
+		meta: {
+			title: "Fund Transfers",
+			layout: "default",
+			loadingMessage: "Loading fund transfers...",
+		},
+	},
+	{
+		path: "/fund-transfer/new",
+		component: () => import("../components/pos/fund_transfer/FundTransferNew.vue"),
+		meta: {
+			title: "New Fund Transfer",
+			layout: "default",
+			loadingMessage: "Loading new fund transfer...",
+		},
+	},
+	{
+		path: "/fund-transfer/:name",
+		component: () => import("../components/pos/fund_transfer/FundTransferDetail.vue"),
+		meta: {
+			title: "Fund Transfer",
+			layout: "default",
+			loadingMessage: "Loading fund transfer...",
+		},
+	},
+	{
 		path: "/material-transfers",
 		redirect: "/material-transfers/list",
 	},

@@ -11,6 +11,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_permission_scoped_names,
 	is_system_manager,
 )
+from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
 
 DOCTYPE = 'BSP Daily Deposit'
 
@@ -74,10 +75,56 @@ def create_daily_deposit(data):
 	doc.insert(ignore_permissions=True)
 	doc.submit()
 
+	payment_entry = _create_deposit_payment_entry(doc)
+	doc.db_set('payment_entry', payment_entry.name, update_modified=False)
+	doc.db_set('status', 'Deposited', update_modified=False)
+
 	return {
 		'name': doc.name,
 		'amount': doc.amount,
+		'payment_entry': payment_entry.name,
+		'status': 'Deposited',
 	}
+
+
+def _create_deposit_payment_entry(doc):
+	"""Internal Transfer Payment Entry moving the showroom's daily cash from
+	its own POS Profile account_for_change_amount into the company's central
+	default_cash_account -- this is what "depositing" a BSP Daily Deposit
+	means in GL terms. Linked back via custom_bsp_daily_deposit so it shows
+	as a Connection on the deposit's own form (Internal Transfer entries
+	clear the `references` child table on every save, so that's not usable
+	for the link -- see PaymentEntry.set_missing_values).
+	"""
+	change_account = get_pos_change_account()
+	if not change_account:
+		frappe.throw(
+			_('Please set "Account for Change Amount" on your POS Profile before creating a deposit.')
+		)
+
+	company = frappe.db.get_value('Warehouse', doc.warehouse, 'company')
+	if not company:
+		frappe.throw(_('Could not determine Company for warehouse {0}.').format(doc.warehouse))
+
+	default_cash_account = frappe.get_cached_value('Company', company, 'default_cash_account')
+	if not default_cash_account:
+		frappe.throw(_('Please set Default Cash Account in Company {0}.').format(company))
+
+	pe = frappe.new_doc('Payment Entry')
+	pe.payment_type = 'Internal Transfer'
+	pe.company = company
+	pe.posting_date = doc.posting_date
+	pe.paid_from = change_account
+	pe.paid_to = default_cash_account
+	pe.paid_amount = flt(doc.amount)
+	pe.received_amount = flt(doc.amount)
+	pe.reference_no = doc.name
+	pe.reference_date = doc.posting_date
+	pe.custom_bsp_daily_deposit = doc.name
+	pe.flags.ignore_permissions = True
+	pe.insert(ignore_permissions=True)
+	pe.submit()
+	return pe
 
 
 @frappe.whitelist()
@@ -114,6 +161,8 @@ def get_daily_deposits_list(page_start=0, page_length=20, from_date=None, to_dat
 		'bank_name',
 		'amount',
 		'docstatus',
+		'status',
+		'payment_entry',
 	]
 
 	rows = frappe.get_all(
@@ -161,6 +210,8 @@ def get_daily_deposit_detail(name):
 		'amount': flt(doc.amount),
 		'acknowledgment_receipt': doc.acknowledgment_receipt,
 		'docstatus': doc.docstatus,
+		'status': doc.status,
+		'payment_entry': doc.payment_entry,
 	}
 
 
@@ -179,7 +230,8 @@ def cancel_daily_deposit(name):
 		frappe.throw(_("Only a submitted document can be cancelled."))
 
 	doc.cancel()
-	return {"name": doc.name, "docstatus": doc.docstatus}
+	doc.db_set('status', 'Cancelled', update_modified=False)
+	return {"name": doc.name, "docstatus": doc.docstatus, "status": "Cancelled"}
 
 
 @frappe.whitelist()
