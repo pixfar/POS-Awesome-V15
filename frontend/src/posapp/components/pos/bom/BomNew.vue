@@ -1,7 +1,12 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell">
+	<div class="pa-0 h-100 invoice-shell txn-shell" :style="responsiveStyles">
 		<v-row class="h-100 ma-0">
-			<v-col cols="12" md="7" class="h-100 pa-0">
+			<v-col
+				v-show="showInvoicePanel"
+				cols="12"
+				:md="invoiceCols"
+				class="h-100 pa-0 txn-col txn-col--invoice"
+			>
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
@@ -219,7 +224,7 @@
 						</div>
 					</v-card-text>
 
-					<div class="purchase-bottom-bar">
+					<div v-if="!isCompact" class="purchase-bottom-bar">
 						<div class="purchase-bottom-bar__summary">
 							<span class="purchase-bottom-bar__label">{{ __("Raw Materials") }}</span>
 							<strong class="purchase-bottom-bar__amount">{{ rawMaterials.length }}</strong>
@@ -242,10 +247,67 @@
 				</v-card>
 			</v-col>
 
-			<v-col cols="12" md="5" class="h-100 pa-0 border-s">
+			<v-col
+				v-show="showSelectorPanel"
+				cols="12"
+				:md="selectorCols"
+				class="h-100 pa-0 border-s txn-col txn-col--selector"
+			>
 				<ItemsSelector context="bom" @add-item="onAddRawMaterial" />
 			</v-col>
 		</v-row>
+
+		<div v-if="isCompact" class="mobile-pos-stack txn-bottom-dock">
+			<div class="mobile-sale-dock">
+				<div class="mobile-sale-dock__copy">
+					<span class="mobile-sale-dock__eyebrow">{{ __("Raw Materials") }}</span>
+					<strong class="mobile-sale-dock__amount">{{ rawMaterials.length }}</strong>
+					<span class="mobile-sale-dock__meta">
+						{{ rawMaterials.length === 1 ? __("line") : __("lines") }}
+					</span>
+				</div>
+				<v-btn
+					:loading="submitLoading"
+					:disabled="submitLoading || !manufactureItem.item_code || !rawMaterials.length"
+					color="primary"
+					variant="flat"
+					class="text-none txn-dock-pay-btn"
+					prepend-icon="mdi-send"
+					@click="submitBom"
+				>
+					{{ __("Create BOM") }}
+				</v-btn>
+			</div>
+			<div class="mobile-pos-dock">
+				<button
+					type="button"
+					class="mobile-pos-dock__item"
+					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'selector' }"
+					@click="setPanel('selector')"
+				>
+					<v-icon icon="mdi-magnify" size="20" />
+					<span>{{ __("Browse") }}</span>
+				</button>
+				<button
+					type="button"
+					class="mobile-pos-dock__item"
+					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'invoice' }"
+					@click="setPanel('invoice')"
+				>
+					<span v-if="rawMaterials.length" class="mobile-pos-dock__pill">{{ rawMaterials.length }}</span>
+					<v-icon icon="mdi-cart-outline" size="22" />
+					<span>{{ __("Cart") }}</span>
+				</button>
+				<button
+					type="button"
+					class="mobile-pos-dock__item mobile-pos-dock__item--pay"
+					@click="submitBom"
+				>
+					<v-icon icon="mdi-send" size="20" />
+					<span>{{ __("Submit") }}</span>
+				</button>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -256,6 +318,7 @@ import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import { useItemsStore } from '../../../stores/itemsStore';
 import ItemsSelector from '../items/ItemsSelector.vue';
+import { useCompactTransactionPanel } from '../../../composables/core/useCompactTransactionPanel';
 
 export default {
 	name: 'BomNew',
@@ -267,6 +330,16 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
+		const {
+			responsiveStyles,
+			isCompact,
+			compactPanel,
+			showInvoicePanel,
+			showSelectorPanel,
+			invoiceCols,
+			selectorCols,
+			setPanel,
+		} = useCompactTransactionPanel('invoice');
 		const pos_profile = ref(uiStore.posProfile || {});
 
 		const manufactureItem = reactive({ item_code: null, item_name: '', stock_uom: '' });
@@ -566,6 +639,14 @@ export default {
 		});
 
 		return {
+			responsiveStyles,
+			isCompact,
+			compactPanel,
+			showInvoicePanel,
+			showSelectorPanel,
+			invoiceCols,
+			selectorCols,
+			setPanel,
 			manufactureItem,
 			selectedManufactureItemCode,
 			manufactureSearchQuery,

@@ -1,9 +1,14 @@
 <template>
-	<div class="pa-0 h-100 payment-shell invoice-shell">
+	<div class="pa-0 h-100 payment-shell invoice-shell txn-shell" :style="responsiveStyles">
 		<v-row class="h-100 ma-0">
 
 			<!-- LEFT: Party selector · Outstanding invoices · History -->
-			<v-col cols="12" md="7" class="h-100 pa-0">
+			<v-col
+				v-show="showInvoicePanel"
+				cols="12"
+				:md="invoiceCols"
+				class="h-100 pa-0 txn-col txn-col--invoice"
+			>
 				<v-card class="h-100 d-flex flex-column pos-themed-card payment-invoice-card" flat>
 					<v-card-text class="flex-grow-1 d-flex flex-column pa-3 pa-md-4 payment-main-body">
 						<div class="payment-content">
@@ -244,7 +249,7 @@
 					</v-card-text>
 
 					<!-- Bottom action bar -->
-					<div class="purchase-bottom-bar">
+					<div v-if="!isCompact" class="purchase-bottom-bar">
 						<div class="purchase-bottom-bar__summary">
 							<span class="purchase-bottom-bar__label">{{ __("Selected Total") }}</span>
 							<strong class="purchase-bottom-bar__amount">
@@ -273,7 +278,12 @@
 			</v-col>
 
 			<!-- RIGHT: Summary · Payment methods · Submit -->
-			<v-col cols="12" md="5" class="h-100 pa-0 border-s">
+			<v-col
+				v-show="showSelectorPanel"
+				cols="12"
+				:md="selectorCols"
+				class="h-100 pa-0 border-s txn-col txn-col--selector"
+			>
 				<v-card class="h-100 d-flex flex-column pos-themed-card payment-side-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections payment-side-sections">
@@ -399,6 +409,67 @@
 				</v-card>
 			</v-col>
 		</v-row>
+
+		<div v-if="isCompact" class="mobile-pos-stack txn-bottom-dock">
+			<div class="mobile-sale-dock">
+				<div class="mobile-sale-dock__copy">
+					<span class="mobile-sale-dock__eyebrow">{{ __("Selected Total") }}</span>
+					<strong class="mobile-sale-dock__amount">
+						{{ currencySymbol() }}{{ formatAmt(total_selected_invoices) }}
+					</strong>
+					<span class="mobile-sale-dock__meta">
+						<template v-if="selected_invoices.length">
+							{{ selected_invoices.length }}
+							{{ selected_invoices.length === 1 ? __("invoice") : __("invoices") }}
+						</template>
+						<template v-else>{{ __("No invoices selected") }}</template>
+					</span>
+				</div>
+				<v-btn
+					:loading="isSubmitting"
+					:disabled="isSubmitting || !canSubmit"
+					color="primary"
+					variant="flat"
+					class="text-none txn-dock-pay-btn"
+					prepend-icon="mdi-cash-check"
+					@click="handleSubmit(false)"
+				>
+					{{ __("PAY") }}
+				</v-btn>
+			</div>
+			<div class="mobile-pos-dock">
+				<button
+					type="button"
+					class="mobile-pos-dock__item"
+					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'selector' }"
+					@click="setPanel('selector')"
+				>
+					<v-icon icon="mdi-magnify" size="20" />
+					<span>{{ __("Browse") }}</span>
+				</button>
+				<button
+					type="button"
+					class="mobile-pos-dock__item"
+					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'invoice' }"
+					@click="setPanel('invoice')"
+				>
+					<span
+						v-if="selected_invoices.length"
+						class="mobile-pos-dock__pill"
+					>{{ selected_invoices.length }}</span>
+					<v-icon icon="mdi-cart-outline" size="22" />
+					<span>{{ __("Cart") }}</span>
+				</button>
+				<button
+					type="button"
+					class="mobile-pos-dock__item mobile-pos-dock__item--pay"
+					@click="handleSubmit(false)"
+				>
+					<v-icon icon="mdi-cash-check" size="20" />
+					<span>{{ __("Pay") }}</span>
+				</button>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -438,6 +509,7 @@ import {
 import { printDocumentViaQz } from "../../../services/qzTray";
 import { refreshRegisterPosProfile } from "../../../../utils/pos_profile";
 import { usePosPaySelection } from "../../../composables/pos/payments/usePosPaySelection";
+import { useCompactTransactionPanel } from "../../../composables/core/useCompactTransactionPanel";
 import { ONLINE_ONLY_MODE } from "../../../config/runtime";
 
 const getTodayDate = () =>
@@ -469,6 +541,16 @@ export default {
 		const uiStore = useUIStore();
 		const customersStore = useCustomersStore();
 		const { selectedCustomer } = storeToRefs(customersStore);
+		const {
+			responsiveStyles,
+			isCompact,
+			compactPanel,
+			showInvoicePanel,
+			showSelectorPanel,
+			invoiceCols,
+			selectorCols,
+			setPanel,
+		} = useCompactTransactionPanel("invoice");
 
 		// ── Core refs — seed from uiStore (already populated by POS session) ─
 		const pos_profile = ref(
@@ -1121,6 +1203,14 @@ export default {
 		];
 
 		return {
+			responsiveStyles,
+			isCompact,
+			compactPanel,
+			showInvoicePanel,
+			showSelectorPanel,
+			invoiceCols,
+			selectorCols,
+			setPanel,
 			partyName,
 			partySearchText,
 			partyOptions,

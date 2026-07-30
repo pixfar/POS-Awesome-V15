@@ -1565,8 +1565,8 @@ export default {
 	overflow: visible;
 }
 
-/* Responsive breakpoints */
-@media (max-width: 768px) {
+/* Responsive breakpoints — match Purchase: full fields visible under 1100 */
+@media (max-width: 1099px) {
 	.invoice-shell {
 		gap: var(--dynamic-xs);
 	}
@@ -1579,9 +1579,105 @@ export default {
 	}
 
 	.dynamic-padding {
-		/* Smaller uniform padding on tablets */
 		padding: var(--dynamic-xs);
 		overflow: visible;
+	}
+
+	.invoice-top-grid {
+		grid-template-columns: 1fr;
+		display: grid !important;
+		visibility: visible !important;
+	}
+
+	.invoice-top-grid > .invoice-section-card,
+	.invoice-top-grid > .outstanding-panel,
+	.sale-options-card,
+	.sale-options-body,
+	.sale-options-toggles {
+		display: flex !important;
+		visibility: visible !important;
+		opacity: 1 !important;
+		height: auto !important;
+		min-height: 0;
+	}
+
+	.sale-options-body {
+		flex-direction: column;
+	}
+
+	.sale-options-toggles {
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.invoice-meta-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.invoice-sections {
+		overflow: visible;
+	}
+
+	.invoice-items-card {
+		flex: 0 0 auto;
+		min-height: 240px;
+		padding-bottom: calc(var(--bottom-safe-space) + 8px);
+	}
+
+	.items-table-wrapper {
+		margin-left: 0;
+		margin-right: 0;
+		width: 100%;
+		max-width: 100%;
+		min-height: 220px;
+		padding-bottom: 8px;
+	}
+
+	.item-search-field {
+		max-width: 100%;
+	}
+
+	.outstanding-panel__inner {
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+		padding: 8px 12px;
+		gap: 8px;
+		text-align: start;
+		min-height: 0;
+	}
+
+	.outstanding-panel__label {
+		font-size: 0.68rem;
+	}
+
+	.outstanding-panel__amount {
+		font-size: 1.15rem;
+	}
+
+	.outstanding-panel__icon {
+		margin-top: 0;
+		margin-inline-start: auto;
+	}
+
+	.sale-options-body {
+		padding: 8px 12px 10px;
+		gap: 6px;
+	}
+
+	.invoice-section-heading {
+		padding: 10px 12px 0;
+	}
+
+	.invoice-section-heading__title {
+		font-size: 0.92rem;
+	}
+}
+
+@media (max-width: 768px) {
+	.invoice-shell {
+		gap: var(--dynamic-xs);
 	}
 
 	.dynamic-padding .v-row {
@@ -1592,34 +1688,8 @@ export default {
 		padding: 2px 4px;
 	}
 
-	.invoice-meta-grid {
-		grid-template-columns: 1fr;
-	}
-
-	.invoice-top-grid {
-		grid-template-columns: 1fr;
-	}
-
-	.invoice-sections {
-		overflow: visible;
-	}
-
-	.invoice-items-card {
-		flex: 0 0 auto;
-		min-height: 320px;
-	}
-
 	.items-table-wrapper {
-		/* Adjust for smaller padding on tablets */
-		margin-left: 0;
-		margin-right: 0;
-		width: 100%;
-		max-width: 100%;
 		min-height: 280px;
-	}
-
-	.item-search-field {
-		max-width: 100%;
 	}
 }
 
@@ -1640,16 +1710,7 @@ export default {
 		padding: 1px 2px;
 	}
 
-	.invoice-meta-grid {
-		grid-template-columns: 1fr;
-	}
-
-	.invoice-top-grid {
-		grid-template-columns: 1fr;
-	}
-
 	.items-table-wrapper {
-		/* Adjust for smallest screens */
 		margin-left: 0;
 		margin-right: 0;
 		width: 100%;

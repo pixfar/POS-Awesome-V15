@@ -164,31 +164,13 @@
 				</button>
 				<button
 					type="button"
-					class="mobile-pos-dock__item"
-					:class="{ 'mobile-pos-dock__item--active': activeView === 'offers' }"
-					@click="setSelectorView('offers')"
-				>
-					<v-icon icon="mdi-tag-outline" size="20" />
-					<span>{{ __("Offers") }}</span>
-				</button>
-				<button
-					type="button"
 					class="mobile-pos-dock__item mobile-pos-dock__item--cart"
 					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'invoice' }"
 					@click="showInvoicePanel"
 				>
-					<span class="mobile-pos-dock__pill">{{ itemsCount }}</span>
+					<span v-if="itemsCount" class="mobile-pos-dock__pill">{{ itemsCount }}</span>
 					<v-icon icon="mdi-cart-outline" size="22" />
 					<span>{{ __("Cart") }}</span>
-				</button>
-				<button
-					type="button"
-					class="mobile-pos-dock__item"
-					:class="{ 'mobile-pos-dock__item--active': activeView === 'coupons' }"
-					@click="setSelectorView('coupons')"
-				>
-					<v-icon icon="mdi-ticket-percent-outline" size="20" />
-					<span>{{ __("Coupons") }}</span>
 				</button>
 				<button
 					type="button"
@@ -277,7 +259,7 @@ export default {
 		} = storeToRefs(invoiceStore);
 		const usePaymentDialog = computed(() => responsive.windowWidth.value >= 992);
 		const useCompactPosSwitcher = computed(() => responsive.windowWidth.value < 1100);
-		const compactPanel = ref("selector");
+		const compactPanel = ref("invoice");
 		const isPhone = computed(() => responsive.isPhone.value);
 		const showBottomDock = computed(() => !dialog.value && responsive.windowWidth.value < 1100);
 		const bottomDockHeight = ref(0);
@@ -462,7 +444,7 @@ export default {
 				bottomDockHeight.value = 0;
 				return;
 			}
-			bottomDockHeight.value = dockElement.offsetHeight + 20;
+			bottomDockHeight.value = dockElement.offsetHeight + 28;
 		};
 		const layoutStyleOverrides = computed(() => {
 			const fallbackBottomSpace = getFallbackBottomSpace();
@@ -778,7 +760,7 @@ export default {
 
 .mobile-sale-dock {
 	display: grid;
-	grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+	grid-template-columns: minmax(0, 1.2fr) minmax(180px, 0.8fr);
 	gap: 12px;
 	align-items: center;
 }
@@ -818,7 +800,7 @@ export default {
 
 .mobile-pos-dock {
 	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 8px;
 }
 
@@ -896,27 +878,57 @@ export default {
 .mobile-pos-dock__pill {
 	position: absolute;
 	top: 4px;
-	right: 10px;
-	min-width: 18px;
-	height: 18px;
-	padding: 0 5px;
+	left: calc(50% + 8px);
+	right: auto;
+	min-width: 16px;
+	height: 16px;
+	padding: 0 4px;
 	border-radius: 999px;
 	background: rgb(var(--v-theme-primary));
 	color: #fff;
-	font-size: 0.68rem;
-	line-height: 18px;
+	font-size: 0.62rem;
+	line-height: 16px;
 	text-align: center;
+	z-index: 1;
 }
 
 @media (max-width: 768px) {
 	.dynamic-container {
 		padding-top: var(--dynamic-xs);
-		padding-bottom: calc(var(--bottom-safe-space) + 4px);
+		padding-bottom: calc(var(--bottom-safe-space) + 8px);
 	}
 
 	.dynamic-col {
 		padding: var(--dynamic-xs);
 		margin-top: var(--dynamic-xs);
+	}
+
+	.mobile-pos-stack {
+		gap: 6px;
+	}
+
+	.mobile-sale-dock,
+	.mobile-pos-dock {
+		padding: 8px;
+		border-radius: 18px;
+	}
+
+	.mobile-sale-dock {
+		grid-template-columns: 1fr;
+		gap: 8px;
+	}
+
+	.mobile-sale-dock__amount {
+		font-size: 1.2rem;
+	}
+
+	.mobile-sale-dock__field :deep(.v-field) {
+		min-height: 40px;
+	}
+
+	.mobile-pos-dock__item {
+		min-height: 52px;
+		font-size: 0.68rem;
 	}
 }
 
@@ -935,7 +947,7 @@ export default {
 	}
 
 	.mobile-pos-dock__item {
-		min-height: 52px;
+		min-height: 50px;
 		font-size: 0.65rem;
 	}
 }

@@ -565,11 +565,18 @@ defineExpose({
 }
 
 .sticky-summary-card--dock-safe {
-	margin-bottom: calc(var(--bottom-safe-space) + 8px);
+	position: static;
+	margin-bottom: calc(var(--bottom-safe-space) + 12px);
+	box-shadow: none;
+	border: 1px solid rgba(17, 24, 39, 0.08);
 }
 
 .summary-content {
 	row-gap: 6px;
+}
+
+.invoice-summary-actions {
+	position: static;
 }
 
 .summary-hero {

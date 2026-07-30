@@ -1,5 +1,5 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell">
+	<div class="pa-0 h-100 invoice-shell txn-shell">
 		<v-row class="h-100 ma-0">
 			<v-col cols="12" class="h-100 pa-0">
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>

@@ -1,7 +1,12 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell">
+	<div class="pa-0 h-100 invoice-shell txn-shell" :style="responsiveStyles">
 		<v-row class="h-100 ma-0">
-			<v-col cols="12" md="7" class="h-100 pa-0">
+			<v-col
+				v-show="showInvoicePanel"
+				cols="12"
+				:md="invoiceCols"
+				class="h-100 pa-0 txn-col txn-col--invoice"
+			>
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
@@ -142,7 +147,7 @@
 						</div>
 					</v-card-text>
 
-					<div class="purchase-bottom-bar">
+					<div v-if="!isCompact" class="purchase-bottom-bar">
 						<div class="purchase-bottom-bar__summary">
 							<span class="purchase-bottom-bar__label">{{ __("Total Qty") }}</span>
 							<strong class="purchase-bottom-bar__amount">{{ totalQty }}</strong>
@@ -166,10 +171,68 @@
 				</v-card>
 			</v-col>
 
-			<v-col cols="12" md="5" class="h-100 pa-0 border-s">
+			<v-col
+				v-show="showSelectorPanel"
+				cols="12"
+				:md="selectorCols"
+				class="h-100 pa-0 border-s txn-col txn-col--selector"
+			>
 				<ItemsSelector context="requisition" @add-item="onAddItem" />
 			</v-col>
 		</v-row>
+
+		<div v-if="isCompact" class="mobile-pos-stack txn-bottom-dock">
+			<div class="mobile-sale-dock">
+				<div class="mobile-sale-dock__copy">
+					<span class="mobile-sale-dock__eyebrow">{{ __("Total Qty") }}</span>
+					<strong class="mobile-sale-dock__amount">{{ totalQty }}</strong>
+					<span class="mobile-sale-dock__meta">
+						{{ requisitionItems.length }}
+						{{ requisitionItems.length === 1 ? __("item") : __("items") }}
+					</span>
+				</div>
+				<v-btn
+					:loading="submitLoading"
+					:disabled="submitLoading || !requisitionItems.length"
+					color="primary"
+					variant="flat"
+					class="text-none txn-dock-pay-btn"
+					prepend-icon="mdi-send"
+					@click="submitRequisition"
+				>
+					{{ __("Submit Requisition") }}
+				</v-btn>
+			</div>
+			<div class="mobile-pos-dock">
+				<button
+					type="button"
+					class="mobile-pos-dock__item"
+					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'selector' }"
+					@click="setPanel('selector')"
+				>
+					<v-icon icon="mdi-magnify" size="20" />
+					<span>{{ __("Browse") }}</span>
+				</button>
+				<button
+					type="button"
+					class="mobile-pos-dock__item"
+					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'invoice' }"
+					@click="setPanel('invoice')"
+				>
+					<span v-if="requisitionItems.length" class="mobile-pos-dock__pill">{{ requisitionItems.length }}</span>
+					<v-icon icon="mdi-cart-outline" size="22" />
+					<span>{{ __("Cart") }}</span>
+				</button>
+				<button
+					type="button"
+					class="mobile-pos-dock__item mobile-pos-dock__item--pay"
+					@click="submitRequisition"
+				>
+					<v-icon icon="mdi-send" size="20" />
+					<span>{{ __("Submit") }}</span>
+				</button>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -187,6 +250,7 @@ import ItemsSelector from '../items/ItemsSelector.vue';
 import RequisitionItemsTable from './RequisitionItemsTable.vue';
 import { getOpeningStorage } from '../../../../offline/index';
 import { normalizeDateForBackend } from '../../../format';
+import { useCompactTransactionPanel } from '../../../composables/core/useCompactTransactionPanel';
 
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
@@ -204,6 +268,16 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
+		const {
+			responsiveStyles,
+			isCompact,
+			compactPanel,
+			showInvoicePanel,
+			showSelectorPanel,
+			invoiceCols,
+			selectorCols,
+			setPanel,
+		} = useCompactTransactionPanel('invoice');
 		const pos_profile = ref(uiStore.posProfile || {});
 		const requiredDate = ref(getTodayDate());
 		const warehouseOptions = ref([]);
@@ -481,6 +555,14 @@ export default {
 		});
 
 		return {
+			responsiveStyles,
+			isCompact,
+			compactPanel,
+			showInvoicePanel,
+			showSelectorPanel,
+			invoiceCols,
+			selectorCols,
+			setPanel,
 			canChangePosWarehouse,
 			sourceWarehouse,
 			sourceWarehouseLabel,
