@@ -24,7 +24,7 @@
 					v-if="canChangeWarehouse && warehouseOptions.length"
 					v-model="warehouse"
 					:items="warehouseOptions"
-					item-title="warehouse_name"
+					item-title="name"
 					item-value="name"
 					:label="__('Warehouse')"
 					density="compact"
@@ -36,7 +36,7 @@
 				/>
 				<v-text-field
 					v-else
-					:model-value="warehouseLabel || warehouse"
+					:model-value="warehouse || warehouseLabel"
 					:label="__('Warehouse')"
 					density="compact"
 					variant="outlined"
@@ -86,6 +86,10 @@
 						<span class="pos-list-stat__label">{{ __("Total Collection") }}</span>
 						<strong class="pos-list-stat__value">{{ report.sales_total?.received }}</strong>
 					</div>
+					<div class="pos-list-stat pos-list-stat--success">
+						<span class="pos-list-stat__label">{{ __("Fund Transfer") }}</span>
+						<strong class="pos-list-stat__value">{{ report.fund_transfer_total }}</strong>
+					</div>
 					<div class="pos-list-stat pos-list-stat--danger">
 						<span class="pos-list-stat__label">{{ __("Total Expense") }}</span>
 						<strong class="pos-list-stat__value">{{ report.expense_total }}</strong>
@@ -110,6 +114,19 @@
 						density="comfortable"
 						class="pos-list-table"
 						no-data-text="No sales invoices for this date."
+					/>
+				</div>
+
+				<div class="dcs-section">
+					<h4 class="dcs-section__title">{{ __("Fund Transfer") }}</h4>
+					<v-data-table
+						:headers="fundTransferHeaders"
+						:items="report.fund_transfer_rows"
+						hide-default-footer
+						:items-per-page="-1"
+						density="comfortable"
+						class="pos-list-table"
+						no-data-text="No fund transfers for this date."
 					/>
 				</div>
 
@@ -181,6 +198,14 @@ export default {
 			{ title: __('Discount'), key: 'discount', sortable: false, align: 'end' },
 			{ title: __('Due'), key: 'due', sortable: false, align: 'end' },
 			{ title: __('Received'), key: 'received', sortable: false, align: 'end' },
+		];
+
+		const fundTransferHeaders = [
+			{ title: __('S.L'), key: 'sl', sortable: false, width: 60 },
+			{ title: __('Particulars'), key: 'particulars', sortable: false },
+			{ title: __('Description'), key: 'description', sortable: false },
+			{ title: __('Reference No.'), key: 'reference_no', sortable: false },
+			{ title: __('Amount'), key: 'amount', sortable: false, align: 'end' },
 		];
 
 		const expenseHeaders = [
@@ -324,6 +349,7 @@ export default {
 			errorMessage,
 			report,
 			salesHeaders,
+			fundTransferHeaders,
 			expenseHeaders,
 			depositHeaders,
 			downloadReport,

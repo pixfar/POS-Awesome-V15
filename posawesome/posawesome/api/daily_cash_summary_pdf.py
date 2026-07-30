@@ -3,10 +3,10 @@
 
 """Single warehouse, single day view/export of the Daily Cash Summary Report
 (bsp_engineering) -- the branch's own cash-box handover slip: Sales
-Collection Summary, Cash Out Outflow and BSP Deposit, with the day's
-Opening/Closing Balance. Reuses the same warehouse-scoped access rules as
-the rest of POS Awesome and the same report-data functions as the
-underlying Script Report so the numbers always match, whether viewed
+Collection Summary, Fund Transfer, Cash Out Outflow and BSP Deposit,
+with the day's Opening/Closing Balance. Reuses the same warehouse-scoped
+access rules as the rest of POS Awesome and the same report-data functions as
+the underlying Script Report so the numbers always match, whether viewed
 in-app (get_report_data) or downloaded as a PDF (download_pdf)."""
 
 import frappe
@@ -36,11 +36,18 @@ def _get_report_functions():
 	from bsp_engineering.bsp_engineering.report.daily_cash_summary_report.daily_cash_summary_report import (
 		get_deposits,
 		get_expense_claims,
+		get_fund_transfers,
 		get_opening_balances,
 		get_sales_invoices,
 	)
 
-	return get_sales_invoices, get_expense_claims, get_deposits, get_opening_balances
+	return (
+		get_sales_invoices,
+		get_expense_claims,
+		get_deposits,
+		get_fund_transfers,
+		get_opening_balances,
+	)
 
 
 def _warehouse_branding(warehouse):
@@ -85,11 +92,18 @@ def _build_context(warehouse, date):
 	if not company:
 		frappe.throw(_("Warehouse not found."))
 
-	get_sales_invoices, get_expense_claims, get_deposits, get_opening_balances = _get_report_functions()
+	(
+		get_sales_invoices,
+		get_expense_claims,
+		get_deposits,
+		get_fund_transfers,
+		get_opening_balances,
+	) = _get_report_functions()
 
 	invoices = get_sales_invoices(company, warehouse, report_date, report_date)
 	expenses = get_expense_claims(company, warehouse, report_date, report_date)
 	deposits = get_deposits(company, warehouse, report_date, report_date)
+	fund_transfers = get_fund_transfers(company, warehouse, report_date, report_date)
 	opening_balance = flt(get_opening_balances(company, warehouse, report_date).get(warehouse))
 
 	currency = frappe.get_cached_value("Company", company, "default_currency")
@@ -116,6 +130,21 @@ def _build_context(warehouse, date):
 				"discount": money(discount),
 				"due": money(due),
 				"received": money(received),
+			}
+		)
+
+	fund_transfer_rows = []
+	fund_transfer_total = 0.0
+	for idx, row in enumerate(fund_transfers, start=1):
+		amount = flt(row.amount)
+		fund_transfer_total += amount
+		fund_transfer_rows.append(
+			{
+				"sl": idx,
+				"particulars": _("Fund Transfer"),
+				"description": row.paid_to or "",
+				"reference_no": row.name,
+				"amount": money(amount),
 			}
 		)
 
@@ -167,7 +196,7 @@ def _build_context(warehouse, date):
 			}
 		)
 
-	income = sales_total["received"] - expense_total
+	income = sales_total["received"] + fund_transfer_total - expense_total
 	closing_balance = opening_balance + income - deposit_total
 
 	return {
@@ -179,6 +208,8 @@ def _build_context(warehouse, date):
 		"expected_deposit": money(income),
 		"sales_rows": sales_rows,
 		"sales_total": {key: money(value) for key, value in sales_total.items()},
+		"fund_transfer_rows": fund_transfer_rows,
+		"fund_transfer_total": money(fund_transfer_total),
 		"expense_rows": expense_rows,
 		"expense_total": money(expense_total),
 		"deposit_rows": deposit_rows,

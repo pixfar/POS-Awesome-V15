@@ -140,6 +140,22 @@ def create_fund_transfer(data):
 	pe.reference_no = data.get('remarks') or _('Fund Transfer')
 	pe.reference_date = posting_date
 	pe.custom_fund_transfer = 1
+
+	# Warehouse follows Account Paid To (showroom receiving the funds),
+	# not the logged-in user's POS Profile.
+	if frappe.get_meta('Payment Entry').has_field('custom_warehouse'):
+		warehouse = (
+			frappe.db.get_value('Account', paid_to, 'custom_warehouse')
+			or frappe.db.get_value(
+				'POS Profile',
+				{'account_for_change_amount': paid_to, 'disabled': 0},
+				'warehouse',
+			)
+			or (paid_to if frappe.db.exists('Warehouse', paid_to) else None)
+		)
+		if warehouse:
+			pe.custom_warehouse = warehouse
+
 	pe.flags.ignore_permissions = True
 	pe.insert(ignore_permissions=True)
 	pe.submit()

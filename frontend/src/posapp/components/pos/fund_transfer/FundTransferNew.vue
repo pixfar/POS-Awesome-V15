@@ -58,7 +58,7 @@
 									<v-select
 										v-model="paidTo"
 										:items="paidToOptions"
-										item-title="account_name"
+										item-title="name"
 										item-value="name"
 										:label="__('Account Paid To')"
 										density="compact"

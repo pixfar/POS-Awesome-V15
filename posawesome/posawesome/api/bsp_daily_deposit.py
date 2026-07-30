@@ -121,6 +121,16 @@ def _create_deposit_payment_entry(doc):
 	pe.reference_no = doc.name
 	pe.reference_date = doc.posting_date
 	pe.custom_bsp_daily_deposit = doc.name
+
+	# Attribute the Payment Entry to the logged-in user's POS Profile warehouse
+	# (fall back to the deposit warehouse if the profile has none).
+	from posawesome.posawesome.api.utils import get_active_pos_profile
+
+	profile = get_active_pos_profile() or {}
+	warehouse = profile.get('warehouse') or doc.warehouse
+	if warehouse and frappe.get_meta('Payment Entry').has_field('custom_warehouse'):
+		pe.custom_warehouse = warehouse
+
 	pe.flags.ignore_permissions = True
 	pe.insert(ignore_permissions=True)
 	pe.submit()

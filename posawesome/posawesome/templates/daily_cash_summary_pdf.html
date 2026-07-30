@@ -214,6 +214,40 @@
 	</tbody>
 </table>
 
+<div class="section-title">Fund Transfer</div>
+<table class="data-table">
+	<thead>
+		<tr>
+			<th style="width: 6%;">S.L</th>
+			<th>Particulars</th>
+			<th>Description</th>
+			<th>Reference No.</th>
+			<th class="num">Amount</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in fund_transfer_rows %}
+		<tr>
+			<td>{{ row.sl }}</td>
+			<td>{{ row.particulars }}</td>
+			<td>{{ row.description }}</td>
+			<td>{{ row.reference_no }}</td>
+			<td class="num">{{ row.amount }}</td>
+		</tr>
+		{% else %}
+		<tr class="empty-row">
+			<td colspan="5">No fund transfers for this date.</td>
+		</tr>
+		{% endfor %}
+		{% if fund_transfer_rows %}
+		<tr class="total-row">
+			<td colspan="4">Total Fund Transfer</td>
+			<td class="num">{{ fund_transfer_total }}</td>
+		</tr>
+		{% endif %}
+	</tbody>
+</table>
+
 <div class="section-title">Cash Out Outflow</div>
 <table class="data-table">
 	<thead>
@@ -284,7 +318,7 @@
 
 <table class="info-table">
 	<tr>
-		<td>Expected Deposit (Collection - Expense): {{ expected_deposit }}</td>
+		<td>Expected Deposit (Collection + Fund Transfer - Expense): {{ expected_deposit }}</td>
 		<td class="right">Closing Balance: {{ closing_balance }}</td>
 	</tr>
 </table>
