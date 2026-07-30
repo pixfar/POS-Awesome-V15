@@ -701,7 +701,7 @@ function closeDiscountAmountEdit() {
 	font-weight: 500;
 	text-align: left;
 	font-family:
-		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
+		Roboto, "Noto Sans Arabic", "Segoe UI", Arial, sans-serif,
 		sans-serif;
 	font-variant-numeric: lining-nums tabular-nums;
 	font-feature-settings:

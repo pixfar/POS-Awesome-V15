@@ -1027,7 +1027,7 @@ export default {
 	justify-content: space-between;
 	gap: 16px;
 	padding: 12px 16px;
-	background: #2563eb;
+	background: var(--pos-primary);
 	border-radius: 10px;
 	margin: 8px 12px 12px;
 }
@@ -1109,7 +1109,7 @@ export default {
 
 .purchase-pay-btn {
 	background: #ffffff !important;
-	color: #2563eb !important;
+	color: var(--pos-primary) !important;
 	font-weight: 700;
 	letter-spacing: 0.02em;
 	border-radius: 8px !important;

@@ -1689,7 +1689,7 @@ defineExpose({
 :deep(.text-success),
 :deep(.golden--text) {
 	font-family:
-		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
+		Roboto, "Noto Sans Arabic", "Segoe UI", Arial, sans-serif,
 		sans-serif;
 	font-variant-numeric: lining-nums tabular-nums;
 	font-feature-settings:
@@ -1705,7 +1705,7 @@ defineExpose({
 	color: rgb(var(--v-theme-error)) !important;
 	font-weight: 600;
 	font-family:
-		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
+		Roboto, "Noto Sans Arabic", "Segoe UI", Arial, sans-serif,
 		sans-serif;
 	font-variant-numeric: lining-nums tabular-nums;
 	font-feature-settings:
@@ -1722,7 +1722,7 @@ defineExpose({
 .v-autocomplete :deep(input) {
 	/* Enhanced Arabic number font stack for input fields */
 	font-family:
-		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
+		Roboto, "Noto Sans Arabic", "Segoe UI", Arial, sans-serif,
 		sans-serif;
 	font-variant-numeric: lining-nums tabular-nums;
 	font-feature-settings:
@@ -1754,8 +1754,8 @@ defineExpose({
 }
 
 .item-selection-option:hover {
-	background-color: rgba(37, 99, 235, 0.05);
-	border-color: rgba(37, 99, 235, 0.35);
+	background-color: color-mix(in srgb, var(--pos-primary) 5%, transparent);
+	border-color: color-mix(in srgb, var(--pos-primary) 35%, transparent);
 }
 
 .item-selection-image {

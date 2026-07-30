@@ -3,6 +3,8 @@
 		<!-- Use the modular NavbarAppBar component -->
 		<NavbarAppBar
 			:pos-profile="posProfile"
+			:company="company"
+			:company-img="companyImg"
 			:cashier-name="currentCashierDisplay"
 			:pending-invoices="pendingInvoices"
 			:loading-progress="loadingProgress"

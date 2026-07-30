@@ -1360,11 +1360,11 @@ export default {
 }
 
 .payment-invoices-table :deep(tr.selected-invoice-row) {
-	background: rgba(37, 99, 235, 0.08) !important;
+	background: color-mix(in srgb, var(--pos-primary) 8%, transparent) !important;
 }
 
 .payment-invoices-table :deep(tr.selected-invoice-row td) {
-	border-left: 3px solid var(--primary-start, #2563eb);
+	border-left: 3px solid var(--primary-start, #0097a7);
 }
 
 .payment-invoices-table,

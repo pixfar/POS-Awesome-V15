@@ -66,7 +66,7 @@
 							class="cpu-bar-fill"
 							:style="{
 								width: (serverMemory || 0) + '%',
-								background: 'linear-gradient(90deg,#1976d2 0%,#42a5f5 100%)',
+								background: 'linear-gradient(90deg, var(--pos-primary) 0%, var(--pos-secondary) 100%)',
 							}"
 						></div>
 					</div>
@@ -287,7 +287,7 @@ const peakPercent = computed(() => Math.round(Math.min(peakLag.value, 100)));
 }
 .cpu-bar-fill {
 	height: 100%;
-	background: linear-gradient(90deg, #7b1fa2 0%, #42a5f5 100%);
+	background: linear-gradient(90deg, #7b1fa2 0%, var(--pos-secondary) 100%);
 	border-radius: 4px;
 	transition: width 0.3s;
 }
@@ -367,7 +367,7 @@ const peakPercent = computed(() => Math.round(Math.min(peakLag.value, 100)));
 	background: #4caf50;
 }
 .legend-dot.server {
-	background: #1976d2;
+	background: var(--pos-primary);
 }
 
 .cpu-tooltip-section-title {

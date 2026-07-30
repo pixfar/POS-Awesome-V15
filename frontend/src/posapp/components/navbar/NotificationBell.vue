@@ -5,7 +5,7 @@
 				<v-btn
 					v-bind="props"
 					icon
-					variant="elevated"
+					variant="flat"
 					size="small"
 					class="pos-themed-button notification-bell-trigger"
 					:aria-label="__('View notifications') + (unreadCount ? ` (${unreadCount})` : '')"
@@ -144,7 +144,33 @@ function formatTimestamp(ts: string | number | Date) {
 }
 
 .notification-bell-trigger {
-	box-shadow: 0 4px 12px var(--pos-shadow, rgba(0, 0, 0, 0.18)) !important;
+	width: 36px !important;
+	height: 36px !important;
+	border: 1px solid var(--pos-border, rgba(0, 0, 0, 0.08)) !important;
+	background: color-mix(
+		in srgb,
+		var(--pos-primary) 6%,
+		var(--pos-card-bg, #fff)
+	) !important;
+	box-shadow: 0 1px 2px
+		color-mix(in srgb, var(--pos-shadow, #000) 8%, transparent) !important;
+	transition:
+		transform 0.2s ease,
+		border-color 0.2s ease,
+		background-color 0.2s ease,
+		box-shadow 0.2s ease !important;
+}
+
+.notification-bell-trigger:hover {
+	transform: translateY(-1px);
+	border-color: color-mix(in srgb, var(--pos-primary) 30%, transparent) !important;
+	background: color-mix(
+		in srgb,
+		var(--pos-primary) 12%,
+		var(--pos-card-bg, #fff)
+	) !important;
+	box-shadow: 0 4px 12px
+		color-mix(in srgb, var(--pos-primary) 16%, transparent) !important;
 }
 
 .notification-card {

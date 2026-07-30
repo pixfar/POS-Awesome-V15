@@ -1061,7 +1061,7 @@ export default {
 .quick-action-card--primary .quick-action-card__icon,
 .settings-action--primary .settings-action__icon,
 .settings-launch-card__icon {
-	background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
+	background: linear-gradient(135deg, var(--pos-primary) 0%, var(--pos-secondary) 100%);
 }
 
 .quick-action-card--secondary .quick-action-card__icon,
@@ -1211,7 +1211,7 @@ export default {
 
 /* Compact Icon Colors */
 .primary-icon {
-	background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
+	background: linear-gradient(135deg, var(--pos-primary) 0%, var(--pos-secondary) 100%);
 	box-shadow: 0 2px 6px rgba(25, 118, 210, 0.2);
 }
 
@@ -1380,24 +1380,24 @@ export default {
 
 /* Compact Focus States */
 .menu-item-compact:focus-visible {
-	outline: 1px solid #1976d2;
+	outline: 1px solid var(--pos-primary);
 	outline-offset: 1px;
 }
 
 .menu-btn-compact:focus-visible {
-	outline: 1px solid #1976d2;
+	outline: 1px solid var(--pos-primary);
 	outline-offset: 2px;
 }
 
 /* Dark Theme Adjustments */
 /* Theme-aware compact menu styling */
 .menu-btn-compact {
-	background: linear-gradient(135deg, #90caf9 0%, #42a5f5 100%);
+	background: linear-gradient(135deg, #90caf9 0%, var(--pos-secondary) 100%);
 	color: var(--pos-text-primary) !important;
 }
 
 .menu-btn-compact:hover {
-	background: linear-gradient(135deg, #64b5f6 0%, #1976d2 100%);
+	background: linear-gradient(135deg, var(--pos-secondary) 0%, var(--pos-primary) 100%);
 	box-shadow: 0 4px 12px rgba(144, 202, 249, 0.3);
 }
 
@@ -1446,7 +1446,7 @@ export default {
 /* Dark mode icon adjustments */
 :deep([data-theme="dark"]) .primary-icon,
 :deep(.v-theme--dark) .primary-icon {
-	background: linear-gradient(135deg, #90caf9 0%, #42a5f5 100%);
+	background: linear-gradient(135deg, #90caf9 0%, var(--pos-secondary) 100%);
 	box-shadow: 0 2px 6px rgba(144, 202, 249, 0.3);
 }
 

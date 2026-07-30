@@ -751,7 +751,7 @@ export default {
 .mobile-sale-dock,
 .mobile-pos-dock {
 	padding: 10px;
-	border-radius: 24px;
+	border-radius: var(--pos-radius-lg);
 	background: color-mix(in srgb, var(--pos-card-bg) 88%, transparent);
 	backdrop-filter: blur(18px);
 	box-shadow: 0 18px 38px var(--pos-shadow);
@@ -807,7 +807,7 @@ export default {
 .mobile-pos-dock__item {
 	position: relative;
 	border: 0;
-	border-radius: 18px;
+	border-radius: var(--pos-radius-md);
 	background: transparent;
 	min-width: 0;
 	min-height: 58px;
@@ -910,7 +910,7 @@ export default {
 	.mobile-sale-dock,
 	.mobile-pos-dock {
 		padding: 8px;
-		border-radius: 18px;
+		border-radius: var(--pos-radius-md);
 	}
 
 	.mobile-sale-dock {

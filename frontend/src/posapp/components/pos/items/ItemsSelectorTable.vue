@@ -231,7 +231,7 @@ defineExpose({ scrollToIndex, getTableElement, tableRef });
 	box-shadow: none;
 	text-shadow: none;
 	font-family:
-		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
+		Roboto, "Noto Sans Arabic", "Segoe UI", Arial, sans-serif,
 		sans-serif;
 	font-variant-numeric: lining-nums tabular-nums;
 	font-feature-settings:
@@ -292,7 +292,7 @@ defineExpose({ scrollToIndex, getTableElement, tableRef });
 	vertical-align: middle;
 	color: var(--pos-text-primary);
 	font-family:
-		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
+		Roboto, "Noto Sans Arabic", "Segoe UI", Arial, sans-serif,
 		sans-serif;
 	font-variant-numeric: lining-nums tabular-nums;
 	font-feature-settings:

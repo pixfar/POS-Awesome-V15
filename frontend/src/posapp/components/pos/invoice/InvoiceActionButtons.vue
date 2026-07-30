@@ -198,13 +198,13 @@ const showCustomerDisplayButton = computed(() =>
 .pay-btn {
 	font-weight: 600 !important;
 	font-size: 1.1rem !important;
-	background: #2563eb !important;
-	box-shadow: 0 3px 8px rgba(37, 99, 235, 0.3) !important;
+	background: var(--pos-primary) !important;
+	box-shadow: 0 3px 8px color-mix(in srgb, var(--pos-primary) 30%, transparent) !important;
 }
 
 .pay-btn:hover {
-	background: #1d4ed8 !important;
-	box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35) !important;
+	background: var(--pos-primary-variant) !important;
+	box-shadow: 0 4px 10px color-mix(in srgb, var(--pos-primary) 35%, transparent) !important;
 	transform: none;
 }
 

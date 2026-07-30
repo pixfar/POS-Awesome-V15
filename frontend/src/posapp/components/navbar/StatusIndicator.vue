@@ -1,5 +1,8 @@
 <template>
-	<div class="status-section-enhanced mx-1">
+	<div
+		class="status-section-enhanced mx-1"
+		:class="statusPillClass"
+	>
 		<v-tooltip location="bottom" max-width="320">
 			<template #activator="{ props: tooltipProps }">
 				<v-btn
@@ -27,7 +30,7 @@
 						data-test="status-bootstrap-warning-indicator"
 						class="status-bootstrap-warning-indicator"
 					/>
-					<v-icon :color="statusColor">{{ statusIcon }}</v-icon>
+					<v-icon size="18" :color="statusColor">{{ statusIcon }}</v-icon>
 				</v-btn>
 			</template>
 			<div class="status-tooltip">
@@ -53,6 +56,7 @@
 				class="status-title-inline"
 				:class="{
 					'status-connected': statusColor === 'green',
+					'status-limited': statusColor === 'orange',
 					'status-offline': statusColor === 'red',
 				}"
 			>
@@ -139,6 +143,12 @@ const statusColor = computed(() => {
 
 	// Network offline
 	return "red";
+});
+
+const statusPillClass = computed(() => {
+	if (statusColor.value === "green") return "status-section-enhanced--online";
+	if (statusColor.value === "orange") return "status-section-enhanced--limited";
+	return "status-section-enhanced--offline";
 });
 
 const statusIcon = computed(() => {
@@ -249,26 +259,69 @@ const connectivityLabel = computed(() => {
 <style scoped>
 /* Enhanced Status Section */
 .status-section-enhanced {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	/* Reduced gap */
-	margin-right: 8px;
-	/* Reduced margin */
+	margin-right: 4px;
+	padding: 4px 10px 4px 4px;
+	border-radius: 999px;
+	border: 1px solid var(--pos-border, rgba(0, 0, 0, 0.08));
+	background: var(--pos-card-bg, #fff);
+	box-shadow: 0 1px 2px color-mix(in srgb, var(--pos-shadow, #000) 8%, transparent);
+	transition:
+		border-color 0.2s ease,
+		background-color 0.2s ease,
+		box-shadow 0.2s ease;
+}
+
+.status-section-enhanced--online {
+	border-color: color-mix(in srgb, var(--pos-success) 28%, transparent);
+	background: color-mix(
+		in srgb,
+		var(--pos-success) 8%,
+		var(--pos-card-bg, #fff)
+	);
+}
+
+.status-section-enhanced--limited {
+	border-color: color-mix(in srgb, var(--pos-warning) 32%, transparent);
+	background: color-mix(
+		in srgb,
+		var(--pos-warning) 10%,
+		var(--pos-card-bg, #fff)
+	);
+}
+
+.status-section-enhanced--offline {
+	border-color: color-mix(in srgb, #f44336 28%, transparent);
+	background: color-mix(in srgb, #f44336 8%, var(--pos-card-bg, #fff));
 }
 
 .status-btn-enhanced {
-	background: var(--pos-hover-bg) !important;
-	border: 1px solid var(--pos-border);
-	transition: all 0.3s ease;
-	padding: 4px;
+	width: 32px !important;
+	height: 32px !important;
+	background: color-mix(in srgb, var(--pos-card-bg, #fff) 88%, transparent) !important;
+	border: 1px solid transparent;
+	box-shadow: none !important;
+	transition: all 0.2s ease;
+	padding: 0;
 	position: relative;
-	/* Reduced padding */
+}
+
+.status-section-enhanced--online .status-btn-enhanced {
+	background: color-mix(in srgb, var(--pos-success) 14%, #fff) !important;
+}
+
+.status-section-enhanced--limited .status-btn-enhanced {
+	background: color-mix(in srgb, var(--pos-warning) 16%, #fff) !important;
+}
+
+.status-section-enhanced--offline .status-btn-enhanced {
+	background: color-mix(in srgb, #f44336 14%, #fff) !important;
 }
 
 .status-btn-enhanced:hover {
-	background: var(--pos-focus-bg) !important;
-	transform: scale(1.05);
+	transform: scale(1.04);
 }
 
 .status-btn-enhanced--checking {
@@ -277,7 +330,7 @@ const connectivityLabel = computed(() => {
 
 .status-checking-indicator {
 	position: absolute;
-	inset: 3px;
+	inset: 2px;
 	border: 2px solid rgba(255, 152, 0, 0.35);
 	border-top-color: rgba(255, 152, 0, 0.95);
 	border-radius: 999px;
@@ -287,13 +340,13 @@ const connectivityLabel = computed(() => {
 
 .status-bootstrap-warning-indicator {
 	position: absolute;
-	top: 4px;
-	right: 4px;
-	width: 9px;
-	height: 9px;
+	top: 3px;
+	right: 3px;
+	width: 8px;
+	height: 8px;
 	border-radius: 999px;
 	background: #ff9800;
-	box-shadow: 0 0 0 2px var(--pos-hover-bg);
+	box-shadow: 0 0 0 2px var(--pos-hover-bg, #fff);
 	pointer-events: none;
 }
 
@@ -301,7 +354,8 @@ const connectivityLabel = computed(() => {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	min-width: 120px;
+	min-width: 0;
+	padding-inline-end: 2px;
 }
 
 .status-tooltip {
@@ -333,21 +387,27 @@ const connectivityLabel = computed(() => {
 
 .status-title-inline {
 	font-size: 12px;
-	font-weight: 600;
-	line-height: 1.2;
-	transition: color 0.3s ease;
+	font-weight: 700;
+	line-height: 1.15;
+	letter-spacing: 0.01em;
+	color: var(--pos-text-primary);
+	transition: color 0.2s ease;
 }
 
 .status-title-inline.status-connected {
-	color: #4caf50;
+	color: #2e7d32;
+}
+
+.status-title-inline.status-limited {
+	color: #ef6c00;
 }
 
 .status-title-inline.status-offline {
-	color: #f44336;
+	color: #c62828;
 }
 
 .status-subtitle-inline {
-	font-size: 11px;
+	font-size: 10.5px;
 	line-height: 1.15;
 	color: rgba(255, 152, 0, 0.92);
 	letter-spacing: 0.01em;

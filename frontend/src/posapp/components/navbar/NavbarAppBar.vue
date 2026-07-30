@@ -21,8 +21,8 @@
 			/>
 
 			<v-img
-				:src="posLogo"
-				alt="POS Awesome"
+				:src="brandLogo"
+				:alt="brandTitle"
 				:max-width="isMobile ? 24 : 32"
 				:class="['pos-navbar-logo', isRtl ? 'rtl-logo' : 'ltr-logo']"
 				loading="lazy"
@@ -38,15 +38,10 @@
 				style="cursor: pointer; text-decoration: none"
 				tabindex="0"
 				:aria-label="__('Go to Frappe Desk')"
+				:title="brandTitle"
 				role="button"
 			>
-				<template v-if="isMobile">
-					<span class="pos-navbar-title-compact">{{ __("POS") }}</span>
-				</template>
-				<template v-else>
-					<span class="font-weight-light pos-navbar-title-light">{{ __("POS") }}</span
-					><span class="pos-navbar-title-bold">{{ __("Awesome") }}</span>
-				</template>
+				<span class="pos-navbar-title-company">{{ brandTitle }}</span>
 			</v-toolbar-title>
 		</div>
 
@@ -88,36 +83,37 @@
 				<!-- NavbarInfoGadgets hidden -->
 
 				<div :class="['profile-section', isRtl ? 'rtl-profile-section' : 'ltr-profile-section']">
-					<v-chip
+					<div
 						v-if="cashierChipLabel"
-						variant="outlined"
 						:class="[
-							'profile-chip cashier-chip pos-themed-card',
+							'profile-chip cashier-chip',
 							isRtl ? 'rtl-profile-chip' : 'ltr-profile-chip',
 						]"
 						data-test="cashier-chip"
 					>
-						<v-icon
-							:start="!isRtl"
-							:end="isRtl"
-							:class="['pos-text-primary', isRtl ? 'rtl-profile-icon' : 'ltr-profile-icon']"
+						<div
+							:class="[
+								'profile-chip__avatar',
+								isRtl ? 'rtl-profile-icon' : 'ltr-profile-icon',
+							]"
+							aria-hidden="true"
 						>
-							mdi-account-outline
-						</v-icon>
+							{{ cashierInitials }}
+						</div>
 						<span
 							:class="[
 								'profile-chip__content',
 								isRtl ? 'rtl-profile-text' : 'ltr-profile-text',
 							]"
 						>
-							<span class="pos-text-primary profile-chip__title">
+							<span class="profile-chip__title">
 								{{ cashierChipLabel }}
 							</span>
 							<span v-if="cashierChipMeta" class="profile-chip__meta">
 								{{ cashierChipMeta }}
 							</span>
 						</span>
-					</v-chip>
+					</div>
 				</div>
 
 				<div
@@ -229,10 +225,30 @@ export default {
 			type: String,
 			default: "",
 		},
+		company: {
+			type: String,
+			default: "",
+		},
+		companyImg: {
+			type: String,
+			default: "",
+		},
 	},
 	computed: {
 		appBarColor() {
 			return this.$theme.isDark ? this.$vuetify.theme.themes.dark.colors.surface : "white";
+		},
+
+		brandTitle() {
+			const companyName = String(this.company || "").trim();
+			if (companyName) {
+				return companyName;
+			}
+			return __("POS Awesome");
+		},
+
+		brandLogo() {
+			return this.companyImg || this.posLogo;
 		},
 
 		displayName() {
@@ -267,6 +283,18 @@ export default {
 			}
 
 			return "";
+		},
+
+		cashierInitials() {
+			const name = String(this.cashierChipLabel || "").trim();
+			if (!name) return "?";
+			const parts = name.split(/\s+/).filter(Boolean);
+			if (parts.length === 1) {
+				return parts[0].slice(0, 2).toUpperCase();
+			}
+			return (
+				(parts[0][0] || "") + (parts[parts.length - 1][0] || "")
+			).toUpperCase();
 		},
 
 		// Mobile breakpoint detection
@@ -376,7 +404,7 @@ export default {
 .pos-navbar-actions-section {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 10px;
 	flex-direction: row;
 	/* Default to normal row */
 	min-width: 0;
@@ -526,7 +554,20 @@ export default {
 	max-width: 100%;
 	flex: 1 1 auto;
 	/* Use same blue as Menu button - matching gradient blue */
-	color: #1976d2 !important;
+	color: var(--pos-primary) !important;
+}
+
+.pos-navbar-title-company {
+	display: block;
+	min-width: 0;
+	max-width: min(42vw, 320px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 0.95rem;
+	font-weight: 700;
+	line-height: 1.25;
+	letter-spacing: 0.01em;
 }
 
 .pos-navbar-title:hover {
@@ -586,7 +627,7 @@ export default {
 	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 	min-width: 40px;
 	min-height: 40px;
-	color: #1976d2 !important;
+	color: var(--pos-primary) !important;
 	background: rgba(25, 118, 210, 0.08) !important;
 	border: 1px solid rgba(25, 118, 210, 0.12);
 	backdrop-filter: blur(8px);
@@ -594,7 +635,7 @@ export default {
 
 .nav-icon:hover {
 	background: rgba(25, 118, 210, 0.12) !important;
-	color: #1565c0 !important;
+	color: var(--pos-primary-variant) !important;
 	border-color: rgba(25, 118, 210, 0.2);
 	transform: translateY(-1px);
 	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
@@ -626,14 +667,6 @@ export default {
 .profile-section {
 	margin: 0;
 	order: 2;
-	/* Second to last in actions section */
-}
-
-.profile-chip {
-	color: #1976d2 !important;
-	border-color: rgba(25, 118, 210, 0.2) !important;
-	background: rgba(25, 118, 210, 0.06) !important;
-	backdrop-filter: blur(8px);
 }
 
 .rtl-profile-section {
@@ -645,13 +678,48 @@ export default {
 }
 
 .profile-chip {
-	font-weight: 500;
-	padding: 8px 16px;
-	border-radius: 20px;
-	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-	display: flex;
+	display: inline-flex;
 	align-items: center;
 	gap: 8px;
+	padding: 4px 12px 4px 4px;
+	border-radius: 999px;
+	border: 1px solid color-mix(in srgb, var(--pos-primary) 22%, transparent);
+	background: color-mix(
+		in srgb,
+		var(--pos-primary) 8%,
+		var(--pos-card-bg, #fff)
+	);
+	color: var(--pos-primary);
+	font-weight: 500;
+	transition:
+		transform 0.2s ease,
+		border-color 0.2s ease,
+		background-color 0.2s ease,
+		box-shadow 0.2s ease;
+	box-shadow: 0 1px 2px
+		color-mix(in srgb, var(--pos-shadow, #000) 8%, transparent);
+	max-width: 200px;
+}
+
+.profile-chip__avatar {
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	color: #fff;
+	background: linear-gradient(
+		135deg,
+		var(--pos-primary) 0%,
+		var(--pos-secondary, #00bcd4) 100%
+	);
+	box-shadow: 0 1px 3px
+		color-mix(in srgb, var(--pos-primary) 35%, transparent);
 }
 
 .profile-chip__content {
@@ -662,28 +730,42 @@ export default {
 }
 
 .profile-chip__title {
-	font-weight: 600;
-	line-height: 1.1;
+	font-size: 12.5px;
+	font-weight: 700;
+	line-height: 1.15;
+	color: var(--pos-primary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .profile-chip__meta {
-	font-size: 0.72rem;
-	line-height: 1.1;
+	font-size: 10.5px;
+	line-height: 1.15;
+	font-weight: 500;
 	color: var(--pos-text-secondary);
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 .profile-chip:hover {
 	transform: translateY(-1px);
-	background: rgba(25, 118, 210, 0.1) !important;
-	border-color: rgba(25, 118, 210, 0.25) !important;
-	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.12);
+	background: color-mix(
+		in srgb,
+		var(--pos-primary) 12%,
+		var(--pos-card-bg, #fff)
+	);
+	border-color: color-mix(in srgb, var(--pos-primary) 35%, transparent);
+	box-shadow: 0 4px 12px
+		color-mix(in srgb, var(--pos-primary) 16%, transparent);
 }
 
 /* RTL Profile Chip Styling */
 .rtl-profile-chip {
 	flex-direction: row-reverse;
 	text-align: right;
+	padding: 4px 4px 4px 12px;
 }
 
 .ltr-profile-chip {
@@ -691,54 +773,26 @@ export default {
 	text-align: left;
 }
 
-/* Profile Icon Positioning */
 .rtl-profile-icon {
-	margin-left: 8px;
-	margin-right: 0;
+	margin: 0;
 	order: 2;
 }
 
 .ltr-profile-icon {
-	margin-right: 8px;
-	margin-left: 0;
+	margin: 0;
 	order: 0;
-	/* Keep normal order for LTR */
 }
 
-/* Profile Text Positioning */
 .rtl-profile-text {
 	order: 1;
 	text-align: right;
-	margin-right: 4px;
+	margin: 0;
 }
 
 .ltr-profile-text {
 	order: 0;
-	/* Keep normal order for LTR */
 	text-align: left;
-	margin-left: 4px;
-}
-
-/* Override Vuetify's default chip styles for better RTL spacing */
-.rtl-profile-chip :deep(.v-chip__content) {
-	flex-direction: row-reverse;
-	gap: 8px;
-}
-
-.ltr-profile-chip :deep(.v-chip__content) {
-	flex-direction: row;
-	gap: 8px;
-}
-
-/* Force proper icon spacing in Vuetify chips */
-.rtl-profile-chip :deep(.v-icon) {
-	margin-left: 6px !important;
-	margin-right: 0 !important;
-}
-
-.ltr-profile-chip :deep(.v-icon) {
-	margin-right: 6px !important;
-	margin-left: 0 !important;
+	margin: 0;
 }
 
 /* Offline Invoices Button Enhancement - Elite Style */
@@ -755,32 +809,32 @@ export default {
 }
 
 .offline-invoices-btn .pos-text-primary {
-	color: #1976d2 !important;
+	color: var(--pos-primary) !important;
 }
 
 /* Elite styling for navbar text and icons */
 .pos-navbar-enhanced .pos-text-primary {
-	color: #1976d2 !important;
+	color: var(--pos-primary) !important;
 }
 
 /* Ensure profile text and icons use elite colors */
 .profile-chip .pos-text-primary,
 .profile-chip .ltr-profile-text,
 .profile-chip .rtl-profile-text {
-	color: #1976d2 !important;
-	font-weight: 500;
+	color: inherit;
+	font-weight: inherit;
 }
 
 /* Navbar icons with refined styling */
 .pos-navbar-enhanced .v-icon.pos-text-primary,
 .pos-navbar-enhanced .mdi-menu-down,
 .pos-navbar-enhanced .v-icon--end.pos-text-primary {
-	color: #1976d2 !important;
+	color: var(--pos-primary) !important;
 	transition: color 0.25s ease;
 }
 
 .pos-navbar-enhanced .v-icon.pos-text-primary:hover {
-	color: #1565c0 !important;
+	color: var(--pos-primary-variant) !important;
 }
 
 .rtl-offline-btn {
@@ -801,7 +855,7 @@ export default {
 }
 
 .offline-invoices-btn:hover .pos-text-primary {
-	color: #1565c0 !important;
+	color: var(--pos-primary-variant) !important;
 }
 
 .offline-invoices-btn.has-pending {
@@ -982,6 +1036,11 @@ export default {
 
 	.mobile-navbar .pos-navbar-title {
 		font-size: 0.9rem !important;
+	}
+
+	.mobile-navbar .pos-navbar-title-company {
+		max-width: min(46vw, 180px);
+		font-size: 0.85rem;
 	}
 
 	.mobile-navbar .pos-navbar-title-light {

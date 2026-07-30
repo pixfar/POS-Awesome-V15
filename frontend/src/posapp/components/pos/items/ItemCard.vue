@@ -204,12 +204,12 @@ const onDragEnd = (event) => {
 .card-item-card:hover {
 	transform: none;
 	box-shadow: none;
-	border-color: rgba(37, 99, 235, 0.35);
+	border-color: color-mix(in srgb, var(--pos-primary) 35%, transparent);
 }
 
 .card-item-card.item-highlighted {
-	border-color: #2563eb;
-	box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+	border-color: var(--pos-primary);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--pos-primary) 15%, transparent);
 	transform: none;
 	background: #ffffff;
 }
@@ -330,7 +330,7 @@ const onDragEnd = (event) => {
 	flex-wrap: wrap;
 	gap: var(--pos-space-1);
 	font-weight: 700;
-	color: #1d4ed8;
+	color: var(--pos-primary-variant);
 	font-size: 1.25rem;
 }
 

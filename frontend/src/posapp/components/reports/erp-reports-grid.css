@@ -42,13 +42,13 @@
 }
 
 .erp-report-card:hover {
-	border-color: rgba(37, 99, 235, 0.35);
+	border-color: color-mix(in srgb, var(--pos-primary) 35%, transparent);
 	box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-	background: rgba(37, 99, 235, 0.03);
+	background: color-mix(in srgb, var(--pos-primary) 3%, transparent);
 }
 
 .erp-report-card:focus-visible {
-	outline: 2px solid rgba(37, 99, 235, 0.5);
+	outline: 2px solid color-mix(in srgb, var(--pos-primary) 50%, transparent);
 	outline-offset: 2px;
 }
 
@@ -59,8 +59,8 @@
 	width: 40px;
 	height: 40px;
 	border-radius: 10px;
-	background: rgba(37, 99, 235, 0.08);
-	color: #2563eb;
+	background: color-mix(in srgb, var(--pos-primary) 8%, transparent);
+	color: var(--pos-primary);
 	flex-shrink: 0;
 }
 

@@ -277,12 +277,12 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: color-mix(in srgb, var(--pos-primary, #2563eb) 10%, var(--pos-surface, #fff));
-	border: 1px solid color-mix(in srgb, var(--pos-primary, #2563eb) 18%, var(--pos-border, rgba(0,0,0,0.12)));
+	background: color-mix(in srgb, var(--pos-primary, #0097a7) 10%, var(--pos-surface, #fff));
+	border: 1px solid color-mix(in srgb, var(--pos-primary, #0097a7) 18%, var(--pos-border, rgba(0,0,0,0.12)));
 }
 
 .purchase-empty-state__icon {
-	color: var(--pos-primary, #2563eb) !important;
+	color: var(--pos-primary, #0097a7) !important;
 }
 
 .purchase-empty-state__title {
