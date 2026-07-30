@@ -11,19 +11,21 @@
 				color="primary"
 				:label="customerFieldLabel"
 				:placeholder="customerFieldPlaceholder"
-				:loading="isCustomerSearchLocked"
+				:loading="isCustomerSearchLocked || isCustomerLookupPending"
 				v-model="internalCustomer"
 				:items="filteredCustomers"
 				item-title="customer_name"
 				item-value="name"
 				:no-data-text="customerNoDataText"
 				hide-details
+				no-filter
 				:customFilter="() => true"
 				:disabled="effectiveReadonly || isCustomerSearchLocked"
 				:menu-props="{ closeOnContentClick: false }"
 				@update:menu="onCustomerMenuToggle"
 				@update:modelValue="onCustomerChange"
 				@update:search="onCustomerSearch"
+				@focus="onCustomerFocus"
 				@keydown.enter="handleEnter"
 				:virtual-scroll="true"
 				:virtual-scroll-item-height="48"
@@ -240,6 +242,7 @@ export default {
 		const internalCustomer = ref(null);
 		const tempSelectedCustomer = ref(null);
 		const isMenuOpen = ref(false);
+		const isCustomerLookupPending = ref(false);
 		const customerDropdown = ref(null);
 		const readonlyState = ref(false);
 
@@ -273,7 +276,7 @@ export default {
 				: __("Search customer"),
 		);
 		const customerNoDataText = computed(() =>
-			showCustomerLoadProgress.value
+			showCustomerLoadProgress.value || isCustomerLookupPending.value
 				? `${__("Loading customers...")} ${customerLoadPercent.value}%`
 				: __("Customers not found"),
 		);
@@ -289,6 +292,19 @@ export default {
 		const searchDebounce = _.debounce((term) => {
 			customersStore.queueSearch(term || "");
 		}, 300);
+
+		const loadCustomersForMenu = async (term = "") => {
+			if (isCustomerSearchLocked.value) {
+				return;
+			}
+			searchDebounce.cancel?.();
+			isCustomerLookupPending.value = true;
+			try {
+				await customersStore.searchCustomers(term || "");
+			} finally {
+				isCustomerLookupPending.value = false;
+			}
+		};
 
 		const ensureCustomersForProfile = (profile) => {
 			if (!profile) {
@@ -355,6 +371,7 @@ export default {
 			isMenuOpen.value = isOpen;
 			if (isOpen) {
 				internalCustomer.value = null;
+				void loadCustomersForMenu("");
 				nextTick(() => {
 					setTimeout(() => {
 						attachScrollListener();
@@ -371,6 +388,15 @@ export default {
 				internalCustomer.value = selectedCustomer.value;
 			}
 			tempSelectedCustomer.value = null;
+		};
+
+		const onCustomerFocus = () => {
+			if (effectiveReadonly.value || isCustomerSearchLocked.value) {
+				return;
+			}
+			if (!filteredCustomers.value?.length) {
+				void loadCustomersForMenu("");
+			}
 		};
 
 		const closeCustomerMenu = () => {
@@ -414,6 +440,12 @@ export default {
 				return;
 			}
 			const term = value || "";
+			// Opening the menu clears the selected value and can emit an empty
+			// search — load the full list immediately instead of waiting to type.
+			if (!term) {
+				void loadCustomersForMenu("");
+				return;
+			}
 			searchDebounce(term);
 		};
 
@@ -486,6 +518,7 @@ export default {
 			}
 
 			isMenuOpen.value = true;
+			void loadCustomersForMenu("");
 
 			if (typeof dropdown.focus === "function") {
 				dropdown.focus();

@@ -77,7 +77,7 @@ const menu = ref(false);
 }
 
 .info-gadgets-btn .pos-text-primary {
-	color: #1976d2 !important;
+	color: var(--pos-primary) !important;
 }
 
 .gadget-item {

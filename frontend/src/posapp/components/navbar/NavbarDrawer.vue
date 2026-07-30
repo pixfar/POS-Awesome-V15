@@ -3,7 +3,7 @@
 		v-model="drawerOpen"
 		:rail="mini"
 		expand-on-hover
-		width="220"
+		width="200"
 		:class="['drawer-custom', { 'drawer-visible': drawerOpen }, rtlClasses]"
 		@mouseleave="handleMouseLeave"
 		temporary
@@ -12,20 +12,6 @@
 	>
 		<div class="drawer-shell">
 			<div>
-				<div v-if="!mini" class="drawer-header">
-					<v-avatar size="40">
-						<v-img :src="companyImg" alt="Company logo" />
-					</v-avatar>
-					<span class="drawer-company">{{ company }}</span>
-				</div>
-				<div v-else class="drawer-header-mini">
-					<v-avatar size="40">
-						<v-img :src="companyImg" alt="Company logo" />
-					</v-avatar>
-				</div>
-
-				<v-divider />
-
 				<v-list density="compact" nav v-model:selected="activeItem" selected-class="active-item">
 					<template v-for="(item, index) in items" :key="item.text">
 						<!-- Item with sub-menu -->
@@ -80,13 +66,31 @@
 			</div>
 
 			<div class="drawer-footer" data-test="drawer-footer-settings">
-				<v-divider class="drawer-footer-divider" />
-				<div class="drawer-user-bar">
-					<span v-if="!mini" class="drawer-user-bar__name">{{ currentUserInfo.fullname }}</span>
+				<div
+					class="drawer-user-card"
+					:class="{ 'drawer-user-card--mini': mini }"
+				>
+					<div class="drawer-user-card__identity">
+						<div
+							class="drawer-user-card__avatar"
+							aria-hidden="true"
+						>
+							{{ userInitials }}
+						</div>
+						<div v-if="!mini" class="drawer-user-card__meta">
+							<span class="drawer-user-card__name">
+								{{ currentUserInfo.fullname }}
+							</span>
+							<span class="drawer-user-card__hint">
+								{{ __("Signed in") }}
+							</span>
+						</div>
+					</div>
 					<button
 						type="button"
-						class="drawer-user-bar__logout"
+						class="drawer-user-card__logout"
 						data-test="drawer-logout-action"
+						:title="__('Logout')"
 						@click="handleLogoutClick"
 					>
 						<v-icon size="18">mdi-logout</v-icon>
@@ -123,6 +127,19 @@ const currentUserInfo = computed(() => {
 		fullname: info.fullname || frappe?.session?.user || "",
 	};
 });
+
+const userInitials = computed(() => {
+	const name = String(currentUserInfo.value.fullname || "").trim();
+	if (!name) return "?";
+	const parts = name.split(/\s+/).filter(Boolean);
+	if (parts.length === 1) {
+		return parts[0].slice(0, 2).toUpperCase();
+	}
+	return (
+		(parts[0][0] || "") + (parts[parts.length - 1][0] || "")
+	).toUpperCase();
+});
+
 const { isRtl, rtlClasses } = useRtl();
 
 const mini = ref(false);
@@ -209,8 +226,8 @@ function closeDrawer() {
 .drawer-header {
 	display: flex;
 	align-items: center;
-	height: 64px;
-	padding: 0 16px;
+	height: 52px;
+	padding: 0 12px;
 	background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
 	border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
@@ -220,138 +237,205 @@ function closeDrawer() {
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	height: 64px;
+	height: 52px;
 	background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
 	border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 /* Styling for the company name text within the drawer header */
 .drawer-company {
-	margin-left: 12px;
+	margin-left: 10px;
 	flex: 1;
-	font-weight: 500;
-	font-size: 1rem;
+	min-width: 0;
+	font-weight: 600;
+	font-size: 0.8125rem;
+	line-height: 1.25;
 	color: #0097a7;
 	font-family: "Roboto", sans-serif;
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
 }
 
 /* Styling for icons within the navigation drawer list items */
 .drawer-icon {
-	font-size: 24px;
+	font-size: 20px;
 	color: var(--pos-primary);
 }
 
 /* Styling for the title text of navigation drawer list items */
 .drawer-item-title {
-	margin-left: 8px;
+	margin-left: 0;
 	font-weight: 500;
-	font-size: 0.95rem;
+	font-size: 0.8125rem;
+	line-height: 1.25;
 	color: var(--pos-text-primary) !important;
 	font-family: "Roboto", sans-serif;
+	white-space: normal;
+	overflow: visible;
+	text-overflow: unset;
+}
+
+/* Vuetify reserves 32px after icons — tighten to a normal gap */
+.drawer-custom :deep(.v-list-item) {
+	padding-inline: 8px !important;
+	min-height: 36px;
+	column-gap: 0;
+}
+
+.drawer-custom :deep(.v-list-item__prepend) {
+	margin-inline-end: 0 !important;
+}
+
+.drawer-custom
+	:deep(.v-list-item__prepend > .v-icon ~ .v-list-item__spacer),
+.drawer-custom
+	:deep(.v-list-item__prepend > .v-badge ~ .v-list-item__spacer),
+.drawer-custom
+	:deep(.v-list-item__prepend > .v-tooltip ~ .v-list-item__spacer) {
+	width: 8px !important;
+}
+
+.drawer-custom
+	:deep(.v-list-item__append > .v-icon ~ .v-list-item__spacer),
+.drawer-custom
+	:deep(.v-list-item__append > .v-badge ~ .v-list-item__spacer),
+.drawer-custom
+	:deep(.v-list-item__append > .v-tooltip ~ .v-list-item__spacer) {
+	width: 4px !important;
+}
+
+.drawer-custom :deep(.v-list-item-title) {
+	overflow: visible;
+	text-overflow: unset;
+	white-space: normal;
+}
+
+.drawer-custom :deep(.drawer-item--child) {
+	padding-inline-start: 12px !important;
 }
 
 /* Hover effect for all list items in the navigation drawer */
 .v-list-item:hover {
-	background-color: rgba(25, 118, 210, 0.08) !important;
+	background-color: color-mix(
+		in srgb,
+		var(--pos-primary) 8%,
+		transparent
+	) !important;
 }
 
 .drawer-footer {
-	padding: 10px 12px 14px;
-	display: grid;
-	gap: 12px;
+	padding: 10px;
+	margin-top: auto;
 }
 
-.drawer-footer-action {
-	width: 100%;
-	border: 1px solid var(--pos-border);
-	border-radius: 16px;
-	background: var(--pos-card-bg);
+.drawer-user-card {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+	border: 1px solid var(--pos-border, rgba(0, 0, 0, 0.08));
+	border-radius: var(--pos-radius-md, 12px);
+	background: color-mix(
+		in srgb,
+		var(--pos-primary) 5%,
+		var(--pos-card-bg, #fff)
+	);
+}
+
+.drawer-user-card--mini {
+	align-items: center;
+	padding: 8px;
+}
+
+.drawer-user-card__identity {
 	display: flex;
 	align-items: center;
-	gap: 12px;
-	padding: 12px 14px;
-	text-align: left;
-	transition:
-		transform 0.18s ease,
-		border-color 0.18s ease,
-		box-shadow 0.18s ease;
-}
-
-.drawer-footer-action:hover {
-	transform: translateY(-1px);
-	border-color: var(--pos-primary);
-	box-shadow: 0 6px 16px var(--pos-shadow);
-}
-
-.drawer-footer-action__icon {
-	width: 36px;
-	height: 36px;
-	border-radius: 12px;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
-	flex-shrink: 0;
-}
-
-.drawer-footer-action__copy {
-	display: grid;
-	gap: 3px;
+	gap: 8px;
 	min-width: 0;
 }
 
-.drawer-footer-action__title {
-	font-size: 13px;
-	font-weight: 700;
-	color: var(--pos-text-primary);
-}
-
-.drawer-footer-action__subtitle {
-	font-size: 11px;
-	line-height: 1.35;
-	color: var(--pos-text-secondary);
-}
-
-.drawer-user-bar {
-	display: flex;
+.drawer-user-card__avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	display: inline-flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	padding: 6px 2px;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	color: #fff;
+	background: linear-gradient(
+		135deg,
+		var(--pos-primary) 0%,
+		var(--pos-secondary, #00bcd4) 100%
+	);
 }
 
-.drawer-user-bar__name {
-	font-size: 13px;
+.drawer-user-card__meta {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+}
+
+.drawer-user-card__name {
+	font-size: 12.5px;
 	font-weight: 600;
+	line-height: 1.25;
 	color: var(--pos-text-primary);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.drawer-user-bar__logout {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	flex-shrink: 0;
-	border: none;
-	background: none;
-	padding: 4px 6px;
-	font-size: 13px;
-	font-weight: 600;
-	color: #d32f2f;
-	border-radius: 8px;
-	transition: background-color 0.15s ease;
+.drawer-user-card__hint {
+	font-size: 10.5px;
+	line-height: 1.2;
+	color: var(--pos-text-secondary, #6b7280);
 }
 
-.drawer-user-bar__logout:hover {
-	background-color: rgba(211, 47, 47, 0.1);
+.drawer-user-card__logout {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	width: 100%;
+	border: 1px solid color-mix(in srgb, #d32f2f 22%, transparent);
+	background: color-mix(in srgb, #d32f2f 6%, transparent);
+	padding: 7px 10px;
+	font-size: 12.5px;
+	font-weight: 600;
+	color: #c62828;
+	border-radius: var(--pos-radius-sm, 8px);
+	cursor: pointer;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease;
+}
+
+.drawer-user-card--mini .drawer-user-card__logout {
+	width: 36px;
+	height: 36px;
+	padding: 0;
+}
+
+.drawer-user-card__logout:hover {
+	background: color-mix(in srgb, #d32f2f 12%, transparent);
+	border-color: color-mix(in srgb, #d32f2f 35%, transparent);
 }
 
 /* Styling for the actively selected list item in the navigation drawer */
 .active-item {
-	background-color: rgba(25, 118, 210, 0.12) !important;
-	border-right: 3px solid #1976d2;
+	background-color: color-mix(
+		in srgb,
+		var(--pos-primary) 12%,
+		transparent
+	) !important;
+	border-right: 3px solid var(--pos-primary);
 }
 
 /* Theme-aware drawer styling */
@@ -370,22 +454,22 @@ function closeDrawer() {
 :deep(.v-theme--dark) .drawer-item-title {
 	color: var(--pos-text-primary) !important;
 	font-weight: 500;
-	font-size: 0.95rem;
+	font-size: 0.875rem;
 	font-family: "Roboto", sans-serif;
 }
 
 :deep([data-theme="dark"]) .drawer-company,
 :deep(.v-theme--dark) .drawer-company {
 	color: var(--text-primary, #ffffff) !important;
-	font-weight: 500;
-	font-size: 1rem;
+	font-weight: 600;
+	font-size: 0.8125rem;
 	font-family: "Roboto", sans-serif;
 }
 
 :deep([data-theme="dark"]) .drawer-icon,
 :deep(.v-theme--dark) .drawer-icon {
 	color: var(--pos-primary) !important;
-	font-size: 24px;
+	font-size: 20px;
 }
 
 :deep([data-theme="dark"]) .v-list-item:hover,
@@ -415,19 +499,19 @@ function closeDrawer() {
 /* Responsive adjustments for width and dark theme */
 @media (max-width: 900px) and (orientation: landscape) {
 	.drawer-custom.drawer-visible {
-		width: 180px !important;
+		width: 168px !important;
 	}
 }
 
 @media (min-width: 601px) and (max-width: 1024px) {
 	.drawer-custom.drawer-visible {
-		width: 240px !important;
+		width: 190px !important;
 	}
 }
 
 @media (min-width: 1025px) {
 	.drawer-custom.drawer-visible {
-		width: 300px !important;
+		width: 200px !important;
 	}
 }
 

@@ -203,7 +203,7 @@ function loadAppInfo() {
 	left: 0;
 	right: 0;
 	height: 3px;
-	background: linear-gradient(90deg, #1976d2 0%, #42a5f5 100%);
+	background: linear-gradient(90deg, var(--pos-primary) 0%, var(--pos-secondary) 100%);
 }
 
 .header-content-improved {
@@ -215,7 +215,7 @@ function loadAppInfo() {
 }
 
 .header-icon-wrapper-improved {
-	background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
+	background: linear-gradient(135deg, var(--pos-primary) 0%, var(--pos-secondary) 100%);
 	border-radius: 14px;
 	padding: 10px;
 	display: flex;
@@ -327,7 +327,7 @@ function loadAppInfo() {
 }
 
 .app-icon-improved {
-	background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
+	background: linear-gradient(135deg, var(--pos-primary) 0%, var(--pos-secondary) 100%);
 	border-radius: 8px;
 	padding: 8px;
 	display: flex;

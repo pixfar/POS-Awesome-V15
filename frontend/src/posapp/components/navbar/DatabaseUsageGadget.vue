@@ -16,7 +16,7 @@
 				<div class="db-tooltip-section-title mb-1">{{ __("Database Info") }}</div>
 				<div class="db-tooltip-sparkline mb-2">
 					<svg :width="120" :height="32" class="db-sparkline">
-						<polyline :points="sparklinePoints" fill="none" stroke="#1976d2" stroke-width="2" />
+						<polyline :points="sparklinePoints" fill="none" stroke="var(--pos-primary)" stroke-width="2" />
 					</svg>
 				</div>
 				<div class="db-tooltip-detail flex items-center mb-1">
@@ -133,7 +133,7 @@ const sparklinePoints = computed(() => {
 .db-current-size {
 	font-size: 13px;
 	font-weight: 600;
-	color: #1976d2;
+	color: var(--pos-primary);
 	min-width: 48px;
 	text-align: right;
 	direction: ltr;
@@ -169,7 +169,7 @@ const sparklinePoints = computed(() => {
 .db-tooltip-subtitle {
 	font-size: 12px;
 	font-weight: 600;
-	color: #1976d2;
+	color: var(--pos-primary);
 }
 .db-top-tables {
 	list-style: none;

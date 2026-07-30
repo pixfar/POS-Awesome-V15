@@ -128,7 +128,6 @@ export function useTheme() {
 		const root = document.documentElement;
 
 		if (themeName === "dark") {
-			// Dark theme CSS custom properties
 			root.style.setProperty("--pos-bg-primary", "#121212");
 			root.style.setProperty("--pos-bg-secondary", "#1E1E1E");
 			root.style.setProperty("--pos-bg-tertiary", "#2d2d2d");
@@ -147,25 +146,27 @@ export function useTheme() {
 			root.style.setProperty("--pos-border", "rgba(255, 255, 255, 0.12)");
 			root.style.setProperty("--pos-divider", "#373737");
 			root.style.setProperty("--pos-shadow", "rgba(0, 0, 0, 0.4)");
+			root.style.setProperty("--pos-shadow-light", "rgba(0, 0, 0, 0.2)");
 
 			root.style.setProperty("--pos-card-bg", "#1E1E1E");
 			root.style.setProperty("--pos-input-bg", "#2d2d2d");
+			root.style.setProperty("--pos-surface-raised", "#242b33");
+			root.style.setProperty("--pos-surface-muted", "#1a2028");
 			root.style.setProperty("--pos-tooltip-bg", "#202833");
 			root.style.setProperty(
 				"--pos-tooltip-border",
-				"rgba(148, 163, 184, 0.2)",
+				"rgba(0, 212, 255, 0.2)",
 			);
 			root.style.setProperty("--pos-tooltip-shadow", "rgba(0, 0, 0, 0.4)");
-			root.style.setProperty(
-				"--pos-hover-bg",
-				"rgba(255, 255, 255, 0.12)",
-			);
+			root.style.setProperty("--pos-hover-bg", "rgba(0, 212, 255, 0.12)");
+			root.style.setProperty("--pos-selected-bg", "rgba(0, 212, 255, 0.22)");
+			root.style.setProperty("--primary-start", "#00D4FF");
+			root.style.setProperty("--primary-end", "#00A0CC");
 			root.style.setProperty("color-scheme", "dark");
 		} else {
-			// Light theme CSS custom properties
 			root.style.setProperty("--pos-bg-primary", "#ffffff");
 			root.style.setProperty("--pos-bg-secondary", "#f8f9fa");
-			root.style.setProperty("--pos-bg-tertiary", "#e3f2fd");
+			root.style.setProperty("--pos-bg-tertiary", "#e0f7fa");
 			root.style.setProperty("--pos-surface", "#ffffff");
 			root.style.setProperty("--pos-surface-variant", "#f5f5f5");
 
@@ -180,10 +181,13 @@ export function useTheme() {
 
 			root.style.setProperty("--pos-border", "rgba(0, 0, 0, 0.12)");
 			root.style.setProperty("--pos-divider", "rgba(0, 0, 0, 0.06)");
-			root.style.setProperty("--pos-shadow", "rgba(0, 0, 0, 0.1)");
+			root.style.setProperty("--pos-shadow", "rgba(15, 23, 42, 0.1)");
+			root.style.setProperty("--pos-shadow-light", "rgba(15, 23, 42, 0.06)");
 
 			root.style.setProperty("--pos-card-bg", "#ffffff");
 			root.style.setProperty("--pos-input-bg", "#f5f5f5");
+			root.style.setProperty("--pos-surface-raised", "#ffffff");
+			root.style.setProperty("--pos-surface-muted", "#f4f7fb");
 			root.style.setProperty("--pos-tooltip-bg", "#ffffff");
 			root.style.setProperty(
 				"--pos-tooltip-border",
@@ -193,14 +197,13 @@ export function useTheme() {
 				"--pos-tooltip-shadow",
 				"rgba(15, 23, 42, 0.14)",
 			);
-			root.style.setProperty(
-				"--pos-hover-bg",
-				"rgba(25, 118, 210, 0.04)",
-			);
+			root.style.setProperty("--pos-hover-bg", "rgba(0, 151, 167, 0.06)");
+			root.style.setProperty("--pos-selected-bg", "rgba(0, 151, 167, 0.14)");
+			root.style.setProperty("--primary-start", "#0097A7");
+			root.style.setProperty("--primary-end", "#00838F");
 			root.style.setProperty("color-scheme", "light");
 		}
 
-		// Minimal DOM recalculation
 		requestAnimationFrame(() => {
 			root.offsetHeight;
 		});

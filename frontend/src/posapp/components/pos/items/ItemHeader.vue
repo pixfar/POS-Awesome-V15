@@ -266,7 +266,7 @@ defineExpose({
 :deep(.search-sync-progress .v-progress-linear) {
 	border-radius: 999px;
 	overflow: hidden;
-	box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pos-primary) 8%, transparent);
 }
 
 .search-sync-progress__meta {
@@ -280,7 +280,7 @@ defineExpose({
 .search-sync-progress__value {
 	font-size: 0.7rem;
 	line-height: 1.2;
-	color: color-mix(in srgb, var(--pos-primary, #2563eb) 78%, #0f172a 22%);
+	color: color-mix(in srgb, var(--pos-primary, #0097a7) 78%, #0f172a 22%);
 }
 
 .search-sync-progress__label {

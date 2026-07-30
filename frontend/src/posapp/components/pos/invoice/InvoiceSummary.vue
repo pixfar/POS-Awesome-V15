@@ -551,24 +551,24 @@ defineExpose({
 }
 
 .cards {
-	background-color: #ffffff !important;
+	background-color: var(--pos-card-bg) !important;
 	transition: all 0.3s ease;
-	border: 1px solid rgba(17, 24, 39, 0.08);
-	border-radius: 12px;
+	border: 1px solid var(--pos-border);
+	border-radius: var(--pos-radius-md);
 }
 
 .sticky-summary-card {
 	position: sticky;
 	bottom: 0;
 	z-index: 9;
-	box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+	box-shadow: 0 -8px 24px var(--pos-shadow-light);
 }
 
 .sticky-summary-card--dock-safe {
 	position: static;
 	margin-bottom: calc(var(--bottom-safe-space) + 12px);
 	box-shadow: none;
-	border: 1px solid rgba(17, 24, 39, 0.08);
+	border: 1px solid var(--pos-border);
 }
 
 .summary-content {
@@ -585,10 +585,10 @@ defineExpose({
 	justify-content: space-between;
 	gap: 14px;
 	padding: 14px 16px;
-	border-radius: 12px;
-	background: #2563eb;
+	border-radius: var(--pos-radius-md);
+	background: var(--pos-primary);
 	border: none;
-	box-shadow: 0 4px 16px rgba(37, 99, 235, 0.22);
+	box-shadow: 0 4px 16px color-mix(in srgb, var(--pos-primary) 28%, transparent);
 }
 
 .summary-hero__copy {

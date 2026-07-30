@@ -327,7 +327,7 @@ onMounted(() => {
 /* Header Section - White Background with Blue Text */
 .opening-dialog-header {
 	background: white;
-	color: #1976d2;
+	color: var(--pos-primary);
 	padding: 16px 24px;
 	border-bottom: 2px solid rgba(25, 118, 210, 0.1);
 	flex-shrink: 0;
@@ -351,7 +351,7 @@ onMounted(() => {
 
 .header-icon {
 	font-size: 20px;
-	color: #1976d2;
+	color: var(--pos-primary);
 }
 
 .header-text {
@@ -363,7 +363,7 @@ onMounted(() => {
 	font-weight: 600;
 	margin: 0;
 	line-height: 1.2;
-	color: #1976d2;
+	color: var(--pos-primary);
 }
 
 .header-subtitle {
@@ -371,7 +371,7 @@ onMounted(() => {
 	opacity: 0.8;
 	margin: 2px 0 0 0;
 	line-height: 1.3;
-	color: #1976d2;
+	color: var(--pos-primary);
 }
 
 /* Content Section - Optimized for minimal scrolling */
@@ -392,12 +392,12 @@ onMounted(() => {
 	gap: 6px;
 	font-size: 1rem;
 	font-weight: 600;
-	color: #1976d2;
+	color: var(--pos-primary);
 	margin-bottom: 0;
 }
 
 .section-icon {
-	color: #1976d2;
+	color: var(--pos-primary);
 	font-size: 18px;
 }
 
@@ -433,7 +433,7 @@ onMounted(() => {
 
 .enhanced-table-compact :deep(th) {
 	background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
-	color: #1976d2;
+	color: var(--pos-primary);
 	font-weight: 600;
 	border-bottom: 1px solid rgba(25, 118, 210, 0.1);
 	padding: 8px 12px;
@@ -473,7 +473,7 @@ onMounted(() => {
 
 .currency-symbol {
 	font-weight: 600;
-	color: #1976d2;
+	color: var(--pos-primary);
 	font-size: 0.9rem;
 }
 
@@ -675,7 +675,7 @@ onMounted(() => {
 }
 
 .logout-action-btn {
-	background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%) !important;
+	background: linear-gradient(135deg, var(--pos-primary) 0%, var(--pos-primary-variant) 100%) !important;
 }
 
 .logout-action-btn:hover {

@@ -619,12 +619,12 @@ function handleEmbeddedActionSaved() {
 }
 
 .navbar-settings-panel__action--primary .navbar-settings-panel__action-icon {
-	background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
+	background: linear-gradient(135deg, var(--pos-primary) 0%, var(--pos-secondary) 100%);
 }
 
 .navbar-settings-panel__category-icon--primary,
 .navbar-settings-panel__detail-icon--primary {
-	background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
+	background: linear-gradient(135deg, var(--pos-primary) 0%, var(--pos-secondary) 100%);
 }
 
 .navbar-settings-panel__action--secondary .navbar-settings-panel__action-icon {

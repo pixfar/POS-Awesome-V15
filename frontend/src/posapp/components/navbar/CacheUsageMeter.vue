@@ -216,13 +216,13 @@ function formatBytes(bytes: number) {
 }
 .cache-bar-fill {
 	height: 100%;
-	background: linear-gradient(90deg, #1976d2 0%, #42a5f5 100%);
+	background: linear-gradient(90deg, var(--pos-primary) 0%, var(--pos-secondary) 100%);
 	border-radius: 4px;
 	transition: width 0.3s;
 }
 .cache-bar-label {
 	font-size: 11px;
-	color: #1976d2;
+	color: var(--pos-primary);
 	font-weight: 600;
 }
 .cache-tooltip-warning {

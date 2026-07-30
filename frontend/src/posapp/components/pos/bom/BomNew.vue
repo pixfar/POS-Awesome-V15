@@ -693,7 +693,7 @@ export default {
 .bom-selected-item {
 	padding: 8px 12px;
 	border-radius: 8px;
-	background: var(--pos-surface-subtle, rgba(37, 99, 235, 0.06));
+	background: var(--pos-surface-subtle, color-mix(in srgb, var(--pos-primary) 6%, transparent));
 }
 
 .qty-field :deep(input) {
