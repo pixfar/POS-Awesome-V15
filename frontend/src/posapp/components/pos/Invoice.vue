@@ -7,22 +7,17 @@
 		<!-- Main Invoice Card (contains all invoice content) -->
 		<v-card
 			ref="invoiceCard"
-			:style="{
-				height: invoiceHeight || 'var(--container-height)',
-				maxHeight: invoiceHeight || 'var(--container-height)',
-				resize: canResizeInvoicePanel() ? 'vertical' : 'none',
-				overflow: 'auto',
-			}"
+			:style="invoiceMainCardStyle"
 			:class="[
-				'cards my-0 py-0 mt-3 resizable invoice-main-card',
+				'cards my-0 py-0 resizable invoice-main-card',
 				'pos-themed-card',
 				{ 'return-mode': isReturnInvoice },
 			]"
 			@mouseup="saveInvoiceHeight($refs.invoiceCard)"
 			@touchend="saveInvoiceHeight($refs.invoiceCard)"
 		>
-			<!-- Dynamic padding wrapper -->
-			<div class="dynamic-padding">
+			<!-- Scrollable invoice body -->
+			<div class="dynamic-padding invoice-main-scroll">
 				<v-alert
 					type="info"
 					density="compact"
@@ -270,6 +265,46 @@
 					</v-card>
 				</div>
 			</div>
+
+			<!-- Sale dock pinned to bottom of invoice column (purchase-style) -->
+			<div class="invoice-summary-dock">
+				<InvoiceSummary
+					ref="invoiceSummary"
+					:pos_profile="pos_profile"
+					:total_qty="total_qty"
+					:additional_discount="additional_discount"
+					:additional_discount_percentage="additional_discount_percentage"
+					:total_items_discount_amount="total_items_discount_amount"
+					:subtotal="subtotal"
+					:displayCurrency="displayCurrency"
+					:formatFloat="formatFloat"
+					:formatCurrency="formatCurrency"
+					:currencySymbol="currencySymbol"
+					:discount_percentage_offer_name="discount_percentage_offer_name"
+					:isNumber="isNumber"
+					:return_discount_meta="return_discount_meta"
+					:sale_update_stock="sale_update_stock"
+					:sale_is_paid="sale_is_paid"
+					:sale_warehouse="sale_warehouse"
+					:warehouses="warehouses"
+					@update:additional_discount="(val) => (additional_discount = val)"
+					@update:additional_discount_percentage="(val) => (additional_discount_percentage = val)"
+					@update_discount_umount="update_discount_umount"
+					@update:sale_update_stock="(val) => (sale_update_stock = val)"
+					@update:sale_is_paid="(val) => (sale_is_paid = val)"
+					@update:sale_warehouse="onSaleWarehouseUpdate"
+					@save-and-clear="save_and_clear_invoice"
+					@load-drafts="get_draft_invoices"
+					@select-order="get_draft_orders"
+					@cancel-sale="cancel_dialog = true"
+					@open-invoice-management="open_invoice_management"
+					@open-returns="open_returns"
+					@print-draft="print_draft_invoice"
+					@show-payment="handleShowPaymentRequest"
+					@open-customer-display="handleOpenCustomerDisplayRequest"
+					@resume-parked-order="resume_parked_order"
+				/>
+			</div>
 		</v-card>
 
 		<!-- Payment Confirmation Dialog -->
@@ -286,44 +321,6 @@
 			:currency-symbol="currencySymbol(selected_currency || pos_profile?.currency)"
 			@submit="handlePriceListRateDialogSubmit"
 			@cancel="handlePriceListRateDialogCancel"
-		/>
-
-		<!-- Payment Section -->
-		<InvoiceSummary
-			ref="invoiceSummary"
-			:pos_profile="pos_profile"
-			:total_qty="total_qty"
-			:additional_discount="additional_discount"
-			:additional_discount_percentage="additional_discount_percentage"
-			:total_items_discount_amount="total_items_discount_amount"
-			:subtotal="subtotal"
-			:displayCurrency="displayCurrency"
-			:formatFloat="formatFloat"
-			:formatCurrency="formatCurrency"
-			:currencySymbol="currencySymbol"
-			:discount_percentage_offer_name="discount_percentage_offer_name"
-			:isNumber="isNumber"
-			:return_discount_meta="return_discount_meta"
-			:sale_update_stock="sale_update_stock"
-			:sale_is_paid="sale_is_paid"
-			:sale_warehouse="sale_warehouse"
-			:warehouses="warehouses"
-			@update:additional_discount="(val) => (additional_discount = val)"
-			@update:additional_discount_percentage="(val) => (additional_discount_percentage = val)"
-			@update_discount_umount="update_discount_umount"
-			@update:sale_update_stock="(val) => (sale_update_stock = val)"
-			@update:sale_is_paid="(val) => (sale_is_paid = val)"
-			@update:sale_warehouse="onSaleWarehouseUpdate"
-			@save-and-clear="save_and_clear_invoice"
-			@load-drafts="get_draft_invoices"
-			@select-order="get_draft_orders"
-			@cancel-sale="cancel_dialog = true"
-			@open-invoice-management="open_invoice_management"
-			@open-returns="open_returns"
-			@print-draft="print_draft_invoice"
-			@show-payment="handleShowPaymentRequest"
-			@open-customer-display="handleOpenCustomerDisplayRequest"
-			@resume-parked-order="resume_parked_order"
 		/>
 	</div>
 </template>
@@ -510,6 +507,17 @@ export default {
 		PriceListRateDialog,
 	},
 	computed: {
+		invoiceMainCardStyle() {
+			const canResize = this.canResizeInvoicePanel?.() === true;
+			return {
+				flex: "1 1 auto",
+				minHeight: 0,
+				height: "100%",
+				maxHeight: "100%",
+				resize: canResize ? "vertical" : "none",
+				overflow: "hidden",
+			};
+		},
 		items: {
 			get() {
 				return this.invoiceStore.items;
@@ -1367,24 +1375,48 @@ export default {
 .invoice-shell {
 	display: flex;
 	flex-direction: column;
-	gap: var(--dynamic-sm);
+	gap: 0;
 	flex: 1 1 auto;
 	min-height: 0;
-	overflow: auto;
+	height: 100%;
+	overflow: hidden;
 }
 
 @media (max-width: 1099px) {
 	.invoice-shell {
 		padding-bottom: calc(var(--bottom-safe-space) + var(--dynamic-xs));
+		height: auto;
+		overflow: visible;
 	}
 }
 
 .invoice-main-card {
 	display: flex;
 	flex-direction: column;
-	flex: 0 0 auto;
-	overflow: auto !important;
+	flex: 1 1 auto;
+	overflow: hidden !important;
 	min-width: 0;
+	min-height: 0;
+	margin-top: 0 !important;
+}
+
+.invoice-main-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+}
+
+.invoice-summary-dock {
+	flex: 0 0 auto;
+	width: 100%;
+	padding: 0 var(--dynamic-sm) var(--dynamic-sm);
+}
+
+.invoice-summary-dock :deep(.sticky-summary-card) {
+	position: relative;
+	bottom: auto;
+	margin-bottom: 0;
+	box-shadow: 0 -4px 16px var(--pos-shadow-light, rgba(15, 23, 42, 0.08));
 }
 
 /* Style for selected checkbox button */
@@ -1569,6 +1601,8 @@ export default {
 @media (max-width: 1099px) {
 	.invoice-shell {
 		gap: var(--dynamic-xs);
+		height: auto;
+		overflow: visible;
 	}
 
 	.invoice-main-card {
@@ -1576,6 +1610,16 @@ export default {
 		max-height: none !important;
 		resize: none !important;
 		overflow: visible !important;
+		flex: 0 0 auto !important;
+	}
+
+	.invoice-main-scroll {
+		overflow: visible;
+		flex: 0 0 auto;
+	}
+
+	.invoice-summary-dock {
+		padding: 0 var(--dynamic-xs) var(--dynamic-xs);
 	}
 
 	.dynamic-padding {

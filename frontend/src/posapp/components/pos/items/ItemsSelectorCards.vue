@@ -166,7 +166,9 @@ defineExpose({ scrollToItem, getScrollerElement, scrollerRef });
 }
 
 .virtual-scroller {
-	height: calc(100% - 80px);
+	height: 100%;
+	width: 100%;
+	overflow-x: hidden;
 	overflow-y: auto;
 	position: relative;
 }

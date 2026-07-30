@@ -23,18 +23,29 @@ export function useItemsSelectorPanelSizing({
 	);
 
 	const selectorCardStyle = computed<CSSProperties>(() => {
-		const containerHeight = responsiveStyles.value["--container-height"];
-		const height = isPhone.value ? PHONE_SELECTOR_HEIGHT : containerHeight;
+		if (isPhone.value) {
+			return {
+				height: PHONE_SELECTOR_HEIGHT,
+				maxHeight: PHONE_SELECTOR_HEIGHT,
+				minHeight: "calc(var(--viewport-height) * 0.46)",
+				resize: "none",
+				overflow: "auto",
+				position: "relative",
+				flex: "1 1 auto",
+			};
+		}
 
+		// Fill remaining shell height above the bottom toolbar.
+		// Do not use height:100% here — that ignores the toolbar and causes
+		// page-level overflow / double scrolling.
 		return {
-			height,
-			maxHeight: height,
-			minHeight: isPhone.value
-				? "calc(var(--viewport-height) * 0.46)"
-				: containerHeight,
+			height: "auto",
+			maxHeight: "none",
+			minHeight: 0,
 			resize: canResizeSelectorPanel.value ? "vertical" : "none",
-			overflow: "auto",
+			overflow: "hidden",
 			position: "relative",
+			flex: "1 1 auto",
 		};
 	});
 

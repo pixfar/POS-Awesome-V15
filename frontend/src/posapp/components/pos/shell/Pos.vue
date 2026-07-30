@@ -710,23 +710,39 @@ export default {
 
 .dynamic-container {
 	transition: all 0.3s ease;
-	padding-bottom: calc(var(--bottom-safe-space) + var(--dynamic-xs));
+	padding-bottom: 0;
 	min-width: 0;
+	min-height: 0;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	box-sizing: border-box;
 }
 
 .dynamic-main-row {
 	padding: 0;
-	margin: 0;
+	margin: 0 !important;
+	flex: 1 1 auto;
+	min-height: 0;
+	height: 100%;
+	align-items: stretch;
+	overflow: hidden;
 }
 
 .dynamic-main-row--phone {
 	align-items: stretch;
+	height: auto;
+	min-height: 0;
+	overflow: visible;
 }
 
 .dynamic-col {
 	padding: var(--dynamic-sm);
 	transition: padding 0.3s ease;
-	margin-top: var(--dynamic-sm);
+	margin-top: 0;
+	box-sizing: border-box;
 }
 
 .dynamic-col--selector,
@@ -735,6 +751,34 @@ export default {
 	flex-direction: column;
 	min-width: 0;
 	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+}
+
+.dynamic-col--invoice > :deep(.invoice-shell),
+.dynamic-col--selector > :deep(.items-selector-shell) {
+	flex: 1 1 auto;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+}
+
+@media (max-width: 1099px) {
+	.dynamic-container {
+		padding-bottom: calc(var(--bottom-safe-space) + var(--dynamic-xs));
+		overflow: auto;
+	}
+
+	.dynamic-main-row {
+		height: auto;
+		overflow: visible;
+	}
+
+	.dynamic-col--invoice,
+	.dynamic-col--selector {
+		height: auto;
+		overflow: visible;
+	}
 }
 
 .mobile-pos-stack {
@@ -890,6 +934,17 @@ export default {
 	line-height: 16px;
 	text-align: center;
 	z-index: 1;
+}
+
+@media (max-width: 1099px) {
+	.dynamic-main-row {
+		height: auto;
+	}
+
+	.dynamic-col--invoice,
+	.dynamic-col--selector {
+		height: auto;
+	}
 }
 
 @media (max-width: 768px) {

@@ -9,7 +9,7 @@
 		/>
 		<v-card
 			:class="[
-				'selection selection-card mx-auto my-0 py-0 mt-3 pos-card dynamic-card resizable pos-themed-card',
+				'selection selection-card my-0 py-0 pos-card dynamic-card resizable pos-themed-card',
 				{ 'selection-card--phone': isPhone },
 				rtlClasses,
 			]"
@@ -198,11 +198,7 @@
 			v-model:items-view="items_view"
 			:pos-profile="pos_profile"
 			:active-price-list="active_price_list"
-			:offers-count="offersCount"
-			:coupons-count="couponsCount"
 			:reserve-bottom-dock-space="context === 'pos' && responsive.windowWidth.value < 1100"
-			@open-offers="uiStore.setActiveView('offers')"
-			@open-coupons="uiStore.setActiveView('coupons')"
 		/>
 
 		<!-- New Item Dialog -->
@@ -442,8 +438,6 @@ const usesLimitSearch = computed(() =>
 const { stockSettings: stock_settings_ref } = storeToRefs(uiStore);
 const stock_settings = computed(() => stock_settings_ref.value || {});
 const items_group = computed(() => itemsIntegration.items_group.value || []);
-const offersCount = computed(() => uiStore.offersCount || 0);
-const couponsCount = computed(() => uiStore.couponsCount || 0);
 // selected_currency is now a local ref synced via eventBus
 const active_price_list = computed(
 	() => itemsIntegration.active_price_list.value || pos_profile.value?.selling_price_list,
@@ -1540,8 +1534,6 @@ defineExpose({
 	show_item_settings,
 	items_group,
 	item_group,
-	offersCount,
-	couponsCount,
 	virtualScrollBuffer,
 	selected_currency,
 	getLastInvoiceRate,
@@ -1590,6 +1582,28 @@ defineExpose({
 .items-selector-shell {
 	min-height: 0;
 	min-width: 0;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: var(--dynamic-sm, 8px);
+	align-items: stretch;
+}
+
+.selection-card {
+	border-radius: 12px;
+	border: 1px solid rgba(17, 24, 39, 0.08);
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+	padding: 5px;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	max-width: 100%;
+	align-self: stretch;
+	display: flex;
+	flex-direction: column;
+	margin-top: 0 !important;
+	margin-inline: 0 !important;
 }
 
 .items-pagination {
@@ -1625,13 +1639,10 @@ defineExpose({
 	display: flex;
 	flex-direction: column;
 	gap: var(--dynamic-sm);
-}
-
-.selection-card {
-	border-radius: 12px;
-	border: 1px solid rgba(17, 24, 39, 0.08);
-	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-	padding: 5px;
+	flex: 1 1 auto;
+	min-height: 0;
+	height: 100%;
+	box-sizing: border-box;
 }
 
 .selector-section-card {
@@ -1660,15 +1671,19 @@ defineExpose({
 .selector-header-card {
 	padding: 0;
 	overflow: hidden;
-	position: sticky;
-	top: 0;
+	flex: 0 0 auto;
+	position: relative;
 	z-index: 8;
 }
 
 .selector-results-card {
 	padding: var(--dynamic-xs);
-	overflow: hidden;
+	overflow-x: hidden;
+	overflow-y: auto;
 	min-width: 0;
+	min-height: 0;
+	flex: 1 1 auto;
+	width: 100%;
 }
 
 .dynamic-scroll {
