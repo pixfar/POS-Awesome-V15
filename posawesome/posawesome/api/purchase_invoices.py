@@ -95,6 +95,16 @@ def create_purchase_return(invoice, items=None):
 	return po.create_purchase_return(invoice, items=items)
 
 
+@frappe.whitelist()
+def get_purchase_invoice_for_receipt(invoice_name):
+	return po.get_purchase_invoice_for_receipt(invoice_name)
+
+
+@frappe.whitelist()
+def create_purchase_receipt(invoice, doctype=None, items=None):
+	return po.create_purchase_receipt(invoice, doctype=doctype, items=items)
+
+
 # Generic item search used by ItemsSelector in purchase context.
 @frappe.whitelist()
 def search_items(search_text=None, limit=20):

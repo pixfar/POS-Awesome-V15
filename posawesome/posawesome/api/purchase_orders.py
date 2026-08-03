@@ -954,6 +954,7 @@ def get_purchase_invoices_list(
         "currency",
         "owner",
         "is_return",
+        "update_stock",
     ]
 
     rows = frappe.get_list(
@@ -967,6 +968,23 @@ def get_purchase_invoices_list(
         distinct=True,
         ignore_permissions=True,
     )
+
+    eligible_rows = [
+        row for row in rows if row["status"] not in ("Draft", "Cancelled") and not row["is_return"]
+    ]
+    # update_stock=1 invoices already moved stock directly at submission —
+    # Purchase Invoice Item.received_qty is only ever touched by a Purchase
+    # Receipt made *against* the invoice (matched via purchase_invoice_item),
+    # so it stays 0 here and must not be read as "Not Received".
+    deferred_names = [row["name"] for row in eligible_rows if not cint(row.get("update_stock"))]
+    receipt_statuses = get_receipt_statuses(deferred_names)
+    for row in rows:
+        row["receipt_status"] = None
+    for row in eligible_rows:
+        if cint(row.get("update_stock")):
+            row["receipt_status"] = "Received"
+        else:
+            row["receipt_status"] = receipt_statuses.get(row["name"])
 
     total = len(
         frappe.get_list(
@@ -1048,6 +1066,142 @@ def get_purchase_invoice_detail(name):
             for row in doc.items
         ],
     }
+
+
+NOT_RECEIVED = "Not Received"
+PARTLY_RECEIVED = "Partly Received"
+RECEIVED = "Received"
+
+
+def get_receipt_statuses(names):
+    """Bulk receipt status for a set of Purchase Invoice names.
+
+    Returns {name: "Not Received"|"Partly Received"|"Received"}. Callers are
+    expected to have already excluded Draft/Cancelled/return rows — this only
+    looks at quantities.
+    """
+    if not names:
+        return {}
+
+    totals = frappe.db.get_all(
+        "Purchase Invoice Item",
+        filters={"parent": ["in", names]},
+        fields=["parent", "sum(qty) as total_qty", "sum(received_qty) as total_received"],
+        group_by="parent",
+    )
+
+    statuses = {}
+    for row in totals:
+        total_qty = flt(row.total_qty)
+        total_received = flt(row.total_received)
+        if total_received <= 0.0001:
+            statuses[row.parent] = NOT_RECEIVED
+        elif total_received + 0.0001 < total_qty:
+            statuses[row.parent] = PARTLY_RECEIVED
+        else:
+            statuses[row.parent] = RECEIVED
+    return statuses
+
+
+@frappe.whitelist()
+def get_purchase_invoice_for_receipt(invoice_name):
+    """Purchase Invoice items with remaining (unreceived) quantity."""
+    doc = frappe.get_doc("Purchase Invoice", invoice_name)
+    if doc.docstatus != 1:
+        frappe.throw(_("Only a submitted invoice can be received."))
+    if doc.is_return:
+        frappe.throw(_("This document is a return and cannot be received."))
+    if cint(doc.update_stock):
+        frappe.throw(_("This invoice already moved stock directly and has nothing left to receive."))
+
+    rows = []
+    for row in doc.items:
+        remaining = flt(row.qty) - flt(row.received_qty)
+        if remaining <= 0.0001:
+            continue
+        rows.append(
+            {
+                "name": row.name,
+                "item_code": row.item_code,
+                "item_name": row.item_name,
+                "uom": row.uom,
+                "qty": remaining,
+            }
+        )
+    return {"name": doc.name, "items": rows}
+
+
+@frappe.whitelist()
+def create_purchase_receipt(invoice, doctype=None, items=None):
+    """Create and submit a Purchase Receipt against a submitted Purchase
+    Invoice whose stock hasn't been (fully) moved yet, using ERPNext's own
+    `make_purchase_receipt` mapper so references, taxes, and party details
+    match what the standard desk "Create > Purchase Receipt" action would
+    produce.
+
+    When `items` is omitted, every remaining item is received in full
+    (make_purchase_receipt's own default). When provided, it must be a list of
+    {"row_name": <source Purchase Invoice Item row name>, "qty": <positive qty>}
+    and only those rows/quantities are received — see create_purchase_return's
+    docstring for why `row_name` (the source row's own docname) is used
+    instead of item_code."""
+    from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import make_purchase_receipt
+
+    if doctype and doctype != "Purchase Invoice":
+        frappe.throw(_("Only a Purchase Invoice can be received."))
+
+    source = frappe.get_doc("Purchase Invoice", invoice)
+    if source.docstatus != 1:
+        frappe.throw(_("Only a submitted invoice can be received."))
+    if source.is_return:
+        frappe.throw(_("This document is a return and cannot be received."))
+    if cint(source.update_stock):
+        frappe.throw(_("This invoice already moved stock directly and has nothing left to receive."))
+
+    if isinstance(items, str):
+        items = frappe.parse_json(items)
+
+    selected_qty_by_row = None
+    if items:
+        remaining_by_row = {row.name: flt(row.qty) - flt(row.received_qty) for row in source.items}
+
+        selected_qty_by_row = {}
+        for row in items:
+            row_name = row.get("row_name")
+            qty = abs(flt(row.get("qty")))
+            if not row_name or qty <= 0:
+                continue
+            max_qty = remaining_by_row.get(row_name)
+            if max_qty is None:
+                frappe.throw(_("Item row {0} is not receivable.").format(row_name))
+            if qty > max_qty + 0.0001:
+                frappe.throw(_("Cannot receive more than the remaining quantity for {0}.").format(row_name))
+            selected_qty_by_row[row_name] = qty
+
+        if not selected_qty_by_row:
+            frappe.throw(_("Select at least one item to receive."))
+
+    receipt_doc = make_purchase_receipt(invoice)
+
+    if selected_qty_by_row is not None:
+        kept_rows = []
+        for row in receipt_doc.items:
+            source_row_name = row.get("purchase_invoice_item")
+            if source_row_name in selected_qty_by_row:
+                new_qty = selected_qty_by_row[source_row_name]
+                row.qty = new_qty
+                row.received_qty = new_qty
+                row.stock_qty = new_qty * flt(row.conversion_factor or 1)
+                row.amount = new_qty * flt(row.rate)
+                row.base_amount = new_qty * flt(row.rate) * flt(receipt_doc.conversion_rate or 1)
+                kept_rows.append(row)
+        if not kept_rows:
+            frappe.throw(_("None of the selected items could be matched to the original invoice."))
+        receipt_doc.set("items", kept_rows)
+
+    receipt_doc.insert()
+    receipt_doc.submit()
+    return {"name": receipt_doc.name}
 
 
 def search_items(search_text=None, limit=20):

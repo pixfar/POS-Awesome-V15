@@ -5,7 +5,7 @@
 
 import frappe
 import time
-from frappe.utils import flt
+from frappe.utils import cint, flt
 from erpnext.selling.doctype.sales_order.sales_order import make_sales_invoice
 from posawesome.posawesome.api.invoice_processing.utils import (
     _get_return_validity_settings,
@@ -37,6 +37,10 @@ from posawesome.posawesome.api.invoice_processing.returns import (
     search_invoices_for_return,
     validate_return_items,
     get_invoice_for_return,
+)
+from posawesome.posawesome.api.invoice_processing.fulfillment import (
+    get_delivery_statuses,
+    get_sales_invoice_for_delivery,
 )
 from posawesome.posawesome.api.invoice_processing.payment import _create_change_payment_entries
 from posawesome.posawesome.api.invoice_processing.data import get_last_invoice_rates
@@ -189,6 +193,8 @@ def get_sales_invoices_list(
         "is_return",
         "owner",
     ]
+    if doctype == "Sales Invoice":
+        fields.append("update_stock")
 
     rows = frappe.get_list(
         doctype,
@@ -203,6 +209,25 @@ def get_sales_invoices_list(
     )
     for row in rows:
         row["doctype"] = doctype
+        row["delivery_status"] = None
+
+    if doctype == "Sales Invoice":
+        eligible_rows = [
+            row
+            for row in rows
+            if row["status"] not in ("Draft", "Cancelled") and not row["is_return"]
+        ]
+        # update_stock=1 invoices already moved stock directly at submission —
+        # Sales Invoice Item.delivered_qty is only ever touched by a Delivery
+        # Note made *against* the invoice (matched via si_detail), so it stays
+        # 0 here and must not be read as "Not Delivered".
+        deferred_names = [row["name"] for row in eligible_rows if not cint(row.get("update_stock"))]
+        delivery_statuses = get_delivery_statuses(deferred_names)
+        for row in eligible_rows:
+            if cint(row.get("update_stock")):
+                row["delivery_status"] = "Delivered"
+            else:
+                row["delivery_status"] = delivery_statuses.get(row["name"])
 
     total = len(
         frappe.get_list(
@@ -482,6 +507,81 @@ def create_sales_return(invoice, doctype=None, items=None):
     return_doc.insert()
     return_doc.submit()
     return {"name": return_doc.name}
+
+
+@frappe.whitelist()
+def create_sales_delivery(invoice, doctype=None, items=None):
+    """Create and submit a Delivery Note against a submitted Sales Invoice
+    whose stock hasn't been (fully) moved yet, using ERPNext's own
+    `make_delivery_note` mapper so references, taxes, and party details match
+    what the standard desk "Create > Delivery Note" action would produce.
+
+    POS Invoice is not supported: it has no `update_stock` toggle and always
+    deducts stock at submit, so it has nothing to defer to a Delivery Note.
+
+    When `items` is omitted, every remaining item is delivered in full
+    (make_delivery_note's own default). When provided, it must be a list of
+    {"row_name": <source Sales Invoice Item row name>, "qty": <positive qty>}
+    and only those rows/quantities are delivered — see create_sales_return's
+    docstring for why `row_name` (the source row's own docname) is used
+    instead of item_code."""
+    from frappe import _
+    from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_delivery_note
+
+    if doctype and doctype != "Sales Invoice":
+        frappe.throw(_("Only a Sales Invoice can be delivered."))
+
+    source = frappe.get_doc("Sales Invoice", invoice)
+    if source.docstatus != 1:
+        frappe.throw(_("Only a submitted invoice can be delivered."))
+    if source.is_return:
+        frappe.throw(_("This document is a return and cannot be delivered."))
+    if cint(source.update_stock):
+        frappe.throw(_("This invoice already moved stock directly and has nothing left to deliver."))
+
+    if isinstance(items, str):
+        items = frappe.parse_json(items)
+
+    selected_qty_by_row = None
+    if items:
+        remaining_by_row = {row.name: flt(row.qty) - flt(row.delivered_qty) for row in source.items}
+
+        selected_qty_by_row = {}
+        for row in items:
+            row_name = row.get("row_name")
+            qty = abs(flt(row.get("qty")))
+            if not row_name or qty <= 0:
+                continue
+            max_qty = remaining_by_row.get(row_name)
+            if max_qty is None:
+                frappe.throw(_("Item row {0} is not deliverable.").format(row_name))
+            if qty > max_qty + 0.0001:
+                frappe.throw(_("Cannot deliver more than the remaining quantity for {0}.").format(row_name))
+            selected_qty_by_row[row_name] = qty
+
+        if not selected_qty_by_row:
+            frappe.throw(_("Select at least one item to deliver."))
+
+    delivery_doc = make_delivery_note(invoice)
+
+    if selected_qty_by_row is not None:
+        kept_rows = []
+        for row in delivery_doc.items:
+            source_row_name = row.get("si_detail")
+            if source_row_name in selected_qty_by_row:
+                new_qty = selected_qty_by_row[source_row_name]
+                row.qty = new_qty
+                row.stock_qty = new_qty * flt(row.conversion_factor or 1)
+                row.amount = new_qty * flt(row.rate)
+                row.base_amount = new_qty * flt(row.base_rate or row.rate)
+                kept_rows.append(row)
+        if not kept_rows:
+            frappe.throw(_("None of the selected items could be matched to the original invoice."))
+        delivery_doc.set("items", kept_rows)
+
+    delivery_doc.insert()
+    delivery_doc.submit()
+    return {"name": delivery_doc.name}
 
 
 @frappe.whitelist()

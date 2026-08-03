@@ -188,6 +188,17 @@
 							{{ item.status }}
 						</v-chip>
 					</template>
+					<template #item.receipt_status="{ item }">
+						<v-chip
+							v-if="item.receipt_status"
+							size="small"
+							variant="tonal"
+							:color="receiptStatusColor(item.receipt_status)"
+						>
+							{{ item.receipt_status }}
+						</v-chip>
+						<span v-else class="pos-list-cell-muted">—</span>
+					</template>
 					<template #item.grand_total="{ item }">
 						<span class="pos-list-cell-primary">
 							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.grand_total) }}
@@ -234,6 +245,12 @@
 											<v-icon size="18" color="blue">mdi-keyboard-return</v-icon>
 										</template>
 										<v-list-item-title>{{ __("Purchase Return") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item v-if="canReceive(item)" @click="openReceiptDialog(item)">
+										<template #prepend>
+											<v-icon size="18" color="teal">mdi-package-variant-closed-check</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Create Receipt") }}</v-list-item-title>
 									</v-list-item>
 									<v-list-item v-if="canCancel(item)" @click="openCancelConfirm(item)">
 										<template #prepend>
@@ -367,6 +384,21 @@
 			@returned="onInvoiceReturned"
 			@error="onReturnError"
 		/>
+
+		<DeliveryReceiptDialog
+			v-model="receiptDialogOpen"
+			:invoice="receiptDialogItem"
+			doctype="Purchase Invoice"
+			load-method="posawesome.posawesome.api.purchase_invoices.get_purchase_invoice_for_receipt"
+			submit-method="posawesome.posawesome.api.purchase_invoices.create_purchase_receipt"
+			:title="__('Create Receipt')"
+			:submit-label="__('Create Purchase Receipt')"
+			:empty-message="__('Nothing left to receive on this invoice.')"
+			icon="mdi-package-variant-closed-check"
+			color="teal"
+			@created="onInvoiceReceived"
+			@error="onReceiptError"
+		/>
 	</div>
 </template>
 
@@ -379,6 +411,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ReturnItemsDialog from '../shared/ReturnItemsDialog.vue';
+import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
 
 const UNPAID_STATUSES = [
 	'Unpaid',
@@ -391,7 +424,7 @@ const UNPAID_STATUSES = [
 
 export default {
 	name: 'PurchaseInvoiceList',
-	components: { DateFilterField, ReturnItemsDialog },
+	components: { DateFilterField, ReturnItemsDialog, DeliveryReceiptDialog },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -408,6 +441,40 @@ export default {
 		const canCancel = (item) =>
 			isSystemManager.value && !NON_CANCELLABLE_STATUSES.includes(item.status);
 		const canDelete = (item) => item.status === 'Cancelled';
+		const canReceive = (item) =>
+			item.receipt_status === 'Not Received' || item.receipt_status === 'Partly Received';
+
+		const receiptDialogOpen = ref(false);
+		const receiptDialogItem = ref(null);
+
+		const openReceiptDialog = (item) => {
+			receiptDialogItem.value = item;
+			receiptDialogOpen.value = true;
+		};
+
+		const onInvoiceReceived = async (result) => {
+			toastStore.show({
+				title: __('Purchase Receipt {0} created', [result?.name]),
+				color: 'success',
+			});
+			await loadInvoices();
+		};
+
+		const onReceiptError = (message) => {
+			toastStore.show({
+				title: message || __('Action failed'),
+				color: 'error',
+			});
+		};
+
+		const receiptStatusColor = (status) => {
+			const map = {
+				'Not Received': 'grey',
+				'Partly Received': 'orange',
+				Received: 'green',
+			};
+			return map[status] || 'grey';
+		};
 
 		const actionLoadingName = ref(null);
 		const confirmDialog = ref(false);
@@ -549,6 +616,7 @@ export default {
 			{ title: __('Date'), key: 'posting_date', sortable: true },
 			{ title: __('Supplier'), key: 'supplier', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
+			{ title: __('Receipt Status'), key: 'receipt_status', sortable: true },
 			{ title: __('Total'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
@@ -842,6 +910,13 @@ export default {
 			canReturn,
 			canCancel,
 			canDelete,
+			canReceive,
+			receiptStatusColor,
+			receiptDialogOpen,
+			receiptDialogItem,
+			openReceiptDialog,
+			onInvoiceReceived,
+			onReceiptError,
 			actionLoadingName,
 			confirmDialog,
 			confirmDialogItem,

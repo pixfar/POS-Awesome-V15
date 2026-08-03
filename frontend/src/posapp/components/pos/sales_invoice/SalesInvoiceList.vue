@@ -194,6 +194,17 @@
 							{{ item.status }}
 						</v-chip>
 					</template>
+					<template #item.delivery_status="{ item }">
+						<v-chip
+							v-if="item.delivery_status"
+							size="small"
+							variant="tonal"
+							:color="deliveryStatusColor(item.delivery_status)"
+						>
+							{{ item.delivery_status }}
+						</v-chip>
+						<span v-else class="pos-list-cell-muted">—</span>
+					</template>
 					<template #item.grand_total="{ item }">
 						<span class="pos-list-cell-primary">
 							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.grand_total) }}
@@ -240,6 +251,12 @@
 											<v-icon size="18" color="blue">mdi-keyboard-return</v-icon>
 										</template>
 										<v-list-item-title>{{ __("Sales Return") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item v-if="canDeliver(item)" @click="openDeliveryDialog(item)">
+										<template #prepend>
+											<v-icon size="18" color="teal">mdi-truck-delivery-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Create Delivery") }}</v-list-item-title>
 									</v-list-item>
 									<v-list-item v-if="canCancel(item)" @click="openCancelConfirm(item)">
 										<template #prepend>
@@ -373,6 +390,21 @@
 			@returned="onInvoiceReturned"
 			@error="onReturnError"
 		/>
+
+		<DeliveryReceiptDialog
+			v-model="deliveryDialogOpen"
+			:invoice="deliveryDialogItem"
+			doctype="Sales Invoice"
+			load-method="posawesome.posawesome.api.invoice_processing.fulfillment.get_sales_invoice_for_delivery"
+			submit-method="posawesome.posawesome.api.invoices.create_sales_delivery"
+			:title="__('Create Delivery')"
+			:submit-label="__('Create Delivery Note')"
+			:empty-message="__('Nothing left to deliver on this invoice.')"
+			icon="mdi-truck-delivery-outline"
+			color="teal"
+			@created="onInvoiceDelivered"
+			@error="onDeliveryError"
+		/>
 	</div>
 </template>
 
@@ -385,6 +417,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ReturnItemsDialog from '../shared/ReturnItemsDialog.vue';
+import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
 
 const UNPAID_STATUSES = [
 	'Unpaid',
@@ -398,7 +431,7 @@ const RETURN_STATUSES = ['Return', 'Credit Note Issued'];
 
 export default {
 	name: 'SalesInvoiceList',
-	components: { DateFilterField, ReturnItemsDialog },
+	components: { DateFilterField, ReturnItemsDialog, DeliveryReceiptDialog },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -415,6 +448,40 @@ export default {
 		const canCancel = (item) =>
 			isSystemManager.value && !NON_CANCELLABLE_STATUSES.includes(item.status);
 		const canDelete = (item) => item.status === 'Cancelled';
+		const canDeliver = (item) =>
+			item.delivery_status === 'Not Delivered' || item.delivery_status === 'Partly Delivered';
+
+		const deliveryDialogOpen = ref(false);
+		const deliveryDialogItem = ref(null);
+
+		const openDeliveryDialog = (item) => {
+			deliveryDialogItem.value = item;
+			deliveryDialogOpen.value = true;
+		};
+
+		const onInvoiceDelivered = async (result) => {
+			toastStore.show({
+				title: __('Delivery Note {0} created', [result?.name]),
+				color: 'success',
+			});
+			await loadInvoices();
+		};
+
+		const onDeliveryError = (message) => {
+			toastStore.show({
+				title: message || __('Action failed'),
+				color: 'error',
+			});
+		};
+
+		const deliveryStatusColor = (status) => {
+			const map = {
+				'Not Delivered': 'grey',
+				'Partly Delivered': 'orange',
+				Delivered: 'green',
+			};
+			return map[status] || 'grey';
+		};
 
 		const actionLoadingName = ref(null);
 		const confirmDialog = ref(false);
@@ -557,6 +624,7 @@ export default {
 			{ title: __('Date'), key: 'posting_date', sortable: true },
 			{ title: __('Customer'), key: 'customer_name', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
+			{ title: __('Delivery Status'), key: 'delivery_status', sortable: true },
 			{ title: __('Total'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
@@ -859,6 +927,13 @@ export default {
 			canReturn,
 			canCancel,
 			canDelete,
+			canDeliver,
+			deliveryStatusColor,
+			deliveryDialogOpen,
+			deliveryDialogItem,
+			openDeliveryDialog,
+			onInvoiceDelivered,
+			onDeliveryError,
 			actionLoadingName,
 			confirmDialog,
 			confirmDialogItem,
