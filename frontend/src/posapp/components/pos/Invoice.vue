@@ -1440,6 +1440,16 @@ export default {
 	overflow: auto;
 }
 
+/* .dynamic-padding (below) also sets "overflow: visible" and has the same
+   specificity as .invoice-main-scroll above -- on the element carrying both
+   classes, whichever rule is later in the file silently wins the tie, which
+   was cancelling out this "auto" and leaving the invoice content area
+   permanently non-scrollable at desktop widths. The compound selector here
+   outranks both single-class rules regardless of source order. */
+.dynamic-padding.invoice-main-scroll {
+	overflow: auto;
+}
+
 .invoice-summary-dock {
 	flex: 0 0 auto;
 	width: 100%;
@@ -1647,8 +1657,13 @@ export default {
 		flex: 0 0 auto !important;
 	}
 
-	.invoice-main-scroll {
-		overflow: visible;
+	.invoice-main-scroll,
+	.dynamic-padding.invoice-main-scroll {
+		/* !important: the unconditional .dynamic-padding.invoice-main-scroll
+		   compound rule above (higher specificity, no media query) would
+		   otherwise win here too and force "auto" back on, undoing the
+		   intentional page-scroll behavior this compact breakpoint relies on. */
+		overflow: visible !important;
 		flex: 0 0 auto;
 	}
 

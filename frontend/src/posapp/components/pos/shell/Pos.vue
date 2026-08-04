@@ -765,7 +765,33 @@ export default {
 
 @media (max-width: 1099px) {
 	.dynamic-container {
-		padding-bottom: calc(var(--bottom-safe-space) + var(--dynamic-xs));
+		/* height (not just padding-bottom) has to shrink here: this box still
+		   has height:100% from the base rule above, and padding alone (even
+		   with box-sizing:border-box) only reserves scroll room *inside* an
+		   otherwise still viewport-tall box -- the box's own footprint still
+		   reaches the bottom edge, so whatever's scrolled into view there
+		   sits behind .mobile-pos-stack (position:fixed, same screen region)
+		   no matter the scroll position, since fixed elements ignore ancestor
+		   scrolling entirely. Actually shrinking the box stops it short of
+		   the dock, so nothing can ever render underneath it. */
+		/* !important is required on both declarations below:
+		   1) height -- Frappe's own layout wrapper has an unconditional
+		      (non-media-gated) rule ".page-content > *{ height: 100% }" that
+		      targets this element directly. It ties this rule's specificity
+		      and happens to land later in the built CSS bundle, so in a plain
+		      specificity/source-order tie it always wins regardless of what
+		      this rule says -- only !important breaks the tie reliably.
+		   2) flex -- that same wrapper rule also sets "flex: 1 1 auto" on this
+		      element. .page-content is a COLUMN flex container, so "height" is
+		      this item's MAIN-axis size: with flex-grow left at 1, the flex
+		      algorithm still uses the (correctly won) height only as a
+		      starting flex-basis, then grows the item straight back out to
+		      fill 100% of the remaining space in the column -- silently
+		      undoing the height override. Setting flex-grow to 0 here is what
+		      actually makes the resolved height stick as the final size. */
+		flex: 0 1 auto !important;
+		height: calc(100% - var(--bottom-safe-space) - var(--dynamic-xs)) !important;
+		padding-bottom: 0;
 		overflow: auto;
 	}
 
