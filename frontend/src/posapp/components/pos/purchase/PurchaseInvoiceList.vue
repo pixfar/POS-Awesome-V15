@@ -158,6 +158,16 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
+				<v-text-field
+					v-model="doNumberFilter"
+					:label="__('DO Number')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="handleSearchUpdate"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -197,6 +207,10 @@
 						>
 							{{ item.receipt_status }}
 						</v-chip>
+						<span v-else class="pos-list-cell-muted">—</span>
+					</template>
+					<template #item.custom_do_number="{ item }">
+						<span v-if="item.custom_do_number" class="pos-list-cell-muted">{{ item.custom_do_number }}</span>
 						<span v-else class="pos-list-cell-muted">—</span>
 					</template>
 					<template #item.grand_total="{ item }">
@@ -598,6 +612,7 @@ export default {
 		const supplierFilter = ref(null);
 		const warehouseFilter = ref(null);
 		const warehouseOptions = ref([]);
+		const doNumberFilter = ref('');
 
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
@@ -617,6 +632,7 @@ export default {
 			{ title: __('Supplier'), key: 'supplier', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
 			{ title: __('Receipt Status'), key: 'receipt_status', sortable: true },
+			{ title: __('DO Number'), key: 'custom_do_number', sortable: true },
 			{ title: __('Total'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
@@ -631,7 +647,8 @@ export default {
 					itemCodeFilter.value ||
 					itemGroupFilter.value ||
 					supplierFilter.value ||
-					warehouseFilter.value,
+					warehouseFilter.value ||
+					doNumberFilter.value,
 			),
 		);
 
@@ -701,6 +718,7 @@ export default {
 						item_group: itemGroupFilter.value || undefined,
 						supplier: supplierFilter.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
+						do_number: doNumberFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -813,6 +831,7 @@ export default {
 			itemGroupFilter.value = null;
 			supplierFilter.value = null;
 			warehouseFilter.value = null;
+			doNumberFilter.value = '';
 			resetAndLoad();
 		};
 
@@ -885,6 +904,7 @@ export default {
 			supplierFilter,
 			warehouseFilter,
 			warehouseOptions,
+			doNumberFilter,
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,

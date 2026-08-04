@@ -123,6 +123,7 @@ def get_sales_invoices_list(
     item_group=None,
     customer=None,
     warehouse=None,
+    do_number=None,
     search=None,
 ):
     """Paginated, filterable list of submitted sales invoices for the Invoice List page."""
@@ -162,6 +163,10 @@ def get_sales_invoices_list(
     if warehouse:
         filters.append([doctype, "set_warehouse", "=", warehouse])
 
+    has_do_number = frappe.db.has_column(doctype, "custom_do_number")
+    if do_number and has_do_number:
+        filters.append([doctype, "custom_do_number", "like", f"%{do_number}%"])
+
     item_doctype = f"{doctype} Item"
     if item_code:
         filters.append([item_doctype, "item_code", "=", item_code])
@@ -176,6 +181,8 @@ def get_sales_invoices_list(
             [doctype, "customer_name", "like", like],
             [doctype, "customer", "like", like],
         ]
+        if has_do_number:
+            or_filters.append([doctype, "custom_do_number", "like", like])
 
     page_start = max(0, int(page_start or 0))
     page_length = max(1, min(int(page_length or 100), 200))
@@ -195,6 +202,8 @@ def get_sales_invoices_list(
     ]
     if doctype == "Sales Invoice":
         fields.append("update_stock")
+    if has_do_number:
+        fields.append("custom_do_number")
 
     rows = frappe.get_list(
         doctype,
@@ -284,6 +293,7 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
         "pos_profile": doc.get("pos_profile"),
         "warehouse": doc.get("set_warehouse"),
         "territory": doc.get("territory"),
+        "custom_do_number": doc.get("custom_do_number"),
         "net_total": flt(doc.net_total),
         "total_qty": flt(doc.total_qty),
         "discount_amount": flt(doc.get("discount_amount")),

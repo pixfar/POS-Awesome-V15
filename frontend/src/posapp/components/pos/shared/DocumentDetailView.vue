@@ -34,18 +34,43 @@
 						{{ status }}
 					</v-chip>
 					<div v-if="actions.length" class="pos-detail-actions">
-						<v-btn
-							v-for="action in actions"
-							:key="action.label"
-							size="small"
-							variant="tonal"
-							:color="action.color || 'primary'"
-							:loading="action.loading"
-							class="text-none"
-							@click="action.onClick"
-						>
-							{{ action.label }}
-						</v-btn>
+						<template v-for="action in actions" :key="action.label">
+							<v-menu v-if="action.menuItems && action.menuItems.length" :close-on-content-click="true">
+								<template #activator="{ props: menuProps }">
+									<v-btn
+										v-bind="menuProps"
+										size="small"
+										variant="tonal"
+										:color="action.color || 'primary'"
+										:loading="action.loading"
+										append-icon="mdi-chevron-down"
+										class="text-none"
+									>
+										{{ action.label }}
+									</v-btn>
+								</template>
+								<v-list density="compact" min-width="220">
+									<v-list-item
+										v-for="menuItem in action.menuItems"
+										:key="menuItem.label"
+										@click="menuItem.onClick"
+									>
+										<v-list-item-title>{{ menuItem.label }}</v-list-item-title>
+									</v-list-item>
+								</v-list>
+							</v-menu>
+							<v-btn
+								v-else
+								size="small"
+								variant="tonal"
+								:color="action.color || 'primary'"
+								:loading="action.loading"
+								class="text-none"
+								@click="action.onClick"
+							>
+								{{ action.label }}
+							</v-btn>
+						</template>
 					</div>
 				</div>
 

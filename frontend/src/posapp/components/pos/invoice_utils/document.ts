@@ -173,6 +173,10 @@ export function get_invoice_doc(context: any) {
 	doc.pos_profile = doc.pos_profile || context.pos_profile?.name || null;
 	doc.posa_show_custom_name_marker_on_print =
 		context.pos_profile?.posa_show_custom_name_marker_on_print ?? null;
+	// Not spread from sourceDoc for a brand-new draft (doc starts as {} above),
+	// so carry it through explicitly -- admin-only field set directly on
+	// invoice_doc by the DO Number input in Invoice.vue.
+	doc.custom_do_number = context.invoice_doc?.custom_do_number ?? doc.custom_do_number ?? null;
 
 	// Keep stock update explicit for invoice doctypes so submit-time checks are predictable.
 	if (doc.doctype === "Sales Invoice" || doc.doctype === "POS Invoice") {

@@ -43,6 +43,7 @@ export function usePurchaseOrder(options: {
 	const postingDateTime = ref<string | null>(null);
 	const updateStock = ref(true);
 	const customIsPaid = ref(true);
+	const doNumber = ref("");
 
 	const getCurrentPostingDateTimeDisplay = () => {
 		const now = new Date();
@@ -274,6 +275,7 @@ export function usePurchaseOrder(options: {
 		receiveNow.value = false;
 		updateStock.value = true;
 		customIsPaid.value = true;
+		doNumber.value = "";
 		emitPurchaseCartQuantities();
 	};
 
@@ -285,6 +287,7 @@ export function usePurchaseOrder(options: {
 		getCurrentPostingDateTimeDisplay,
 		updateStock,
 		customIsPaid,
+		doNumber,
 		supplierCurrency,
 		supplierPriceList,
 		priceListCurrency,

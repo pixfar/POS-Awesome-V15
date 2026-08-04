@@ -162,6 +162,16 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
+				<v-text-field
+					v-model="doNumberFilter"
+					:label="__('DO Number')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="handleSearchUpdate"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -205,6 +215,10 @@
 						</v-chip>
 						<span v-else class="pos-list-cell-muted">—</span>
 					</template>
+					<template #item.custom_do_number="{ item }">
+						<span v-if="item.custom_do_number" class="pos-list-cell-muted">{{ item.custom_do_number }}</span>
+						<span v-else class="pos-list-cell-muted">—</span>
+					</template>
 					<template #item.grand_total="{ item }">
 						<span class="pos-list-cell-primary">
 							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.grand_total) }}
@@ -245,6 +259,18 @@
 											<v-icon size="18">mdi-eye-outline</v-icon>
 										</template>
 										<v-list-item-title>{{ __("View") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item @click="printInvoice(item, 'BSP Sales Invoice')">
+										<template #prepend>
+											<v-icon size="18">mdi-printer-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Print") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item @click="printInvoice(item, 'BSP Sales Invoice For Agent')">
+										<template #prepend>
+											<v-icon size="18">mdi-printer-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Print (For Agent)") }}</v-list-item-title>
 									</v-list-item>
 									<v-list-item v-if="canReturn(item)" @click="openReturnConfirm(item)">
 										<template #prepend>
@@ -418,6 +444,8 @@ import { ensurePosProfile } from '../../../../utils/pos_profile';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ReturnItemsDialog from '../shared/ReturnItemsDialog.vue';
 import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
+import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
+import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 
 const UNPAID_STATUSES = [
 	'Unpaid',
@@ -606,6 +634,7 @@ export default {
 		const customerFilter = ref(null);
 		const warehouseFilter = ref(null);
 		const warehouseOptions = ref([]);
+		const doNumberFilter = ref('');
 
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
@@ -625,6 +654,7 @@ export default {
 			{ title: __('Customer'), key: 'customer_name', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
 			{ title: __('Delivery Status'), key: 'delivery_status', sortable: true },
+			{ title: __('DO Number'), key: 'custom_do_number', sortable: true },
 			{ title: __('Total'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
@@ -639,7 +669,8 @@ export default {
 					itemCodeFilter.value ||
 					itemGroupFilter.value ||
 					customerFilter.value ||
-					warehouseFilter.value,
+					warehouseFilter.value ||
+					doNumberFilter.value,
 			),
 		);
 
@@ -712,6 +743,7 @@ export default {
 						item_group: itemGroupFilter.value || undefined,
 						customer: customerFilter.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
+						do_number: doNumberFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -825,6 +857,7 @@ export default {
 			itemGroupFilter.value = null;
 			customerFilter.value = null;
 			warehouseFilter.value = null;
+			doNumberFilter.value = '';
 			resetAndLoad();
 		};
 
@@ -860,6 +893,25 @@ export default {
 				path: `/sales-invoices/${item.name}`,
 				query: { doctype: item.doctype || 'Sales Invoice' },
 			});
+		};
+
+		const printInvoice = async (item, printFormat) => {
+			const doctype = item.doctype || 'Sales Invoice';
+			actionLoadingName.value = item.name;
+			try {
+				await openDocumentPdfPrint({
+					doctype,
+					name: item.name,
+					printFormat,
+					noLetterhead: 1,
+					autoPrint: false,
+				});
+			} catch (e) {
+				console.warn('PDF print failed, falling back to printview', e);
+				openDocumentPrintView(doctype, item.name, printFormat);
+			} finally {
+				actionLoadingName.value = null;
+			}
 		};
 
 		onMounted(() => {
@@ -901,6 +953,7 @@ export default {
 			customerFilter,
 			warehouseFilter,
 			warehouseOptions,
+			doNumberFilter,
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,
@@ -923,6 +976,7 @@ export default {
 			statusColor,
 			goToNew,
 			openInvoiceDetail,
+			printInvoice,
 			isSystemManager,
 			canReturn,
 			canCancel,

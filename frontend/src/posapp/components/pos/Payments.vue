@@ -211,14 +211,18 @@
 						/>
 					</section>
 
-					<section v-if="false" class="payment-section payment-section--meta">
+					<section
+						v-if="parseBooleanSetting(pos_profile?.posa_allow_select_print_format_in_payments)"
+						class="payment-section payment-section--meta"
+					>
 						<div class="payment-section__header">
-							<h3 class="payment-section__title">{{ __("Sales Person and Print") }}</h3>
+							<h3 class="payment-section__title">{{ __("Print Format") }}</h3>
 						</div>
 						<PaymentSelectionFields
 							:sales-persons="sales_persons"
 							:sales-person="sales_person"
 							:readonly="readonly"
+							:show-sales-person="false"
 							:print-formats="print_formats"
 							:print-format="print_format"
 							:show-print-format="

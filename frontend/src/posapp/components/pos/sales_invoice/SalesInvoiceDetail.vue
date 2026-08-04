@@ -25,6 +25,11 @@ import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
 
+// "BSP Sales Invoice" is the default (listed first); "BSP Sales Invoice For
+// Agent" is the only other format staff pick from when printing/reprinting
+// a Sales Invoice from this detail page.
+const SALES_PRINT_FORMATS = ['BSP Sales Invoice', 'BSP Sales Invoice For Agent'];
+
 export default {
 	name: 'SalesInvoiceDetail',
 	components: { DocumentDetailView },
@@ -76,6 +81,9 @@ export default {
 			];
 			if (this.detail.is_return && this.detail.return_against) {
 				fields.push({ label: this.__('Return Against'), value: this.detail.return_against });
+			}
+			if (this.detail.custom_do_number) {
+				fields.push({ label: this.__('DO Number'), value: this.detail.custom_do_number });
 			}
 			if (this.detail.remarks) {
 				fields.push({ label: this.__('Remarks'), value: this.detail.remarks });
@@ -130,7 +138,16 @@ export default {
 			return rows;
 		},
 		actions() {
-			return [{ label: this.__('Print'), color: 'primary', onClick: () => this.printDocument() }];
+			return [
+				{
+					label: this.__('Print'),
+					color: 'primary',
+					menuItems: SALES_PRINT_FORMATS.map((printFormat) => ({
+						label: printFormat,
+						onClick: () => this.printDocument(printFormat),
+					})),
+				},
+			];
 		},
 	},
 	mounted() {
@@ -175,17 +192,18 @@ export default {
 		goBack() {
 			this.router.push('/sales-invoices/list');
 		},
-		async printDocument() {
+		async printDocument(printFormat) {
 			try {
 				await openDocumentPdfPrint({
 					doctype: this.doctype,
 					name: this.name,
+					printFormat,
 					noLetterhead: 1,
 					autoPrint: false,
 				});
 			} catch (error) {
 				console.warn('PDF print failed, falling back to printview', error);
-				openDocumentPrintView(this.doctype, this.name);
+				openDocumentPrintView(this.doctype, this.name, printFormat);
 			}
 		},
 	},

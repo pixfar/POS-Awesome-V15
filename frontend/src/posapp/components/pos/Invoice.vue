@@ -160,6 +160,26 @@
 						</v-card>
 					</div>
 
+					<v-card
+						v-if="canEditDoNumber"
+						flat
+						class="invoice-section-card pos-themed-card"
+					>
+						<div class="invoice-section-heading">
+							<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
+						</div>
+						<div class="pa-3">
+							<v-text-field
+								v-model="custom_do_number"
+								:label="__('DO Number')"
+								density="compact"
+								variant="outlined"
+								hide-details
+								class="pos-themed-input"
+							/>
+						</div>
+					</v-card>
+
 					<div class="invoice-meta-grid">
 						<v-card
 							v-if="pos_profile.posa_allow_multi_currency"
@@ -580,6 +600,20 @@ export default {
 		canChangePosWarehouse() {
 			const roles = frappe?.boot?.user?.roles || [];
 			return roles.includes("System Manager");
+		},
+		canEditDoNumber() {
+			const roles = frappe?.boot?.user?.roles || [];
+			return roles.includes("BSP Admin") || roles.includes("System Manager");
+		},
+		custom_do_number: {
+			get() {
+				return this.invoiceStore.invoiceDoc?.custom_do_number || "";
+			},
+			set(value) {
+				if (this.invoiceStore.invoiceDoc) {
+					this.invoiceStore.invoiceDoc.custom_do_number = value;
+				}
+			},
 		},
 		return_discount_meta() {
 			if (!this.isReturnInvoice || !this.return_doc || this.pos_profile?.posa_use_percentage_discount) {

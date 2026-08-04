@@ -58,6 +58,9 @@ export default {
 				},
 				{ label: this.__('Created By'), value: this.detail.owner },
 			];
+			if (this.detail.custom_do_number) {
+				fields.push({ label: this.__('DO Number'), value: this.detail.custom_do_number });
+			}
 			if (this.detail.remarks) {
 				fields.push({ label: this.__('Remarks'), value: this.detail.remarks });
 			}

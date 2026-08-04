@@ -128,6 +128,26 @@
 								</v-card>
 							</div>
 
+							<v-card
+								v-if="canEditDoNumber"
+								flat
+								class="invoice-section-card pos-themed-card"
+							>
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
+								</div>
+								<div class="pa-3">
+									<v-text-field
+										v-model="doNumber"
+										:label="__('DO Number')"
+										density="compact"
+										variant="outlined"
+										hide-details
+										class="pos-themed-input"
+									/>
+								</div>
+							</v-card>
+
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading">
 									<h3 class="invoice-section-heading__title">
@@ -348,7 +368,7 @@ import SupplierDialog from "../dialogs/purchase/SupplierDialog.vue";
 import PurchaseHeader from "./PurchaseHeader.vue";
 import PurchaseItemsTable from "./PurchaseItemsTable.vue";
 import { ref, watch, onMounted, onBeforeUnmount, inject, computed } from "vue";
-import { isPosWarehouseSwitcher } from "../../../utils/posWarehouseAccess";
+import { isPosWarehouseSwitcher, isFundTransferManager } from "../../../utils/posWarehouseAccess";
 import { openDocumentPdfPrint } from "../../../utils/openDocumentPdfPrint";
 import { useCompactTransactionPanel } from "../../../composables/core/useCompactTransactionPanel";
 
@@ -387,6 +407,7 @@ export default {
 			postingDateTime,
 			updateStock,
 			customIsPaid,
+			doNumber,
 			supplierCurrency,
 			supplierPriceList,
 			priceListCurrency,
@@ -421,6 +442,7 @@ export default {
 		const warehouseLoading = ref(false);
 		const warehouseLabel = ref(null);
 		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
+		const canEditDoNumber = computed(() => isFundTransferManager());
 		const payments = ref([]);
 		const discountAmount = ref(0);
 		const itemSearchQuery = ref("");
@@ -770,6 +792,7 @@ export default {
 					receive: 0,
 					update_stock: updateStock.value ? 1 : 0,
 					custom_is_paid: customIsPaid.value ? 1 : 0,
+					custom_do_number: doNumber.value || null,
 					pos_profile: pos_profile.value,
 					payments: payments.value,
 					discount_amount: discountAmount.value,
@@ -876,6 +899,8 @@ export default {
 			pos_profile,
 			receiveNow,
 			canChangePosWarehouse,
+			canEditDoNumber,
+			doNumber,
 			responsiveStyles,
 			isCompact,
 			compactPanel,
