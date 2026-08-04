@@ -541,6 +541,11 @@ export default {
 		},
 		updateNavigationItems() {
 			const items = [...this.baseItems];
+			items.unshift({
+				text: "Dashboard",
+				icon: "mdi-view-dashboard-outline",
+				to: "/overview",
+			});
 			if (this.posProfile?.posa_use_gift_cards) {
 				items.splice(1, 0, {
 					text: "Gift Cards",
@@ -586,15 +591,6 @@ export default {
 					],
 				});
 			}
-			// Dashboard overview menu item hidden for now (work in progress) --
-			// see /overview route + DashboardOverview.vue for the built feature.
-			// if (this.currentCashier?.is_supervisor) {
-			// 	items.unshift({
-			// 		text: "Dashboard",
-			// 		icon: "mdi-view-dashboard-outline",
-			// 		to: "/overview",
-			// 	});
-			// }
 			this.items = items;
 		},
 		async fetchTerminalEmployees() {

@@ -31,12 +31,20 @@ def is_privileged_invoice_viewer(user=None):
 
 
 def user_has_warehouse_restrictions(user=None):
-	user = user or frappe.session.user
-	if user == 'Administrator' or is_system_manager(user):
-		return False
-	return bool(
-		frappe.db.exists('User Permission', {'user': user, 'allow': 'Warehouse'})
-	)
+	"""Whether Material Transfer/Requisition access should be narrowed to this
+	user's permitted warehouse(s) via build_warehouse_or_condition() below.
+
+	Previously this only checked for a literal `User Permission` (allow=
+	Warehouse) record, which misses users whose permitted warehouse is instead
+	resolved through bsp_engineering.utils.pos_warehouse (POS Profile/
+	Employee-based, no User Permission row involved) -- exactly the setup this
+	app actually uses. Those users came back "unrestricted" by accident and
+	could see every warehouse's Material Transfers/Requisitions. True for
+	anyone who isn't privileged (System Manager/BSP Admin/Administrator),
+	matching is_privileged_invoice_viewer's bypass used everywhere else in
+	this module -- get_expanded_permitted_warehouses() below is the actual
+	source of truth for *which* warehouse(s) that then permits."""
+	return not is_privileged_invoice_viewer(user)
 
 
 def get_expanded_permitted_warehouses(user=None):
