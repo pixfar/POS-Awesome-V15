@@ -213,8 +213,10 @@ function formatDisplayDate(value) {
 
 function startOfWeek(date) {
 	const d = new Date(date);
+	// Business week starts Saturday (day 6), not the ISO Monday -- getDay()
+	// returns 0=Sun..6=Sat, so days-since-last-Saturday is (day + 1) % 7.
 	const day = d.getDay();
-	const diff = (day === 0 ? -6 : 1) - day;
+	const diff = -((day + 1) % 7);
 	d.setDate(d.getDate() + diff);
 	return d;
 }
