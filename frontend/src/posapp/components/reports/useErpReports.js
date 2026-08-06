@@ -92,6 +92,11 @@ const reportGroups = [
 				name: 'Item-wise Purchase Register',
 				icon: 'mdi-package-variant-closed',
 			},
+			{
+				title: 'DO Sales Purchase Report',
+				name: 'DO Sales Purchase Report',
+				icon: 'mdi-truck-check-outline',
+			},
 		],
 	},
 	{
