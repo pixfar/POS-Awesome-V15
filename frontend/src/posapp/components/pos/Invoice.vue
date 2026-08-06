@@ -176,6 +176,9 @@
 								variant="outlined"
 								hide-details
 								class="pos-themed-input"
+								:loading="doNumberLookupLoading"
+								@keyup.enter="handleDoNumberLookup"
+								@update:focused="onDoNumberFocusChange"
 							/>
 						</div>
 					</v-card>
@@ -510,6 +513,8 @@ export default {
 			sale_warehouse: null,
 			sale_warehouse_label: null,
 			warehouses: [],
+			doNumberLookupLoading: false,
+			doNumberDraft: "",
 		};
 	},
 
@@ -607,9 +612,15 @@ export default {
 		},
 		custom_do_number: {
 			get() {
-				return this.invoiceStore.invoiceDoc?.custom_do_number || "";
+				// On a brand new, not-yet-saved invoice invoiceStore.invoiceDoc is
+				// still null (it's only created once the first item lands in the
+				// cart), so there's nowhere to persist a typed DO Number yet.
+				// doNumberDraft is the local echo that covers exactly that gap —
+				// see the setter below and handleDoNumberLookup.
+				return this.invoiceStore.invoiceDoc?.custom_do_number || this.doNumberDraft || "";
 			},
 			set(value) {
+				this.doNumberDraft = value;
 				if (this.invoiceStore.invoiceDoc) {
 					this.invoiceStore.invoiceDoc.custom_do_number = value;
 				}
@@ -715,6 +726,20 @@ export default {
 				if (defaultWh) {
 					this.sale_warehouse = defaultWh;
 					this.itemsStore?.setActiveSaleWarehouse?.(defaultWh);
+					// Without this, when the resolved default here differs from
+					// pos_profile.warehouse (e.g. a per-user warehouse
+					// restriction), the item catalog and stock coordinator stay
+					// primed against the POS profile's default warehouse forever
+					// -- they only ever get told about a warehouse change when
+					// the user explicitly touches the dropdown (onSaleWarehouseUpdate
+					// -> handleSaleWarehouseChange), which never fires for a
+					// value that was already correct on load. That mismatch is
+					// exactly what caused negative "Stock Qty" and a false
+					// "Insufficient stock" rejection at Pay against the wrong
+					// warehouse. loadActiveWarehouseLabel (the non-canChangePosWarehouse
+					// sibling of this function) already does this.
+					this.syncCartWarehouse(defaultWh);
+					await this.reloadItemsForWarehouse(defaultWh);
 				}
 			} catch (e) {
 				console.error("Failed to fetch warehouses", e);
@@ -726,6 +751,8 @@ export default {
 				];
 				this.sale_warehouse = profileWh;
 				this.itemsStore?.setActiveSaleWarehouse?.(profileWh);
+				this.syncCartWarehouse(profileWh);
+				await this.reloadItemsForWarehouse(profileWh);
 			}
 		},
 		onSaleWarehouseUpdate(val) {
@@ -909,6 +936,116 @@ export default {
 			this.posting_date = date;
 			this.invoiceStore.setPostingDate(date);
 			this.$forceUpdate();
+		},
+
+		// Entering a DO Number on the Sales screen pulls in whatever items were
+		// actually received under that DO on the Purchase side (see
+		// purchase_orders.get_items_by_do_number), adding each to the cart at
+		// qty 1 — same as clicking its catalog card — so the cashier adjusts
+		// quantity the normal way and the existing cart Stock Qty column (which
+		// already tracks the current warehouse correctly for any item) is what
+		// they check against. Items with no received qty under this DO at all
+		// are reported back as unavailable instead of being added.
+		onDoNumberFocusChange(focused) {
+			// Vuetify's v-text-field @blur listens for a re-emitted "blur" custom
+			// event that isn't reliably fired the same way as the native DOM
+			// event here; @update:focused is the documented, reliable way to
+			// detect a field losing focus, so this is the actual blur trigger.
+			if (!focused) {
+				this.handleDoNumberLookup();
+			}
+		},
+
+		async handleDoNumberLookup() {
+			const doNumber = (this.custom_do_number || "").trim();
+			if (!doNumber) {
+				return;
+			}
+			// Deliberately no "already looked this DO up" guard: re-entering the
+			// same DO Number (e.g. after removing the item it added) must keep
+			// working, exactly like clicking a catalog card again does. add_item
+			// merges into the existing cart line for an item already present, so
+			// repeating a lookup is harmless -- it just adds another 1 qty, same
+			// as clicking the same card twice.
+			this.doNumberLookupLoading = true;
+			try {
+				const lookup = await frappe.call({
+					method: "posawesome.posawesome.api.purchase_invoices.get_items_by_do_number",
+					args: {
+						do_number: doNumber,
+						warehouse: this.sale_warehouse,
+						company: this.pos_profile?.company,
+					},
+				});
+				const result = lookup?.message || { items: [], unavailable: [] };
+				const foundItems = result.items || [];
+				const unavailable = result.unavailable || [];
+
+				let addedCount = 0;
+				for (const row of foundItems) {
+					try {
+						// Go through the exact same search lookup a catalog card
+						// click/scan uses (posawesome.posawesome.api.items.get_items)
+						// instead of building a cart item by hand from a partial
+						// payload — that's what previously produced items with a
+						// zero rate and a warehouse that didn't match this sale,
+						// since building it manually meant guessing at fields this
+						// endpoint already computes correctly on its own.
+						const searchRes = await frappe.call({
+							method: "posawesome.posawesome.api.items.get_items",
+							args: {
+								pos_profile: JSON.stringify({
+									...this.pos_profile,
+									warehouse: this.sale_warehouse || this.pos_profile?.warehouse,
+								}),
+								price_list: this.selected_price_list,
+								search_value: row.item_code,
+							},
+						});
+						const matches = searchRes?.message || [];
+						const catalogItem =
+							matches.find((m) => m.item_code === row.item_code) || matches[0];
+						if (!catalogItem) continue;
+						await this.add_item({ ...catalogItem }, { skipNotification: true });
+						addedCount += 1;
+					} catch (itemError) {
+						console.error("Failed to add DO item", row.item_code, itemError);
+					}
+				}
+
+				if (addedCount) {
+					this.toastStore.show({
+						title: __("{0} item(s) added from DO {1}", [addedCount, doNumber]),
+						color: "success",
+					});
+				}
+
+				if (unavailable.length) {
+					const names = unavailable
+						.map((row) => row.item_name || row.item_code)
+						.join(", ");
+					this.toastStore.show({
+						title: __("Not available in this warehouse"),
+						detail: names,
+						color: "warning",
+					});
+				}
+
+				if (!foundItems.length && !unavailable.length) {
+					this.toastStore.show({
+						title: __("No received items found for DO {0}", [doNumber]),
+						color: "warning",
+					});
+				}
+			} catch (error) {
+				console.error("Error looking up DO Number:", error);
+				this.toastStore.show({
+					title: __("Error looking up DO Number"),
+					color: "error",
+				});
+			} finally {
+				this.doNumberLookupLoading = false;
+			}
 		},
 
 		update_exchange_rate() {
@@ -1387,6 +1524,17 @@ export default {
 	},
 	watch: {
 		...invoiceWatchers,
+		"invoiceStore.invoiceDoc"(doc) {
+			// invoiceDoc only comes into existence once the first item lands in
+			// the cart (see the custom_do_number getter/setter above) — if a DO
+			// Number was already typed before that (through any path, not just
+			// handleDoNumberLookup), it only ever reached the local
+			// doNumberDraft echo. Carry it over as soon as there's a real doc
+			// to put it on, so it isn't silently lost by save time.
+			if (doc && this.doNumberDraft && !doc.custom_do_number) {
+				doc.custom_do_number = this.doNumberDraft;
+			}
+		},
 		confirm_payment_dialog(val) {
 			if (val) {
 				this.$nextTick(() => {

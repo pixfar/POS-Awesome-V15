@@ -187,6 +187,10 @@ const dashboard = reactive({
 	currency: '',
 	sales: { total: 0, collection: 0, due: 0, count: 0 },
 	purchase: { total: 0, collection: 0, due: 0, count: 0 },
+	sales_return: { total: 0, count: 0 },
+	purchase_return: { total: 0, count: 0 },
+	sales_weight: 0,
+	purchase_weight: 0,
 	stock_qty: 0,
 	material_transfers: { status_counts: {}, total: 0 },
 	requisitions: { status_counts: {}, total: 0 },
@@ -239,6 +243,13 @@ function formatAmount(value) {
 
 function formatNumber(value) {
 	return (Number(value) || 0).toLocaleString();
+}
+
+function formatWeight(value) {
+	return (Number(value) || 0).toLocaleString(undefined, {
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 2,
+	});
 }
 
 const scopeSubtitle = computed(() => {
@@ -312,6 +323,22 @@ const cardSections = computed(() => {
 					icon: 'mdi-cash-remove',
 					color: 'warning',
 				},
+				{
+					key: 'sales_return',
+					label: __('Sales Return'),
+					value: formatAmount(dashboard.sales_return.total),
+					hint: __('{0} invoices', [dashboard.sales_return.count]),
+					icon: 'mdi-keyboard-return',
+					color: 'red',
+				},
+				{
+					key: 'sales_weight',
+					label: __('Sales Weight'),
+					value: formatWeight(dashboard.sales_weight),
+					hint: __('Qty × Default Weight of Measure'),
+					icon: 'mdi-weight-kilogram',
+					color: 'brown',
+				},
 			],
 		},
 		{
@@ -340,6 +367,22 @@ const cardSections = computed(() => {
 					value: formatAmount(dashboard.purchase.due),
 					icon: 'mdi-cash-clock',
 					color: 'deep-orange',
+				},
+				{
+					key: 'purchase_return',
+					label: __('Purchase Return'),
+					value: formatAmount(dashboard.purchase_return.total),
+					hint: __('{0} invoices', [dashboard.purchase_return.count]),
+					icon: 'mdi-keyboard-return',
+					color: 'red',
+				},
+				{
+					key: 'purchase_weight',
+					label: __('Purchase Weight'),
+					value: formatWeight(dashboard.purchase_weight),
+					hint: __('Qty × Default Weight of Measure'),
+					icon: 'mdi-weight-kilogram',
+					color: 'brown',
 				},
 			],
 		},

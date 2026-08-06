@@ -1118,6 +1118,103 @@ def get_receipt_statuses(names):
 
 
 @frappe.whitelist()
+def get_items_by_do_number(do_number, warehouse=None, company=None):
+    """Items actually received under a DO Number, capped by current stock.
+
+    For every submitted, non-return Purchase Invoice carrying this
+    ``custom_do_number``, sum each item's *actually received* quantity:
+    - update_stock=1 invoices moved stock directly at submission, so the
+      full invoiced ``qty`` counts as received (see the comment on
+      `get_receipt_statuses` above — ``received_qty`` itself stays 0 for
+      these rows since no Purchase Receipt was made against them).
+    - update_stock=0 invoices only count whatever ``received_qty`` a
+      Purchase Receipt has actually posted against them so far, which may
+      be a partial amount, or zero if nothing has been received yet.
+
+    Items with no received quantity at all are left out entirely (never
+    part of this DO's delivery). Items that were received but have none
+    left in ``warehouse`` right now are reported separately as
+    unavailable rather than added with a zero/negative quantity. Everything
+    else is capped to ``min(received_qty, current warehouse stock)`` so a
+    sale can never draw down more of this DO's batch than physically
+    remains on the shelf.
+    """
+    do_number = (do_number or "").strip()
+    if not do_number:
+        return {"items": [], "unavailable": []}
+    if not frappe.db.has_column("Purchase Invoice", "custom_do_number"):
+        return {"items": [], "unavailable": []}
+
+    filters = {
+        "custom_do_number": do_number,
+        "docstatus": 1,
+        "is_return": 0,
+    }
+    if company:
+        filters["company"] = company
+
+    invoices = frappe.get_all(
+        "Purchase Invoice",
+        filters=filters,
+        fields=["name", "update_stock"],
+    )
+    if not invoices:
+        return {"items": [], "unavailable": []}
+
+    update_stock_by_name = {row.name: cint(row.update_stock) for row in invoices}
+
+    rows = frappe.get_all(
+        "Purchase Invoice Item",
+        filters={"parent": ["in", list(update_stock_by_name.keys())]},
+        fields=["parent", "item_code", "item_name", "qty", "received_qty"],
+    )
+
+    received_by_item = {}
+    name_by_item = {}
+    for row in rows:
+        effective_received = flt(row.qty) if update_stock_by_name.get(row.parent) else flt(row.received_qty)
+        if effective_received <= 0:
+            continue
+        received_by_item[row.item_code] = received_by_item.get(row.item_code, 0) + effective_received
+        name_by_item.setdefault(row.item_code, row.item_name)
+
+    items = []
+    unavailable = []
+    for item_code, received_qty in received_by_item.items():
+        stock_qty = 0
+        if warehouse:
+            stock_qty = flt(
+                frappe.db.get_value(
+                    "Bin", {"item_code": item_code, "warehouse": warehouse}, "actual_qty"
+                )
+                or 0
+            )
+        qty = min(received_qty, stock_qty)
+        item_name = name_by_item.get(item_code)
+        if qty <= 0:
+            unavailable.append(
+                {
+                    "item_code": item_code,
+                    "item_name": item_name,
+                    "received_qty": received_qty,
+                    "stock_qty": stock_qty,
+                }
+            )
+            continue
+        items.append(
+            {
+                "item_code": item_code,
+                "item_name": item_name,
+                "qty": qty,
+                "received_qty": received_qty,
+                "stock_qty": stock_qty,
+            }
+        )
+
+    return {"items": items, "unavailable": unavailable}
+
+
+@frappe.whitelist()
 def get_purchase_invoice_for_receipt(invoice_name):
     """Purchase Invoice items with remaining (unreceived) quantity."""
     doc = frappe.get_doc("Purchase Invoice", invoice_name)

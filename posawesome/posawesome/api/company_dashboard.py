@@ -42,10 +42,10 @@ def _company_warehouses(company):
     )
 
 
-def _sum_invoice_doctype(doctype, company, start_date, end_date, warehouse, is_admin):
+def _sum_invoice_doctype(doctype, company, start_date, end_date, warehouse, is_admin, is_return=0):
     filters = [
         [doctype, "docstatus", "=", 1],
-        [doctype, "is_return", "=", 0],
+        [doctype, "is_return", "=", is_return],
         [doctype, "posting_date", ">=", start_date],
         [doctype, "posting_date", "<=", end_date],
     ]
@@ -105,6 +105,83 @@ def _collect_sales(company, start_date, end_date, warehouse, is_admin):
 def _collect_purchase(company, start_date, end_date, warehouse, is_admin):
     return _sum_invoice_doctype(
         "Purchase Invoice", company, start_date, end_date, warehouse, is_admin
+    )
+
+
+def _collect_sales_return(company, start_date, end_date, warehouse, is_admin):
+    sales_invoice = _sum_invoice_doctype(
+        "Sales Invoice", company, start_date, end_date, warehouse, is_admin, is_return=1
+    )
+    pos_invoice = _sum_invoice_doctype(
+        "POS Invoice", company, start_date, end_date, warehouse, is_admin, is_return=1
+    )
+    # Return invoices carry negative grand_total (they're credit notes) --
+    # abs() so the card reads as "how much was returned", a positive amount,
+    # matching how every other total on this dashboard is displayed.
+    return {
+        "total": abs(sales_invoice["total"] + pos_invoice["total"]),
+        "count": sales_invoice["count"] + pos_invoice["count"],
+    }
+
+
+def _collect_purchase_return(company, start_date, end_date, warehouse, is_admin):
+    purchase_invoice = _sum_invoice_doctype(
+        "Purchase Invoice", company, start_date, end_date, warehouse, is_admin, is_return=1
+    )
+    return {"total": abs(purchase_invoice["total"]), "count": purchase_invoice["count"]}
+
+
+def _sum_weight(doctype, item_doctype, company, start_date, end_date, warehouse, is_admin):
+    """Sum(item.qty * Item.custom_default_weigt_of_measure) for submitted,
+    non-return rows of `doctype` in range -- the per-unit weight lives on the
+    Item master, not the invoice row, hence the join."""
+    conditions = [
+        "main.docstatus = 1",
+        "main.is_return = 0",
+        "main.posting_date >= %(start_date)s",
+        "main.posting_date <= %(end_date)s",
+    ]
+    values = {"start_date": start_date, "end_date": end_date}
+    if company:
+        conditions.append("main.company = %(company)s")
+        values["company"] = company
+    if warehouse:
+        conditions.append("main.set_warehouse = %(warehouse)s")
+        values["warehouse"] = warehouse
+    if not is_admin:
+        scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
+        if scoped_names is not None:
+            if not scoped_names:
+                return 0.0
+            conditions.append("main.name in %(scoped_names)s")
+            values["scoped_names"] = tuple(scoped_names)
+
+    where_clause = " AND ".join(conditions)
+    rows = frappe.db.sql(
+        f"""
+        SELECT SUM(item.qty * IFNULL(weight_item.custom_default_weigt_of_measure, 0)) as total_weight
+        FROM `tab{item_doctype}` item
+        INNER JOIN `tab{doctype}` main ON main.name = item.parent
+        LEFT JOIN `tabItem` weight_item ON weight_item.name = item.item_code
+        WHERE {where_clause}
+        """,
+        values,
+        as_dict=True,
+    )
+    return flt(rows[0].total_weight) if rows else 0.0
+
+
+def _collect_sales_weight(company, start_date, end_date, warehouse, is_admin):
+    return _sum_weight(
+        "Sales Invoice", "Sales Invoice Item", company, start_date, end_date, warehouse, is_admin
+    ) + _sum_weight(
+        "POS Invoice", "POS Invoice Item", company, start_date, end_date, warehouse, is_admin
+    )
+
+
+def _collect_purchase_weight(company, start_date, end_date, warehouse, is_admin):
+    return _sum_weight(
+        "Purchase Invoice", "Purchase Invoice Item", company, start_date, end_date, warehouse, is_admin
     )
 
 
@@ -424,6 +501,10 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
         "currency": currency,
         "sales": sales,
         "purchase": purchase,
+        "sales_return": _collect_sales_return(company, start_date, end_date, warehouse, is_admin),
+        "purchase_return": _collect_purchase_return(company, start_date, end_date, warehouse, is_admin),
+        "sales_weight": _collect_sales_weight(company, start_date, end_date, warehouse, is_admin),
+        "purchase_weight": _collect_purchase_weight(company, start_date, end_date, warehouse, is_admin),
         "stock_qty": _collect_stock_qty(company, warehouse, is_admin),
         "material_transfers": _collect_material_transfers(start_date, end_date, warehouse),
         "requisitions": _collect_requisitions(start_date, end_date, warehouse),

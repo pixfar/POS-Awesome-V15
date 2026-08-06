@@ -313,7 +313,16 @@ export function _applyItemDetailPayload(
 	if (!lockReturnPricing) {
 		item.discount_percentage = data.discount_percentage;
 	}
-	item.warehouse = data.warehouse || item.warehouse;
+	// context.sale_warehouse (the invoice's own chosen selling warehouse) must
+	// always win over data.warehouse here: `data` comes from a server-side
+	// get_item_details() refresh (fired again on things like qty edits), and
+	// that call returns ERPNext's own default warehouse resolution for the
+	// item -- not necessarily the warehouse this sale is actually selling
+	// from. Blindly accepting data.warehouse silently reverted a correctly
+	// chosen sale_warehouse back to the profile/item default between adding
+	// an item and submitting, causing the final stock check to reject a sale
+	// against a warehouse the cashier never selected.
+	item.warehouse = context.sale_warehouse || data.warehouse || item.warehouse;
 	item.has_batch_no = data.has_batch_no;
 	item.has_serial_no = data.has_serial_no;
 	item.allow_negative_stock = data.allow_negative_stock;
