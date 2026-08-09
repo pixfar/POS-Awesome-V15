@@ -961,12 +961,12 @@ export default {
 			if (!doNumber) {
 				return;
 			}
-			// Deliberately no "already looked this DO up" guard: re-entering the
-			// same DO Number (e.g. after removing the item it added) must keep
-			// working, exactly like clicking a catalog card again does. add_item
-			// merges into the existing cart line for an item already present, so
-			// repeating a lookup is harmless -- it just adds another 1 qty, same
-			// as clicking the same card twice.
+			// Items already sitting in the cart are left completely untouched --
+			// add_item would otherwise merge into that existing line and bump its
+			// qty by 1, which silently inflates a quantity the cashier already
+			// set/reviewed (possibly from a *different* DO Number's lookup) every
+			// time a DO Number is looked up. Only genuinely new item codes get
+			// added, at qty 1, same as clicking a fresh catalog card.
 			this.doNumberLookupLoading = true;
 			try {
 				const lookup = await frappe.call({
@@ -982,7 +982,15 @@ export default {
 				const unavailable = result.unavailable || [];
 
 				let addedCount = 0;
+				let skippedExisting = 0;
 				for (const row of foundItems) {
+					const alreadyInCart = (this.items || []).some(
+						(cartRow) => cartRow.item_code === row.item_code,
+					);
+					if (alreadyInCart) {
+						skippedExisting += 1;
+						continue;
+					}
 					try {
 						// Go through the exact same search lookup a catalog card
 						// click/scan uses (posawesome.posawesome.api.items.get_items)
@@ -1017,6 +1025,13 @@ export default {
 					this.toastStore.show({
 						title: __("{0} item(s) added from DO {1}", [addedCount, doNumber]),
 						color: "success",
+					});
+				}
+
+				if (skippedExisting) {
+					this.toastStore.show({
+						title: __("{0} item(s) already in the cart were left unchanged", [skippedExisting]),
+						color: "info",
 					});
 				}
 

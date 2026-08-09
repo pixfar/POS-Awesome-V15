@@ -82,7 +82,8 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "DO Number"
+   "label": "DO Number",
+   "search_index": 1
   },
   {
    "fieldname": "section_break_items",

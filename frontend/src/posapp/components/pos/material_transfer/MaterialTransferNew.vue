@@ -515,6 +515,10 @@ export default {
 		// are added to the transfer's item table at qty 1 -- same as clicking a
 		// search result -- so the user still confirms/adjusts the quantity being
 		// moved rather than a DO number silently pre-filling a large transfer.
+		// Items already sitting in the table are left completely untouched --
+		// onAddItem would otherwise merge into that existing row and bump its
+		// qty by 1, silently inflating a quantity already set/reviewed (possibly
+		// from a *different* DO Number's lookup) every time a DO is looked up.
 		const onDoNumberFocusChange = (focused) => {
 			if (!focused) {
 				handleDoNumberLookup();
@@ -546,7 +550,15 @@ export default {
 				const unavailable = result.unavailable || [];
 
 				let addedCount = 0;
+				let skippedExisting = 0;
 				for (const row of foundItems) {
+					const alreadyInCart = transferItems.value.some(
+						(cartRow) => cartRow.item_code === row.item_code,
+					);
+					if (alreadyInCart) {
+						skippedExisting += 1;
+						continue;
+					}
 					try {
 						const { message } = await frappe.call({
 							method: 'posawesome.posawesome.api.material_transfers.search_items',
@@ -567,6 +579,13 @@ export default {
 					toastStore.show({
 						title: __('{0} item(s) added from DO {1}', [addedCount, doNumber]),
 						color: 'success',
+					});
+				}
+
+				if (skippedExisting) {
+					toastStore.show({
+						title: __('{0} item(s) already in the transfer were left unchanged', [skippedExisting]),
+						color: 'info',
 					});
 				}
 
