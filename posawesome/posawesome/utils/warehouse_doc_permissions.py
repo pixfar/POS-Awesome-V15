@@ -158,6 +158,7 @@ def _build_warehouse_doc_conditions(
 	item_code=None,
 	item_group=None,
 	warehouse=None,
+	do_number=None,
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
@@ -200,6 +201,12 @@ def _build_warehouse_doc_conditions(
 			f'(main.{source_field} = %(warehouse)s OR main.{target_field} = %(warehouse)s)'
 		)
 		values['warehouse'] = warehouse
+
+	# Doctype-specific column, so only apply this when the doctype actually
+	# carries a DO Number (Material Transfer today; Requisition doesn't).
+	if do_number and frappe.db.has_column(doctype, 'custom_do_number'):
+		conditions.append('main.custom_do_number LIKE %(do_number)s')
+		values['do_number'] = f'%{do_number}%'
 
 	if item_code or item_group:
 		item_conditions = ['item.parent = main.name', 'item.parenttype = %(main_doctype)s']
@@ -251,6 +258,7 @@ def get_warehouse_doc_list_rows(
 	item_code=None,
 	item_group=None,
 	warehouse=None,
+	do_number=None,
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
@@ -272,6 +280,7 @@ def get_warehouse_doc_list_rows(
 		item_code=item_code,
 		item_group=item_group,
 		warehouse=warehouse,
+		do_number=do_number,
 		search=search,
 		search_fields=search_fields,
 		include_cancelled=include_cancelled,
@@ -319,6 +328,7 @@ def get_warehouse_doc_status_counts(
 	item_code=None,
 	item_group=None,
 	warehouse=None,
+	do_number=None,
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
@@ -338,6 +348,7 @@ def get_warehouse_doc_status_counts(
 		item_code=item_code,
 		item_group=item_group,
 		warehouse=warehouse,
+		do_number=do_number,
 		search=search,
 		search_fields=search_fields,
 		include_cancelled=include_cancelled,

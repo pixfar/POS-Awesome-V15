@@ -13,6 +13,7 @@
   "section_break_warehouses",
   "from_warehouse",
   "to_warehouse",
+  "custom_do_number",
   "section_break_items",
   "items",
   "section_break_se",
@@ -74,6 +75,14 @@
    "label": "To Warehouse",
    "options": "Warehouse",
    "reqd": 1
+  },
+  {
+   "description": "Same field name as Sales/Purchase Invoice's custom_do_number Custom Field, kept identical here (even though this is a plain field on our own doctype, not a Custom Field) so the DO Sales Purchase Report can read all three doctypes uniformly.",
+   "fieldname": "custom_do_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "DO Number"
   },
   {
    "fieldname": "section_break_items",

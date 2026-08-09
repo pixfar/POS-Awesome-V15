@@ -125,6 +125,9 @@ export default {
 				{ label: __('Created By'), value: detail.value.created_by },
 				{ label: __('Created On'), value: formatDisplayDateTime(detail.value.creation) },
 			];
+			if (detail.value.custom_do_number) {
+				fields.push({ label: __('DO Number'), value: detail.value.custom_do_number });
+			}
 			if (detail.value.stock_entry) {
 				fields.push({ label: __('Stock Entry'), value: detail.value.stock_entry });
 			}

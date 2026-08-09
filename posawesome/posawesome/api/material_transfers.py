@@ -56,6 +56,7 @@ def create_material_transfer(data):
 	doc.transaction_date = data.get('transaction_date') or today()
 	doc.from_warehouse = from_warehouse
 	doc.to_warehouse = to_warehouse
+	doc.custom_do_number = (data.get('custom_do_number') or '').strip() or None
 	doc.notes = data.get('notes')
 
 	for row in items:
@@ -94,6 +95,7 @@ def get_material_transfers_list(
 	item_code=None,
 	item_group=None,
 	warehouse=None,
+	do_number=None,
 	search=None,
 ):
 	page_start = max(0, int(page_start or 0))
@@ -107,6 +109,7 @@ def get_material_transfers_list(
 		item_code=item_code,
 		item_group=item_group,
 		warehouse=warehouse,
+		do_number=do_number,
 		search=search,
 		search_fields=['name', 'from_warehouse', 'to_warehouse', 'requested_by'],
 		# Rejecting a transfer cancels it (docstatus=2); it should still show up in
@@ -127,6 +130,7 @@ def get_material_transfers_list(
 			'from_warehouse',
 			'to_warehouse',
 			'transfer_status',
+			'custom_do_number',
 			'docstatus',
 			'modified',
 		],
@@ -166,6 +170,7 @@ def get_material_transfer_detail(transfer):
 		'from_warehouse': doc.from_warehouse,
 		'to_warehouse': doc.to_warehouse,
 		'transfer_status': doc.transfer_status,
+		'custom_do_number': doc.get('custom_do_number'),
 		'notes': doc.notes,
 		'stock_entry': doc.get('stock_entry'),
 		'created_by': owner_name,

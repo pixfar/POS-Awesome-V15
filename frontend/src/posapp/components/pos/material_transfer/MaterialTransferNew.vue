@@ -92,6 +92,29 @@
 								</v-card>
 							</div>
 
+							<v-card
+								v-if="canEditDoNumber"
+								flat
+								class="invoice-section-card pos-themed-card"
+							>
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
+								</div>
+								<div class="pa-3">
+									<v-text-field
+										v-model="customDoNumber"
+										:label="__('DO Number')"
+										density="compact"
+										variant="outlined"
+										hide-details
+										class="pos-themed-input"
+										:loading="doNumberLookupLoading"
+										@keyup.enter="handleDoNumberLookup"
+										@update:focused="onDoNumberFocusChange"
+									/>
+								</div>
+							</v-card>
+
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading">
 									<h3 class="invoice-section-heading__title">{{ __("Transfer Items") }}</h3>
@@ -289,8 +312,16 @@ export default {
 		const itemSearchResults = ref([]);
 		const itemSearchLoading = ref(false);
 		let itemSearchTimeout = null;
+		const customDoNumber = ref('');
+		const doNumberLookupLoading = ref(false);
 
 		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
+		// Same gate Invoice.vue uses for its own DO Number card -- keep the two
+		// in sync if that role check ever changes.
+		const canEditDoNumber = computed(() => {
+			const roles = frappe?.boot?.user?.roles || [];
+			return roles.includes('BSP Admin') || roles.includes('System Manager');
+		});
 
 		const {
 			transferItems,
@@ -478,6 +509,90 @@ export default {
 				? fromWarehouse.value
 				: pos_profile.value?.warehouse || fromWarehouse.value;
 
+		// Same idea as Invoice.vue's DO Number lookup on the Sales screen: items
+		// actually received under this DO (posawesome.posawesome.api.purchase_invoices
+		// .get_items_by_do_number, capped by current stock in the From Warehouse)
+		// are added to the transfer's item table at qty 1 -- same as clicking a
+		// search result -- so the user still confirms/adjusts the quantity being
+		// moved rather than a DO number silently pre-filling a large transfer.
+		const onDoNumberFocusChange = (focused) => {
+			if (!focused) {
+				handleDoNumberLookup();
+			}
+		};
+
+		const handleDoNumberLookup = async () => {
+			const doNumber = (customDoNumber.value || '').trim();
+			if (!doNumber) return;
+
+			const resolvedFrom = resolveFromWarehouse();
+			if (!resolvedFrom) {
+				toastStore.show({ title: __('Set the From Warehouse first.'), color: 'warning' });
+				return;
+			}
+
+			doNumberLookupLoading.value = true;
+			try {
+				const lookup = await frappe.call({
+					method: 'posawesome.posawesome.api.purchase_invoices.get_items_by_do_number',
+					args: {
+						do_number: doNumber,
+						warehouse: resolvedFrom,
+						company: pos_profile.value?.company,
+					},
+				});
+				const result = lookup?.message || { items: [], unavailable: [] };
+				const foundItems = result.items || [];
+				const unavailable = result.unavailable || [];
+
+				let addedCount = 0;
+				for (const row of foundItems) {
+					try {
+						const { message } = await frappe.call({
+							method: 'posawesome.posawesome.api.material_transfers.search_items',
+							args: { search_text: row.item_code, limit: 20 },
+						});
+						const matches = message || [];
+						const catalogItem =
+							matches.find((m) => m.item_code === row.item_code) || matches[0];
+						if (!catalogItem) continue;
+						await onAddItem({ ...catalogItem });
+						addedCount += 1;
+					} catch (itemError) {
+						console.error('Failed to add DO item', row.item_code, itemError);
+					}
+				}
+
+				if (addedCount) {
+					toastStore.show({
+						title: __('{0} item(s) added from DO {1}', [addedCount, doNumber]),
+						color: 'success',
+					});
+				}
+
+				if (unavailable.length) {
+					const names = unavailable.map((row) => row.item_name || row.item_code).join(', ');
+					toastStore.show({
+						title: __('Not available in this warehouse'),
+						detail: names,
+						color: 'warning',
+					});
+				}
+
+				if (!foundItems.length && !unavailable.length) {
+					toastStore.show({
+						title: __('No received items found for DO {0}', [doNumber]),
+						color: 'warning',
+					});
+				}
+			} catch (error) {
+				console.error('Error looking up DO Number:', error);
+				toastStore.show({ title: __('Error looking up DO Number'), color: 'error' });
+			} finally {
+				doNumberLookupLoading.value = false;
+			}
+		};
+
 		const submitTransfer = async () => {
 			errorMessage.value = '';
 			const resolvedFrom = resolveFromWarehouse();
@@ -509,6 +624,7 @@ export default {
 							transaction_date: getTodayDate(),
 							from_warehouse: resolvedFrom,
 							to_warehouse: toWarehouse.value,
+							custom_do_number: customDoNumber.value,
 							notes: notes.value,
 							items: transferItems.value.map((row) => ({
 								item_code: row.item_code,
@@ -528,6 +644,7 @@ export default {
 					color: 'success',
 				});
 				resetForm();
+				customDoNumber.value = '';
 				await router.push('/material-transfers/list');
 			} catch (e) {
 				errorMessage.value = e?.message || __('Failed to submit material transfer');
@@ -564,6 +681,9 @@ export default {
 			selectorCols,
 			setPanel,
 			canChangePosWarehouse,
+			canEditDoNumber,
+			customDoNumber,
+			doNumberLookupLoading,
 			fromWarehouse,
 			fromWarehouseLabel,
 			fromWarehouseOptions,
@@ -585,6 +705,8 @@ export default {
 			removeItem,
 			handleItemSearchUpdate,
 			handleSearchItemPicked,
+			onDoNumberFocusChange,
+			handleDoNumberLookup,
 			submitTransfer,
 		};
 	},

@@ -149,6 +149,16 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
+				<v-text-field
+					v-model="doNumberFilter"
+					:label="__('DO Number')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="handleSearchUpdate"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -190,6 +200,10 @@
 						>
 							{{ item.transfer_status }}
 						</v-chip>
+					</template>
+					<template #item.custom_do_number="{ item }">
+						<span v-if="item.custom_do_number" class="pos-list-cell-muted">{{ item.custom_do_number }}</span>
+						<span v-else class="pos-list-cell-muted">—</span>
 					</template>
 					<template #item.actions="{ item }">
 						<div class="d-flex justify-end">
@@ -378,6 +392,7 @@ export default {
 		const itemCodeFilter = ref(null);
 		const itemGroupFilter = ref(null);
 		const warehouseFilter = ref(null);
+		const doNumberFilter = ref('');
 
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
@@ -393,6 +408,7 @@ export default {
 			{ title: __('From'), key: 'from_warehouse', sortable: true },
 			{ title: __('To'), key: 'to_warehouse', sortable: true },
 			{ title: __('Status'), key: 'transfer_status', sortable: true },
+			{ title: __('DO Number'), key: 'custom_do_number', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '220px' },
 		];
 
@@ -404,7 +420,8 @@ export default {
 					toDate.value ||
 					itemCodeFilter.value ||
 					itemGroupFilter.value ||
-					warehouseFilter.value,
+					warehouseFilter.value ||
+					doNumberFilter.value,
 			),
 		);
 
@@ -446,6 +463,7 @@ export default {
 						item_code: itemCodeFilter.value || undefined,
 						item_group: itemGroupFilter.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
+						do_number: doNumberFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -539,6 +557,7 @@ export default {
 			itemCodeFilter.value = null;
 			itemGroupFilter.value = null;
 			warehouseFilter.value = null;
+			doNumberFilter.value = '';
 			resetAndLoad();
 		};
 
@@ -720,6 +739,7 @@ export default {
 			itemGroupOptions,
 			warehouseFilter,
 			warehouseOptions,
+			doNumberFilter,
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,
