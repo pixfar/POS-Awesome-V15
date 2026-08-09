@@ -1,5 +1,5 @@
 <template>
-	<v-dialog v-model="dialog" max-width="720px" persistent>
+	<v-dialog v-model="dialog" max-width="920px" persistent>
 		<v-card class="pos-themed-card">
 			<v-card-title class="d-flex align-center gap-2">
 				<v-icon color="blue">mdi-keyboard-return</v-icon>
@@ -34,9 +34,12 @@
 					<v-table density="comfortable" class="return-items-table">
 						<thead>
 							<tr>
-								<th>{{ __("Item") }}</th>
-								<th class="text-end">{{ __("Remaining Qty") }}</th>
-								<th class="text-end">{{ __("Return Qty") }}</th>
+								<th style="min-width: 160px">{{ __("Item") }}</th>
+								<th class="text-end" style="width: 90px">{{ __("Price") }}</th>
+								<th class="text-end" style="width: 100px">{{ __("Remaining Qty") }}</th>
+								<th class="text-end" style="width: 110px">{{ __("Return Qty") }}</th>
+								<th class="text-end" style="width: 120px">{{ __("Deduction %") }}</th>
+								<th class="text-end" style="width: 110px">{{ __("Return Amount") }}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -45,8 +48,9 @@
 									<div class="font-weight-medium">{{ row.item_name || row.item_code }}</div>
 									<div class="text-caption text-medium-emphasis">{{ row.item_code }}</div>
 								</td>
+								<td class="text-end">{{ formatMoney(row.rate) }}</td>
 								<td class="text-end">{{ row.qty }} {{ row.uom }}</td>
-								<td class="text-end return-items-table__qty-cell">
+								<td class="text-end">
 									<v-text-field
 										v-model.number="row.returnQty"
 										density="compact"
@@ -55,10 +59,27 @@
 										type="number"
 										min="0"
 										:max="row.qty"
+										style="width: 90px"
 										class="pos-themed-input return-items-table__qty-field"
 										@change="clampRow(row)"
 									/>
 								</td>
+								<td class="text-end">
+									<v-text-field
+										v-model.number="row.deductionPercentage"
+										density="compact"
+										variant="outlined"
+										hide-details
+										type="number"
+										min="0"
+										max="100"
+										suffix="%"
+										style="width: 100px"
+										class="pos-themed-input return-items-table__qty-field"
+										@change="clampDeduction(row)"
+									/>
+								</td>
+								<td class="text-end">{{ formatMoney(returnAmount(row)) }}</td>
 							</tr>
 						</tbody>
 					</v-table>
@@ -132,6 +153,33 @@ function clampRow(row) {
 	row.returnQty = qty;
 }
 
+function clampDeduction(row) {
+	let pct = parseFloat(row.deductionPercentage);
+	if (!Number.isFinite(pct) || pct < 0) pct = 0;
+	if (pct > 100) pct = 100;
+	row.deductionPercentage = pct;
+}
+
+// Preview only -- the actual return rate is computed server-side off the
+// same base (_apply_return_deduction there mirrors this), so this shows the
+// cashier what they're about to create before submitting.
+function returnAmount(row) {
+	const baseRate = parseFloat(row.rate) || 0;
+	const pct = parseFloat(row.deductionPercentage) || 0;
+	const rate = baseRate - (baseRate * pct) / 100;
+	const qty = parseFloat(row.returnQty) || 0;
+	return qty * rate;
+}
+
+function formatMoney(value) {
+	const amount = Number(value) || 0;
+	try {
+		return format_currency(amount, props.invoice?.currency);
+	} catch (e) {
+		return amount.toFixed(2);
+	}
+}
+
 function selectAll() {
 	rows.value.forEach((row) => {
 		row.returnQty = row.qty;
@@ -161,6 +209,7 @@ async function loadItems() {
 		rows.value = (message?.items || []).map((item) => ({
 			...item,
 			returnQty: 0,
+			deductionPercentage: 0,
 		}));
 	} catch (e) {
 		errorMessage.value = e?.message || __("Unable to load invoice items.");
@@ -172,7 +221,11 @@ async function loadItems() {
 async function submit() {
 	const items = rows.value
 		.filter((row) => (parseFloat(row.returnQty) || 0) > 0)
-		.map((row) => ({ row_name: row.name, qty: row.returnQty }));
+		.map((row) => ({
+			row_name: row.name,
+			qty: row.returnQty,
+			deduction_percentage: parseFloat(row.deductionPercentage) || 0,
+		}));
 
 	if (!items.length) return;
 
@@ -210,8 +263,20 @@ watch(
 </script>
 
 <style scoped>
+/* Explicit widths on each <th> in the template (not CSS class selectors) are
+   what actually pin the columns -- an earlier attempt used
+   table-layout:fixed with :deep(th:nth-child(n)) class rules instead, which
+   silently failed to reach Vuetify's actual header cells (nth-child count
+   didn't line up with its real markup) and left every column but Item
+   collapsed to ~32px. table-layout stays auto here since the inline widths
+   on <th> already give auto layout everything it needs, and auto tolerates
+   a mismatch between declared width and actual content better than fixed
+   does. */
+.return-items-table {
+	width: 100%;
+}
+
 .return-items-table__qty-field {
-	max-width: 120px;
 	margin-left: auto;
 }
 

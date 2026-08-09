@@ -144,3 +144,101 @@ def create_payment_entry(
         pe.submit()
 
     return pe
+
+
+def refund_payments_for_return(original_doc, return_doc, doctype):
+    """When a Sales/Purchase Invoice being returned has one or more submitted
+    Payment Entries actually allocated against it (i.e. paid later and
+    reconciled via a separate Payment Entry -- not the invoice's own inline
+    POS payment table, which the return flow already mirrors on its own),
+    create and submit a reversing Payment Entry per original payment so the
+    money is refunded through the *same account and mode of payment* it
+    originally moved through, not a new/different one.
+
+    Each refund is scaled to `abs(return_doc.grand_total) /
+    abs(original_doc.grand_total)` of that specific payment's own allocated
+    amount -- e.g. a return covering 40% of the original invoice refunds 40%
+    of every payment entry that funded it, split proportionally the same way
+    the original payments were, mirroring how ERPNext's own return
+    validation already guarantees returns can never exceed 100% of the
+    original invoice across however many are made over time, so this can't
+    double-refund a given payment across multiple partial returns without
+    needing to separately track "already refunded" state.
+
+    For Purchase Invoice specifically, bsp_engineering's own on_submit hook
+    (create_payment_entry_from_purchase_invoice) has no is_return guard, so
+    it already fires for the return itself whenever custom_is_paid carried
+    over as truthy (which it normally does, copied from the source) and
+    auto-settles it via its own Payment Entry *before this function ever
+    runs* -- by the time this checks, the return's outstanding is already 0
+    and it correctly finds nothing left to refund. Confirmed the entry that
+    hook produces (via get_payment_entry, since return_doc.outstanding_amount
+    is negative at the time it runs) is itself correct -- right direction,
+    right amount -- so this function is the real refund path for Sales/POS
+    Invoice (whose hook explicitly skips is_return) and a safe no-op
+    backstop for Purchase Invoice's common case, while still being what
+    actually fires for a Purchase Invoice whose custom_is_paid was never
+    set (paid entirely through a separately reconciled Payment Entry
+    instead).
+
+    Returns the list of created refund Payment Entry names."""
+    original_total = flt(original_doc.grand_total)
+    if not original_total:
+        return []
+
+    ratio = abs(flt(return_doc.grand_total)) / abs(original_total)
+    if ratio <= 0:
+        return []
+
+    ref_rows = frappe.get_all(
+        "Payment Entry Reference",
+        filters={"reference_doctype": doctype, "reference_name": original_doc.name},
+        fields=["parent", "allocated_amount"],
+    )
+    if not ref_rows:
+        return []
+
+    from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+
+    created = []
+    for ref in ref_rows:
+        original_pe = frappe.get_doc("Payment Entry", ref.parent)
+        if original_pe.docstatus != 1:
+            continue
+        this_refund = flt(ref.allocated_amount) * ratio
+        if this_refund <= 0.0001:
+            continue
+
+        # get_payment_entry builds a correctly-typed (Pay for a sales
+        # return, Receive for a purchase return), correctly-referenced draft
+        # against the *return* document, defaulting to its full outstanding
+        # amount in one reference row -- exactly what's needed except the
+        # amount and account, which get scaled/rerouted below.
+        refund_pe = get_payment_entry(doctype, return_doc.name)
+        base_amount = flt(refund_pe.paid_amount or refund_pe.received_amount or 0)
+        if not base_amount:
+            continue
+        pe_ratio = this_refund / base_amount
+
+        refund_pe.mode_of_payment = original_pe.mode_of_payment
+        # Reverse through the exact same two accounts the original payment
+        # used, just swapped -- not whatever account this mode of payment or
+        # POS profile would default to today, which may not be the same one.
+        refund_pe.paid_from = original_pe.paid_to
+        refund_pe.paid_to = original_pe.paid_from
+        refund_pe.paid_from_account_currency = original_pe.paid_to_account_currency
+        refund_pe.paid_to_account_currency = original_pe.paid_from_account_currency
+        refund_pe.paid_amount = flt(refund_pe.paid_amount) * pe_ratio
+        refund_pe.received_amount = flt(refund_pe.received_amount) * pe_ratio
+        refund_pe.base_paid_amount = flt(refund_pe.base_paid_amount) * pe_ratio
+        refund_pe.base_received_amount = flt(refund_pe.base_received_amount) * pe_ratio
+        for row in refund_pe.references:
+            row.allocated_amount = flt(row.allocated_amount) * pe_ratio
+        refund_pe.reference_no = f"Refund of {original_pe.name} for return {return_doc.name}"
+        refund_pe.reference_date = return_doc.posting_date
+
+        refund_pe.insert(ignore_permissions=True)
+        refund_pe.submit()
+        created.append(refund_pe.name)
+
+    return created

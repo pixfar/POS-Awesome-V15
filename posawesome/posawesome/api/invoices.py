@@ -43,6 +43,7 @@ from posawesome.posawesome.api.invoice_processing.fulfillment import (
     get_sales_invoice_for_delivery,
 )
 from posawesome.posawesome.api.invoice_processing.payment import _create_change_payment_entries
+from posawesome.posawesome.api.payment_processing.creation import refund_payments_for_return
 from posawesome.posawesome.api.invoice_processing.data import get_last_invoice_rates
 from posawesome.posawesome.api.utils import log_perf_event
 from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission_scoped_names
@@ -445,6 +446,26 @@ def delete_cancelled_sales_invoice(invoice, doctype=None):
     return {"name": invoice}
 
 
+def _apply_return_deduction(row, deduction_percentage):
+    """Reduce a return row's rate by deduction_percentage (0-100), e.g. 60 on
+    a 100 rate item returns it at 40. Computed off `rate`, not
+    `price_list_rate`: make_return_doc copies the original invoice row's
+    actual charged rate onto `rate`, and ERPNext's own return validation
+    (validate_returned_items) rejects the return outright if its rate ends up
+    *higher* than that original rate -- price_list_rate has no such
+    guarantee, since it can reflect the item's current/live price list value
+    rather than what this specific invoice actually charged, and using it as
+    the base risked computing a rate above the original and failing that
+    check. Set directly rather than left for the doc's own discount recompute
+    at save time, so the result doesn't depend on that recompute picking the
+    same base."""
+    base_rate = flt(row.get("rate"))
+    new_rate = base_rate - (base_rate * flt(deduction_percentage) / 100)
+    row.discount_percentage = deduction_percentage
+    row.rate = new_rate
+    row.amount = flt(row.qty) * new_rate
+
+
 @frappe.whitelist()
 def create_sales_return(invoice, doctype=None, items=None):
     """Create and submit a return against a submitted Sales/POS Invoice using
@@ -453,11 +474,16 @@ def create_sales_return(invoice, doctype=None, items=None):
 
     When `items` is omitted, every item is returned at its full remaining
     quantity (today's behavior, unchanged). When provided, it must be a list
-    of {"row_name": <original item row name>, "qty": <positive qty>} and only
-    those rows/quantities are returned — `row_name` is the source item row's
-    own docname (not item_code, since an invoice can list the same item on
-    more than one row), matched against the `sales_invoice_item`/
-    `pos_invoice_item` reference make_return_doc stamps on each output row."""
+    of {"row_name": <original item row name>, "qty": <positive qty>,
+    "deduction_percentage": <0-100, optional>} and only those rows/quantities
+    are returned — `row_name` is the source item row's own docname (not
+    item_code, since an invoice can list the same item on more than one row),
+    matched against the `sales_invoice_item`/`pos_invoice_item` reference
+    make_return_doc stamps on each output row. `deduction_percentage`, when
+    given, is applied as that row's discount_percentage on the return (e.g.
+    60 on a 100 rate item returns it at 40) — set directly rather than left
+    for ERPNext's own discount recompute, so it can't silently end up 0 if
+    the source row's price_list_rate wasn't itself copied onto the return."""
     from frappe import _
     from erpnext.controllers.sales_and_purchase_return import make_return_doc
 
@@ -473,12 +499,12 @@ def create_sales_return(invoice, doctype=None, items=None):
     if isinstance(items, str):
         items = frappe.parse_json(items)
 
-    selected_qty_by_row = None
+    selected_by_row = None
     if items:
         fresh = get_invoice_for_return(invoice, source.get("pos_profile"), doctype)
         remaining_by_row = {row["name"]: flt(row["qty"]) for row in fresh.get("items") or []}
 
-        selected_qty_by_row = {}
+        selected_by_row = {}
         for row in items:
             row_name = row.get("row_name")
             qty = abs(flt(row.get("qty")))
@@ -489,20 +515,26 @@ def create_sales_return(invoice, doctype=None, items=None):
                 frappe.throw(_("Item row {0} is not returnable.").format(row_name))
             if qty > max_qty + 0.0001:
                 frappe.throw(_("Cannot return more than the remaining quantity for {0}.").format(row_name))
-            selected_qty_by_row[row_name] = qty
+            deduction_percentage = flt(row.get("deduction_percentage"))
+            if deduction_percentage < 0 or deduction_percentage > 100:
+                frappe.throw(_("Deduction Percentage must be between 0 and 100."))
+            selected_by_row[row_name] = {"qty": qty, "deduction_percentage": deduction_percentage}
 
-        if not selected_qty_by_row:
+        if not selected_by_row:
             frappe.throw(_("Select at least one item to return."))
 
     return_doc = make_return_doc(doctype, invoice)
 
-    if selected_qty_by_row is not None:
+    if selected_by_row is not None:
         ref_field = "pos_invoice_item" if doctype == "POS Invoice" else "sales_invoice_item"
         kept_rows = []
         for row in return_doc.items:
             source_row_name = row.get(ref_field)
-            if source_row_name in selected_qty_by_row:
-                row.qty = -selected_qty_by_row[source_row_name]
+            selection = selected_by_row.get(source_row_name)
+            if selection:
+                row.qty = -selection["qty"]
+                if selection["deduction_percentage"]:
+                    _apply_return_deduction(row, selection["deduction_percentage"])
                 kept_rows.append(row)
         if not kept_rows:
             frappe.throw(_("None of the selected items could be matched to the original invoice."))
@@ -516,7 +548,23 @@ def create_sales_return(invoice, doctype=None, items=None):
     _validate_return_window(return_doc, doctype, enable_validity)
     return_doc.insert()
     return_doc.submit()
-    return {"name": return_doc.name}
+
+    refunded_payment_entries = []
+    if doctype in ("Sales Invoice", "POS Invoice"):
+        try:
+            refunded_payment_entries = refund_payments_for_return(source, return_doc, doctype)
+        except Exception:
+            # A payment refund failing must never take the already-submitted
+            # return down with it -- the return itself (stock/item reversal)
+            # is what matters most and is already done; log and surface the
+            # gap for someone to refund by hand instead of rolling back a
+            # legitimate return over an accounting-side follow-up failing.
+            frappe.log_error(
+                title="Return payment refund failed",
+                message=frappe.get_traceback(),
+            )
+
+    return {"name": return_doc.name, "refunded_payment_entries": refunded_payment_entries}
 
 
 @frappe.whitelist()
