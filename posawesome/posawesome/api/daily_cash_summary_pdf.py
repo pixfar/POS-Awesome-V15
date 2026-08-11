@@ -126,6 +126,7 @@ def _build_context(warehouse, date):
 			{
 				"sl": idx,
 				"invoice_no": inv.name,
+				"description": _("Return against {0}").format(inv.return_against) if inv.is_return else "",
 				"selling": money(selling),
 				"discount": money(discount),
 				"due": money(due),

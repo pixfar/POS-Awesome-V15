@@ -138,6 +138,14 @@
 		color: #888;
 		padding: 10px;
 	}
+
+	.row-note {
+		display: block;
+		font-size: 10px;
+		color: #888;
+		font-style: italic;
+		margin-top: 2px;
+	}
 </style>
 </head>
 <body>
@@ -191,7 +199,10 @@
 		{% for row in sales_rows %}
 		<tr>
 			<td>{{ row.sl }}</td>
-			<td>{{ row.invoice_no }}</td>
+			<td>
+				{{ row.invoice_no }}
+				{% if row.description %}<span class="row-note">{{ row.description }}</span>{% endif %}
+			</td>
 			<td class="num">{{ row.selling }}</td>
 			<td class="num">{{ row.discount }}</td>
 			<td class="num">{{ row.due }}</td>

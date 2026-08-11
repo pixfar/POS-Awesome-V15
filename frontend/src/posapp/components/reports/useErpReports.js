@@ -128,6 +128,11 @@ const reportGroups = [
 				name: 'Low Stock Alert Report',
 				icon: 'mdi-alert-outline',
 			},
+			{
+				title: 'Low Stock and Stock Summary Report',
+				name: 'Low Stock and Stock Summary Report',
+				icon: 'mdi-clipboard-list-outline',
+			},
 		],
 	},
 	{

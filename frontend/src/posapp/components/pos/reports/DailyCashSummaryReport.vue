@@ -114,7 +114,12 @@
 						density="comfortable"
 						class="pos-list-table"
 						no-data-text="No sales invoices for this date."
-					/>
+					>
+						<template #item.invoice_no="{ item }">
+							<span>{{ item.invoice_no }}</span>
+							<span v-if="item.description" class="dcs-row-note">{{ item.description }}</span>
+						</template>
+					</v-data-table>
 				</div>
 
 				<div class="dcs-section">
@@ -419,5 +424,13 @@ export default {
 	letter-spacing: 0.02em;
 	color: var(--pos-text-secondary, #666);
 	margin-bottom: 6px;
+}
+
+.dcs-row-note {
+	display: block;
+	font-size: 0.72rem;
+	font-style: italic;
+	color: var(--pos-text-secondary, #888);
+	margin-top: 2px;
 }
 </style>
