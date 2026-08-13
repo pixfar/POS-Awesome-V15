@@ -31,10 +31,30 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 	const generateLineId = () =>
 		`mt_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
+	// Mirrors what the "In Stock" badge on the catalog card (ItemCard.vue)
+	// reads -- same idea as Sales' stockCoordinator reserving cart qty
+	// against the browsable catalog, kept local/simple here instead of
+	// wiring into that shared singleton (which is Invoice-specific and
+	// tracks reservations globally across screens; Material Transfer only
+	// needs to reflect its own cart against its own From Warehouse's cards).
+	const syncCatalogActualQty = (itemCode: string, actualQty: number) => {
+		// itemsStore is a Pinia store -- its top-level `items` ref is
+		// auto-unwrapped on the store instance, so this is the plain array,
+		// not `.value`.
+		const catalogItem = (itemsStore.items || []).find(
+			(row: any) => row.item_code === itemCode,
+		);
+		if (catalogItem) {
+			catalogItem.actual_qty = actualQty;
+		}
+	};
+
 	// Refreshes Stock Qty (on-hand in `warehouse`) for every item currently
 	// in the table -- called whenever From Warehouse changes, since the same
 	// item's available qty differs per warehouse. Silently leaves stale
-	// values in place on failure rather than blocking the cart.
+	// values in place on failure rather than blocking the cart. Also pushes
+	// each item's "remaining after this transfer" figure onto its catalog
+	// card so the browse panel's stock badge stays in sync with the cart.
 	const refreshStockQty = async (warehouse: string | null | undefined) => {
 		if (!warehouse || !transferItems.value.length) return;
 		const itemCodes = transferItems.value.map((row) => row.item_code);
@@ -46,6 +66,7 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 			const qtyByItem = message || {};
 			transferItems.value.forEach((row) => {
 				row.stock_qty = Number(qtyByItem[row.item_code] || 0);
+				syncCatalogActualQty(row.item_code, Math.max(0, row.stock_qty - row.qty));
 			});
 		} catch {
 			/* ignore */
@@ -69,6 +90,10 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 		);
 		if (existing) {
 			existing.qty += 1;
+			syncCatalogActualQty(
+				existing.item_code,
+				Math.max(0, Number(existing.stock_qty || 0) - existing.qty),
+			);
 			return;
 		}
 
@@ -90,15 +115,22 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 	const updateItemQty = (item: MaterialTransferItem, value: number) => {
 		if (!item) return;
 		item.qty = Math.max(0, Number(value) || 0);
+		syncCatalogActualQty(item.item_code, Math.max(0, Number(item.stock_qty || 0) - item.qty));
 	};
 
 	const removeItem = (item: MaterialTransferItem) => {
 		transferItems.value = transferItems.value.filter(
 			(row) => row.line_id !== item.line_id,
 		);
+		// No longer reserved by this transfer -- give the catalog card back
+		// its true on-hand qty.
+		syncCatalogActualQty(item.item_code, Number(item.stock_qty || 0));
 	};
 
 	const resetForm = () => {
+		transferItems.value.forEach((row) => {
+			syncCatalogActualQty(row.item_code, Number(row.stock_qty || 0));
+		});
 		transferItems.value = [];
 		notes.value = '';
 		errorMessage.value = '';

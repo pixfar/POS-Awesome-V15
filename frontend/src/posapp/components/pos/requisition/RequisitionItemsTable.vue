@@ -22,7 +22,7 @@
 						<div class="text-caption text-medium-emphasis">{{ item.item_code }}</div>
 					</td>
 					<td class="text-center text-caption">{{ item.uom }}</td>
-					<td v-if="showStockQty" class="text-center text-caption">{{ item.stock_qty ?? 0 }}</td>
+					<td v-if="showStockQty" class="text-center text-caption">{{ remainingStockQty(item) }}</td>
 					<td class="text-center" style="max-width: 100px;">
 						<v-text-field
 							:model-value="item.qty"
@@ -60,6 +60,17 @@ export default {
 		showStockQty: { type: Boolean, default: false },
 	},
 	emits: ['update-qty', 'remove-item'],
+	methods: {
+		// item.stock_qty stays the true, independently-fetched on-hand qty
+		// (re-fetched whenever the From Warehouse changes) -- what's shown
+		// here is a live preview of what would remain after this transfer,
+		// same as Sales showing stock count down as items go into the cart,
+		// recomputed from that fixed base every time so repeatedly editing
+		// qty (4, then 2, then 6...) never compounds.
+		remainingStockQty(item) {
+			return Math.max(0, Number(item.stock_qty || 0) - Number(item.qty || 0));
+		},
+	},
 };
 </script>
 
