@@ -5,13 +5,14 @@
 				<tr>
 					<th>{{ __("Item") }}</th>
 					<th class="text-center">{{ __("UOM") }}</th>
+					<th v-if="showStockQty" class="text-center">{{ __("Stock Qty") }}</th>
 					<th class="text-center">{{ __("Qty") }}</th>
 					<th class="text-center" style="width: 48px;"></th>
 				</tr>
 			</thead>
 			<tbody>
 				<tr v-if="!items.length">
-					<td colspan="4" class="text-center text-medium-emphasis py-4">
+					<td :colspan="showStockQty ? 5 : 4" class="text-center text-medium-emphasis py-4">
 						{{ __("Add items from the selector or search above") }}
 					</td>
 				</tr>
@@ -21,6 +22,7 @@
 						<div class="text-caption text-medium-emphasis">{{ item.item_code }}</div>
 					</td>
 					<td class="text-center text-caption">{{ item.uom }}</td>
+					<td v-if="showStockQty" class="text-center text-caption">{{ item.stock_qty ?? 0 }}</td>
 					<td class="text-center" style="max-width: 100px;">
 						<v-text-field
 							:model-value="item.qty"
@@ -52,6 +54,10 @@
 export default {
 	props: {
 		items: { type: Array, default: () => [] },
+		// Opt-in so Requisition (which has no concept of a single source
+		// warehouse's current stock) keeps its existing table unchanged --
+		// only Material Transfer passes this in.
+		showStockQty: { type: Boolean, default: false },
 	},
 	emits: ['update-qty', 'remove-item'],
 };

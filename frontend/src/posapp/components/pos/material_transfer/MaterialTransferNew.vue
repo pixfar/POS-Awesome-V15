@@ -142,6 +142,7 @@
 								</div>
 								<RequisitionItemsTable
 									:items="transferItems"
+									show-stock-qty
 									@update-qty="({ item, value }) => updateItemQty(item, value)"
 									@remove-item="removeItem"
 								/>
@@ -336,6 +337,7 @@ export default {
 			removeItem,
 			resetForm,
 			initWarehousesFromProfile,
+			refreshStockQty,
 		} = useMaterialTransfer({ posProfile: pos_profile });
 
 		const toWarehouseOptions = computed(() => {
@@ -370,6 +372,10 @@ export default {
 					forceServer: true,
 				});
 			}
+			// Stock Qty is warehouse-relative -- whatever already sits in the
+			// cart needs re-checking against the (possibly new) From Warehouse
+			// too, same as the catalog itself does above.
+			await refreshStockQty(wh);
 		};
 
 		const loadAllWarehouses = async () => {

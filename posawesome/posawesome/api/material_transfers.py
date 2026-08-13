@@ -225,6 +225,29 @@ def search_items(search_text=None, limit=20):
 
 
 @frappe.whitelist()
+def get_stock_qty(item_codes, warehouse):
+	"""Current on-hand qty (Bin.actual_qty) for a batch of items in a single
+	warehouse -- used by the "Transfer Items" table's Stock Qty column so the
+	cashier can see, right next to the qty being transferred, how much is
+	actually available in the From Warehouse. Items with no Bin row for that
+	warehouse (never stocked there) are simply left out, not zeroed --
+	callers should treat a missing key the same as 0.
+	"""
+	if isinstance(item_codes, str):
+		item_codes = frappe.parse_json(item_codes)
+	item_codes = [code for code in (item_codes or []) if code]
+	if not item_codes or not warehouse:
+		return {}
+
+	rows = frappe.get_all(
+		'Bin',
+		filters={'item_code': ['in', item_codes], 'warehouse': warehouse},
+		fields=['item_code', 'actual_qty'],
+	)
+	return {row.item_code: flt(row.actual_qty) for row in rows}
+
+
+@frappe.whitelist()
 def delete_cancelled_material_transfer(transfer):
 	"""Permanently delete a Draft or Cancelled Material Transfer. A submitted
 	(In Transit / Received) transfer must be rejected first.

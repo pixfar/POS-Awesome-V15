@@ -9,6 +9,10 @@ export interface MaterialTransferItem {
 	item_group: string;
 	uom: string;
 	qty: number;
+	// On-hand qty in the current From Warehouse -- 0 until refreshStockQty()
+	// (or the fetch onAddItem kicks off) fills it in; not the qty being
+	// transferred (that's `qty` above).
+	stock_qty: number;
 }
 
 export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
@@ -26,6 +30,27 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 
 	const generateLineId = () =>
 		`mt_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+	// Refreshes Stock Qty (on-hand in `warehouse`) for every item currently
+	// in the table -- called whenever From Warehouse changes, since the same
+	// item's available qty differs per warehouse. Silently leaves stale
+	// values in place on failure rather than blocking the cart.
+	const refreshStockQty = async (warehouse: string | null | undefined) => {
+		if (!warehouse || !transferItems.value.length) return;
+		const itemCodes = transferItems.value.map((row) => row.item_code);
+		try {
+			const { message } = await frappe.call({
+				method: 'posawesome.posawesome.api.material_transfers.get_stock_qty',
+				args: { item_codes: JSON.stringify(itemCodes), warehouse },
+			});
+			const qtyByItem = message || {};
+			transferItems.value.forEach((row) => {
+				row.stock_qty = Number(qtyByItem[row.item_code] || 0);
+			});
+		} catch {
+			/* ignore */
+		}
+	};
 
 	const onAddItem = async (item: any) => {
 		if (!item?.item_code) return;
@@ -55,7 +80,11 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 			item_group: item.item_group,
 			uom: item.stock_uom,
 			qty: 1,
+			stock_qty: 0,
 		});
+		// Newly added row starts at stock_qty 0 -- re-fetch for the whole
+		// table (simpler and cheap enough than tracking just the delta).
+		refreshStockQty(fromWarehouse.value);
 	};
 
 	const updateItemQty = (item: MaterialTransferItem, value: number) => {
@@ -95,5 +124,6 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 		removeItem,
 		resetForm,
 		initWarehousesFromProfile,
+		refreshStockQty,
 	};
 }
