@@ -114,45 +114,26 @@
 		</v-row>
 	</v-card>
 
-	<v-navigation-drawer
-		v-if="showDesktopDrafts"
-		v-model="desktopDraftsDrawer"
-		location="right"
-		temporary
-		width="360"
-		class="drafts-drawer"
+	<!-- A v-navigation-drawer previously handled this, but it depends on being
+	     positioned inside Vuetify's v-layout system -- nested deep inside the
+	     POS shell's own docked layout, it opened (the scrim showed) with its
+	     actual content never becoming visible. This gets the same right-side
+	     slide-in look via a plain v-dialog instead (the proven-working
+	     pattern used everywhere else in this app) -- content-class pins it to
+	     the right edge at full height and `slide-x-reverse-transition` slides
+	     it in from there, without depending on v-navigation-drawer's layout
+	     system at all. -->
+	<v-dialog
+		v-model="draftsDialogOpen"
+		transition="slide-x-reverse-transition"
+		content-class="drafts-side-panel"
+		scrollable
+		data-test="drafts-dialog"
 	>
-		<div class="drafts-drawer__body">
-			<DocumentSourceSelector
-				v-if="showDraftSourceSelector"
-				v-model="currentDraftSource"
-				:options="availableDraftSources"
-				compact
-				:aria-label="__('Draft source')"
-				class="drafts-drawer__sources"
-			/>
-			<ParkedOrdersList
-				:parked-orders="allDrafts"
-				:format-currency="formatCurrency"
-				:currency-symbol="currencySymbol"
-				:show-manage-all="true"
-				:title="currentDraftSourceOption.panelTitle"
-				:eyebrow="currentDraftSourceOption.panelEyebrow"
-				:subtitle="currentDraftSourceOption.panelSubtitle"
-				:empty-title="__(currentDraftSourceOption.emptyTitle)"
-				:empty-subtitle="__(currentDraftSourceOption.emptySubtitle)"
-				@resume="handleResumeDraft"
-				@manage-all="handleManageAllDrafts"
-				@deleted="handleDraftDeleted"
-			/>
-		</div>
-	</v-navigation-drawer>
-
-	<v-dialog v-else v-model="mobileDraftsDialog" max-width="680" scrollable data-test="mobile-drafts-dialog">
-		<v-card class="pos-themed-card">
+		<v-card class="pos-themed-card drafts-side-panel__card">
 			<v-card-title class="d-flex align-center justify-space-between">
 				<span>{{ __(currentDraftSourceOption.panelTitle) }}</span>
-				<v-btn variant="text" size="small" @click="mobileDraftsDialog = false">
+				<v-btn variant="text" size="small" @click="draftsDialogOpen = false">
 					{{ __("Close") }}
 				</v-btn>
 			</v-card-title>
@@ -177,6 +158,7 @@
 					:empty-subtitle="__(currentDraftSourceOption.emptySubtitle)"
 					@resume="handleResumeDraft"
 					@manage-all="handleManageAllDrafts"
+					@deleted="handleDraftDeleted"
 				/>
 			</v-card-text>
 		</v-card>
@@ -254,8 +236,7 @@ const customerDisplayLoading = ref(false);
 const isEditingAdditionalDiscount = ref(false);
 const isEditingAdditionalDiscountPercentage = ref(false);
 const additionalDiscountField = ref(null);
-const desktopDraftsDrawer = ref(false);
-const mobileDraftsDialog = ref(false);
+const draftsDialogOpen = ref(false);
 const responsive = useResponsive();
 const uiStore = useUIStore();
 const { parkedOrders, draftSource } = storeToRefs(uiStore);
@@ -265,7 +246,6 @@ const additionalDiscountPercentageDisplay = ref(
 	normalizeDiscountDisplay(props.additional_discount_percentage),
 );
 const useCompactSaleDock = computed(() => responsive.windowWidth.value < 1100);
-const showDesktopDrafts = computed(() => Boolean(responsive.isDesktop.value));
 const showReturnDiscountAlert = computed(
 	() =>
 		!!props.return_discount_meta &&
@@ -431,12 +411,7 @@ async function handleLoadDrafts() {
 }
 
 function openDraftsSurface() {
-	if (showDesktopDrafts.value) {
-		desktopDraftsDrawer.value = true;
-		return;
-	}
-
-	mobileDraftsDialog.value = true;
+	draftsDialogOpen.value = true;
 }
 
 async function handleSelectOrder() {
@@ -467,8 +442,7 @@ async function handleOpenInvoiceManagement() {
 }
 
 function handleManageAllDrafts() {
-	desktopDraftsDrawer.value = false;
-	mobileDraftsDialog.value = false;
+	draftsDialogOpen.value = false;
 	uiStore.setInvoiceManagementDraftSource(currentDraftSource.value);
 	emit("open-invoice-management", "drafts", currentDraftSource.value);
 }
@@ -510,8 +484,7 @@ async function handleOpenCustomerDisplay() {
 }
 
 function handleResumeDraft(draft) {
-	desktopDraftsDrawer.value = false;
-	mobileDraftsDialog.value = false;
+	draftsDialogOpen.value = false;
 	emit("resume-parked-order", draft);
 }
 
@@ -529,16 +502,32 @@ defineExpose({
 </script>
 
 <style scoped>
-.drafts-drawer :deep(.v-navigation-drawer__content) {
-	padding: 12px;
-	background: var(--pos-surface-muted);
+/* content-class on v-dialog lands on Vuetify's teleported .v-overlay__content
+   wrapper -- :deep() is required to reach it from a scoped block. Pinning it
+   to the right edge at full viewport height plus the slide-x-reverse
+   transition on the v-dialog itself is what gives the drawer-style slide-in
+   without depending on v-navigation-drawer's own layout system. */
+:deep(.drafts-side-panel) {
+	position: fixed !important;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	margin: 0 !important;
+	height: 100%;
+	max-height: 100vh !important;
+	/* 20% of the viewport, with a floor so it stays usable on narrow screens
+	   and a ceiling so that floor never eats the whole screen on phones. */
+	width: 20vw !important;
+	min-width: 320px;
+	max-width: 92vw;
 }
 
-.drafts-drawer__body {
-	padding: 4px;
+.drafts-side-panel__card {
+	height: 100%;
+	max-height: 100vh;
+	border-radius: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
 }
 
 .drafts-drawer__sources {

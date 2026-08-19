@@ -302,8 +302,14 @@ export default {
 			Boolean(searchQuery.value || fromDate.value || toDate.value),
 		);
 
+		// Cancelled claims (docstatus 2) stay in the list for the audit trail
+		// but never happened as far as the till is concerned -- exclude them so
+		// cancelling one actually moves this figure.
 		const totalClaimed = computed(() =>
-			expenseList.value.reduce((sum, row) => sum + (Number(row.grand_total) || 0), 0),
+			expenseList.value.reduce(
+				(sum, row) => (row.docstatus === 2 ? sum : sum + (Number(row.grand_total) || 0)),
+				0,
+			),
 		);
 
 		const formatDisplayDate = (value) => {

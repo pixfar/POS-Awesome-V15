@@ -71,7 +71,7 @@ describe("InvoiceSummary drafts placement", () => {
 		vi.stubGlobal("__", (value: string) => value);
 	});
 
-	it("uses a desktop drawer trigger instead of rendering the full drafts list inline", async () => {
+	it("keeps the drafts dialog closed until the Drafts trigger is used, instead of rendering the full drafts list inline", async () => {
 		const uiStore = useUIStore();
 		uiStore.setParkedOrders(draftRows);
 
@@ -85,7 +85,6 @@ describe("InvoiceSummary drafts placement", () => {
 					VAlert: BoxStub,
 					VTextField: BoxStub,
 					VBtn: BoxStub,
-					VNavigationDrawer: BoxStub,
 					VCardTitle: BoxStub,
 					VCardText: BoxStub,
 					VCardActions: BoxStub,
@@ -100,11 +99,14 @@ describe("InvoiceSummary drafts placement", () => {
 
 		const setupState = (wrapper.vm as any).$?.setupState || {};
 
-		expect(Boolean(setupState.showDesktopDrafts?.value ?? setupState.showDesktopDrafts)).toBe(true);
+		// The drafts dialog (single v-dialog, used at every screen size --
+		// see InvoiceSummary.vue's comment on why the old v-navigation-drawer
+		// variant was dropped) must start closed: the drafts list is behind
+		// the "Drafts" trigger, not permanently rendered inline.
+		expect(Boolean(setupState.draftsDialogOpen?.value ?? setupState.draftsDialogOpen)).toBe(false);
 		expect((setupState.allDrafts?.value ?? setupState.allDrafts)?.length).toBe(2);
 		expect(wrapper.findComponent(ParkedOrdersRail).exists()).toBe(false);
 		expect(wrapper.find('[data-test="parked-orders-view-all"]').exists()).toBe(false);
-		expect(wrapper.find('[data-test="mobile-drafts-dialog"]').exists()).toBe(false);
 	});
 
 	it("shows the return prorated additional discount as a positive field value", () => {
@@ -126,7 +128,6 @@ describe("InvoiceSummary drafts placement", () => {
 					VAlert: BoxStub,
 					VTextField: BoxStub,
 					VBtn: BoxStub,
-					VNavigationDrawer: BoxStub,
 					VCardTitle: BoxStub,
 					VCardText: BoxStub,
 					VCardActions: BoxStub,

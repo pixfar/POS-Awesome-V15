@@ -862,6 +862,14 @@
 								<template #item.actions="{ item }">
 									<div class="d-flex justify-end ga-1">
 										<v-btn
+											icon="mdi-eye-outline"
+											variant="text"
+											size="small"
+											:title="__('View Details')"
+											:aria-label="__('View invoice details')"
+											@click="viewInvoice(item)"
+										/>
+										<v-btn
 											v-for="action in draftActions(item)"
 											:key="`${item.name}-${action}`"
 											variant="text"
@@ -952,6 +960,14 @@
 									</div>
 
 									<div class="invoice-record-card__actions">
+										<v-btn
+											icon="mdi-eye-outline"
+											size="small"
+											variant="text"
+											:title="__('View Details')"
+											:aria-label="__('View invoice details')"
+											@click="viewInvoice(invoice)"
+										/>
 										<v-btn
 											v-for="action in draftActions(invoice)"
 											:key="`${invoice.name}-${action}`"

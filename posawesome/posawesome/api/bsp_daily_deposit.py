@@ -239,6 +239,19 @@ def cancel_daily_deposit(name):
 	if doc.docstatus != 1:
 		frappe.throw(_("Only a submitted document can be cancelled."))
 
+	# The Internal Transfer Payment Entry created in _create_deposit_payment_entry
+	# links back via custom_bsp_daily_deposit (a plain Link field, since Internal
+	# Transfer entries don't populate `references`). Frappe's generic linked-doc
+	# check walks every Link field pointing at this doctype, so a submitted
+	# Payment Entry there would otherwise block doc.cancel() below with
+	# "linked with Payment Entry" -- and leaving it submitted after the deposit
+	# is cancelled would also mean the GL still shows the cash as deposited.
+	if doc.payment_entry and frappe.db.get_value('Payment Entry', doc.payment_entry, 'docstatus') == 1:
+		pe = frappe.get_doc('Payment Entry', doc.payment_entry)
+		pe.flags.ignore_permissions = True
+		pe.cancel()
+
+	doc.flags.ignore_permissions = True
 	doc.cancel()
 	doc.db_set('status', 'Cancelled', update_modified=False)
 	return {"name": doc.name, "docstatus": doc.docstatus, "status": "Cancelled"}

@@ -13,7 +13,7 @@ import OfflineRouteUnavailable from "../components/system/OfflineRouteUnavailabl
 const OFFLINE_ROUTE_UNAVAILABLE_NAME = "offline-route-unavailable";
 
 const routes = [
-	{ path: "/", redirect: "/sales-invoices/new" },
+	{ path: "/", redirect: "/overview" },
 	{
 		path: "/sales-invoices",
 		redirect: "/sales-invoices/new",
@@ -435,7 +435,7 @@ const routes = [
 	},
 	{
 		path: "/:pathMatch(.*)*",
-		redirect: "/sales-invoices/new",
+		redirect: "/overview",
 	},
 ];
 

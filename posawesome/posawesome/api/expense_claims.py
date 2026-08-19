@@ -271,6 +271,18 @@ def cancel_expense_claim(expense_claim):
 	if doc.docstatus != 1:
 		frappe.throw(_("Only a submitted document can be cancelled."))
 
+	# _pay_expense_claim() always pays a claim out in full on creation, via a
+	# submitted Payment Entry referencing this claim -- ERPNext blocks
+	# doc.cancel() below with "linked with Payment Entry" until that's gone.
+	# Reuse the same cascade-cancel bsp_engineering already applies to Sales/
+	# Purchase Invoice instead of re-deriving it here.
+	from bsp_engineering.doc_events.invoice.cancel_linked_payments import (
+		cancel_linked_payment_entries,
+	)
+
+	cancel_linked_payment_entries(doc)
+
+	doc.flags.ignore_permissions = True
 	doc.cancel()
 	return {"name": doc.name, "status": doc.status}
 

@@ -172,7 +172,6 @@ def _list_filters():
 	filters = {
 		'payment_type': 'Internal Transfer',
 		'custom_fund_transfer': 1,
-		'docstatus': ('!=', 2),
 	}
 	if not is_privileged_invoice_viewer():
 		# Regular users only ever see transfers sent to their own showroom's
@@ -279,5 +278,10 @@ def cancel_fund_transfer(name):
 	if doc.docstatus != 1:
 		frappe.throw(_('Only a submitted document can be cancelled.'))
 
+	# Payment Entry's own doctype permissions only grant `cancel` to Accounts
+	# User/Accounts Manager -- neither BSP Admin nor System Manager, which is
+	# what _require_fund_transfer_manager() above actually authorises against.
+	# Same gap already fixed for BSP Daily Deposit / Expense Claim cancel.
+	doc.flags.ignore_permissions = True
 	doc.cancel()
 	return {'name': doc.name, 'docstatus': doc.docstatus}
