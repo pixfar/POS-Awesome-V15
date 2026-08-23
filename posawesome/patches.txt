@@ -18,3 +18,4 @@ posawesome.patches.add_gift_card_to_workspace
 posawesome.patches.add_submission_ledger_to_workspace
 posawesome.patches.add_requisition_support
 posawesome.patches.add_material_transfer_do_number_index
+posawesome.patches.remove_pos_awesome_workspace_extra_cards

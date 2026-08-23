@@ -69,21 +69,27 @@ doctype_js = {
 after_uninstall = "posawesome.uninstall.after_uninstall"
 after_migrate = [
     "posawesome.patches.add_pos_cash_movement_settings.execute",
-    "posawesome.patches.add_cash_movement_to_workspace.execute",
     "posawesome.patches.add_customer_display_settings.execute",
     "posawesome.patches.add_dashboard_settings.execute",
     "posawesome.patches.add_dashboard_global_settings.execute",
     "posawesome.patches.reorganize_pos_profile_sections.execute",
     "posawesome.patches.add_gift_card_pos_profile_settings.execute",
     "posawesome.patches.add_gift_card_invoice_redemption_fields.execute",
-    "posawesome.patches.add_gift_card_to_workspace.execute",
-    "posawesome.patches.add_submission_ledger_to_workspace.execute",
     "posawesome.patches.migrate_pos_supervisor_to_role.execute",
     "posawesome.patches.remove_item_barcode_posa_uom.execute",
     "posawesome.patches.add_requisition_support.execute",
     "posawesome.patches.add_material_transfer_support.execute",
     "posawesome.patches.add_warehouse_doc_permissions.execute",
 ]
+# add_cash_movement_to_workspace / add_gift_card_to_workspace /
+# add_submission_ledger_to_workspace used to run here on every single
+# `bench migrate` (unlike a normal one-time patch), unconditionally
+# re-adding their "Cash Movement" / "Gift Cards" / "Submission Ledger" cards
+# to the POS Awesome workspace as long as the matching DocType existed --
+# which is exactly why removing them by hand never stuck. Deliberately
+# removed by request: the workspace should only ever show "POS Awesome App".
+# See patches/remove_pos_awesome_workspace_extra_cards.py for the one-time
+# cleanup patch that actually strips them back out.
 
 # Desk Notifications
 # ------------------

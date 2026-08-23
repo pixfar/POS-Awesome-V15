@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\": \"cJigdSD9mh\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\">POS Awesome</span>\", \"col\": 12}}, {\"id\": \"4D2sc3CbN3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"POS Awesome App\", \"col\": 3}}]",
+ "content": "[{\"id\":\"cJigdSD9mh\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">POS Awesome</span>\",\"col\":12}},{\"id\":\"4D2sc3CbN3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"POS Awesome App\",\"col\":3}}]",
  "creation": "2022-11-29 14:33:45.038200",
  "custom_blocks": [],
  "docstatus": 0,
@@ -23,7 +23,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-16 11:25:14.307746",
+ "modified": "2026-08-23 16:57:05.420654",
  "modified_by": "Administrator",
  "module": "POSAwesome",
  "name": "POS Awesome",
