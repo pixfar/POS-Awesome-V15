@@ -39,7 +39,7 @@
 								<v-text-field
 									density="compact"
 									color="primary"
-									:label="__('Address Line 1')"
+									:label="__('Address')"
 									hide-details
 									class="pos-themed-input"
 									v-model="address_line1"
@@ -301,8 +301,12 @@ export default {
 			this.email_id = "";
 			this.referral_code = "";
 			this.birthday = "";
-			this.group = frappe.defaults.get_user_default("Customer Group");
-			this.territory = frappe.defaults.get_user_default("Territory");
+			// "All Customer Groups" / "All Territories" are group-type tree nodes and
+			// can't be assigned to a Customer directly, so fall back to the first
+			// actual (non-group) entry instead - these fields are no longer shown in
+			// the simplified Create Customer dialog, so a sane default is required.
+			this.group = frappe.defaults.get_user_default("Customer Group") || this.groups[0] || "";
+			this.territory = frappe.defaults.get_user_default("Territory") || this.territorys[0] || "";
 			this.customer_id = "";
 			this.customer_type = "Individual";
 			this.gender = "";
@@ -378,6 +382,16 @@ export default {
 			if (!this.customer_name) {
 				frappe.throw(__("Customer Name is required"));
 				return;
+			}
+
+			// Customer Group / Territory are no longer shown in this dialog; if the
+			// user has no default set and the lists hadn't finished loading when the
+			// dialog opened, pick up the first (non-group) option now as a last resort.
+			if (!this.group) {
+				this.group = this.groups[0] || "";
+			}
+			if (!this.territory) {
+				this.territory = this.territorys[0] || "";
 			}
 
 			if (!this.group) {
@@ -611,9 +625,6 @@ export default {
 		this.getCustomerGroups();
 		this.getCustomerTerritorys();
 		this.getGenders();
-		// set default values for customer group and territory from user defaults
-		this.group = frappe.defaults.get_user_default("Customer Group");
-		this.territory = frappe.defaults.get_user_default("Territory");
 	},
 };
 </script>
