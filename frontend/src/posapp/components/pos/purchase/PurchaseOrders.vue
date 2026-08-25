@@ -26,7 +26,6 @@
 										v-model:supplier="supplier"
 										:supplierOptions="supplierOptions"
 										:supplierLoading="supplierLoading"
-										:allowCreateSupplier="allowCreateSupplier"
 										@search-supplier="handleSupplierSearch"
 										@create-supplier="supplierDialog = true"
 									/>
@@ -954,9 +953,6 @@ export default {
 		};
 	},
 	computed: {
-		allowCreateSupplier() {
-			return !!this.pos_profile?.posa_allow_create_purchase_suppliers;
-		},
 		itemHeaders() {
 			return [
 				{ title: __("Item"), key: "item_name", align: "start", width: "28%" },

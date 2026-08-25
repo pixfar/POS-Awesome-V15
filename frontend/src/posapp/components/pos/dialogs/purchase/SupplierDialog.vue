@@ -16,30 +16,6 @@
 					variant="outlined"
 					class="pos-themed-input"
 				/>
-				<v-select
-					v-model="form.supplier_group"
-					:items="groups"
-					:label="frappe._('Supplier Group')"
-					density="compact"
-					variant="outlined"
-					class="pos-themed-input"
-					clearable
-				/>
-				<v-select
-					v-model="form.supplier_type"
-					:items="['Company', 'Individual']"
-					:label="frappe._('Supplier Type')"
-					density="compact"
-					variant="outlined"
-					class="pos-themed-input"
-				/>
-				<v-text-field
-					v-model="form.tax_id"
-					:label="frappe._('Tax ID')"
-					density="compact"
-					variant="outlined"
-					class="pos-themed-input"
-				/>
 				<v-text-field
 					v-model="form.mobile_no"
 					:label="frappe._('Mobile Number')"
@@ -48,8 +24,8 @@
 					class="pos-themed-input"
 				/>
 				<v-text-field
-					v-model="form.email_id"
-					:label="frappe._('Email')"
+					v-model="form.address_line1"
+					:label="__('Address')"
 					density="compact"
 					variant="outlined"
 					class="pos-themed-input"
@@ -85,6 +61,7 @@ export default {
 			tax_id: "",
 			mobile_no: "",
 			email_id: "",
+			address_line1: "",
 		},
 	}),
 	watch: {
@@ -103,6 +80,7 @@ export default {
 				tax_id: "",
 				mobile_no: "",
 				email_id: "",
+				address_line1: "",
 			};
 		},
 		async submit() {

@@ -10,15 +10,6 @@
 				<v-card-title class="d-flex align-center">
 					<span v-if="customer_id" class="text-h5 text-primary">{{ __("Update Customer") }}</span>
 					<span v-else class="text-h5 text-primary">{{ __("Create Customer") }}</span>
-					<v-spacer></v-spacer>
-					<v-switch
-						v-model="hideNonEssential"
-						density="compact"
-						inset
-						hide-details
-						color="primary"
-						:label="__('Hide Non Essential Fields')"
-					></v-switch>
 				</v-card-title>
 				<v-card-text class="pa-0">
 					<v-container>
@@ -34,17 +25,7 @@
 									v-model="customer_name"
 								></v-text-field>
 							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Tax ID')"
-									class="pos-themed-input"
-									hide-details
-									v-model="tax_id"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
+							<v-col cols="12">
 								<v-text-field
 									density="compact"
 									color="primary"
@@ -54,7 +35,7 @@
 									v-model="mobile_no"
 								></v-text-field>
 							</v-col>
-							<v-col cols="12" v-if="!hideNonEssential">
+							<v-col cols="12">
 								<v-text-field
 									density="compact"
 									color="primary"
@@ -62,122 +43,6 @@
 									hide-details
 									class="pos-themed-input"
 									v-model="address_line1"
-								></v-text-field>
-							</v-col>
-
-							<v-col cols="12" sm="6" v-if="!hideNonEssential">
-								<v-text-field
-									v-model="city"
-									variant="outlined"
-									density="compact"
-									:label="__('City')"
-									class="pos-themed-input"
-								></v-text-field>
-							</v-col>
-
-							<v-col cols="12" sm="6" v-if="!hideNonEssential">
-								<v-select
-									v-model="country"
-									:items="countries"
-									variant="outlined"
-									density="compact"
-									:label="__('Country')"
-									class="pos-themed-input"
-								></v-select>
-							</v-col>
-
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Email Id')"
-									class="pos-themed-input"
-									hide-details
-									v-model="email_id"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
-								<v-select
-									density="compact"
-									label="Gender"
-									:items="genders"
-									v-model="gender"
-									class="pos-themed-input"
-								></v-select>
-							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Referral Code')"
-									class="pos-themed-input"
-									hide-details
-									v-model="referral_code"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									v-model="birthday"
-									:label="frappe._('Birthday (DD-MM-YYYY)')"
-									density="compact"
-									clearable
-									hide-details
-									color="primary"
-									placeholder="DD-MM-YYYY"
-									@update:model-value="formatBirthdayOnInput"
-									class="pos-themed-input"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6" v-if="!hideNonEssential">
-								<v-autocomplete
-									clearable
-									density="compact"
-									auto-select-first
-									color="primary"
-									:label="frappe._('Customer Group') + ' *'"
-									v-model="group"
-									:items="groups"
-									class="pos-themed-input"
-									:no-data-text="__('Group not found')"
-									hide-details
-									required
-								>
-								</v-autocomplete>
-							</v-col>
-							<v-col cols="6" v-if="!hideNonEssential">
-								<v-autocomplete
-									clearable
-									density="compact"
-									auto-select-first
-									color="primary"
-									:label="frappe._('Territory') + ' *'"
-									v-model="territory"
-									:items="territorys"
-									class="pos-themed-input"
-									:no-data-text="__('Territory not found')"
-									hide-details
-									required
-								>
-								</v-autocomplete>
-							</v-col>
-							<v-col cols="6" v-if="loyalty_program">
-								<v-text-field
-									v-model="loyalty_program"
-									:label="frappe._('Loyalty Program')"
-									density="compact"
-									readonly
-									hide-details
-									class="pos-themed-input"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6" v-if="loyalty_points">
-								<v-text-field
-									v-model="loyalty_points"
-									:label="frappe._('Loyalty Points')"
-									density="compact"
-									readonly
-									hide-details
-									class="pos-themed-input"
 								></v-text-field>
 							</v-col>
 						</v-row>
@@ -265,7 +130,6 @@ export default {
 		gender: "",
 		loyalty_points: null,
 		loyalty_program: null,
-		hideNonEssential: false,
 		countries: [
 			"Afghanistan",
 			"Australia",
@@ -307,11 +171,6 @@ export default {
 		],
 	}),
 	watch: {
-		hideNonEssential(val) {
-			if (typeof localStorage !== "undefined") {
-				localStorage.setItem("posawesome_hide_non_essential_fields", JSON.stringify(val));
-			}
-		},
 		birthday(newVal) {
 			// Check if the user has entered 8 digits without separators (e.g., 04111994)
 			if (newVal && /^\d{8}$/.test(newVal)) {
@@ -693,12 +552,6 @@ export default {
 		},
 	},
 	created: function () {
-		if (typeof localStorage !== "undefined") {
-			const saved = localStorage.getItem("posawesome_hide_non_essential_fields");
-			if (saved !== null) {
-				this.hideNonEssential = JSON.parse(saved);
-			}
-		}
 		// Watch store state for dialog opening
 		this.$watch(
 			() => this.isUpdateCustomerDialogOpen,

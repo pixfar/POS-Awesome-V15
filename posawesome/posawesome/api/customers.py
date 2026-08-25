@@ -371,6 +371,10 @@ def create_customer(
             address_doc.address_line1 = address_line1 or ""
             address_doc.city = city or ""
             address_doc.country = country or ""
+            # City is no longer collected in the simplified POS Create Customer
+            # dialog, but it's a mandatory field on Address - don't block saving
+            # the address just because it's blank.
+            address_doc.flags.ignore_mandatory = True
             address_doc.save()
         else:
             if address_line1 or city:
@@ -467,7 +471,12 @@ def make_address(args):
             "address_type": "Shipping",
             "links": [{"link_doctype": args.get("doctype"), "link_name": args.get("customer")}],
         }
-    ).insert()
+    )
+    # City is no longer collected in the simplified POS Create Customer dialog,
+    # but it's a mandatory field on Address - don't block creating the address
+    # just because it's blank.
+    address.flags.ignore_mandatory = True
+    address.insert()
 
     return address
 

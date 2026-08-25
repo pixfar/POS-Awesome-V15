@@ -20,7 +20,7 @@
 				clearable
 			>
 				<template #append-inner>
-					<v-tooltip v-if="allowCreateSupplier" text="Add new supplier">
+					<v-tooltip text="Add new supplier">
 						<template #activator="{ props }">
 							<v-icon
 								v-bind="props"
@@ -44,7 +44,6 @@ export default {
 		supplier: String,
 		supplierOptions: Array,
 		supplierLoading: Boolean,
-		allowCreateSupplier: Boolean,
 	},
 	emits: ["update:supplier", "search-supplier", "create-supplier"],
 };

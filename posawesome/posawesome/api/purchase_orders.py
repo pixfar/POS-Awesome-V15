@@ -261,8 +261,6 @@ def _create_purchase_receipt(po_doc, payload, default_warehouse, transaction_dat
 
 def create_supplier(data):
     payload = json.loads(data) if isinstance(data, str) else data
-    profile = _resolve_pos_profile(payload.get("pos_profile"))
-    _ensure_allowed(profile, "posa_allow_create_purchase_suppliers", _("Create suppliers"))
 
     supplier_name = payload.get("supplier_name") or payload.get("supplier")
     if not supplier_name:
@@ -290,6 +288,25 @@ def create_supplier(data):
     )
     supplier.flags.ignore_permissions = True
     supplier.insert()
+
+    address_line1 = payload.get("address_line1")
+    if address_line1:
+        address = frappe.get_doc(
+            {
+                "doctype": "Address",
+                "address_title": supplier.supplier_name,
+                "address_line1": address_line1,
+                "address_type": "Shipping",
+                "links": [{"link_doctype": "Supplier", "link_name": supplier.name}],
+            }
+        )
+        address.flags.ignore_permissions = True
+        # City/country aren't collected in the simplified Create Supplier dialog,
+        # but they're mandatory fields on Address - don't block creating the
+        # address just because they're blank.
+        address.flags.ignore_mandatory = True
+        address.insert()
+
     return supplier.as_dict()
 
 
