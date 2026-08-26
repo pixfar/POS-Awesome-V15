@@ -1,6 +1,6 @@
 <template>
 	<div class="pa-0 h-100 invoice-shell pos-list-page">
-		<v-card flat class="invoice-section-card pos-themed-card pos-list-card">
+		<v-card flat class="invoice-section-card pos-themed-card erp-reports-card">
 			<div class="erp-reports-groups">
 				<section
 					v-for="group in visibleReportGroups"

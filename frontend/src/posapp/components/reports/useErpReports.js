@@ -42,7 +42,7 @@ const reportGroups = [
 				icon: 'mdi-table-large',
 			},
 			{
-				title: 'Warehouse Wise Owner Fund Transfer Report',
+				title: 'Warehouse Wised Fund Receive Report',
 				name: 'Warehouse Wise Owner Fund Transfer Report',
 				icon: 'mdi-bank-transfer',
 				// Exposes cash movement between the company's central account and
@@ -93,7 +93,7 @@ const reportGroups = [
 				icon: 'mdi-package-variant-closed',
 			},
 			{
-				title: 'DO Sales Purchase Report',
+				title: 'DO Sales & Purchase Tracking Report',
 				name: 'DO Sales Purchase Report',
 				icon: 'mdi-truck-check-outline',
 			},
@@ -129,7 +129,7 @@ const reportGroups = [
 				icon: 'mdi-alert-outline',
 			},
 			{
-				title: 'Low Stock and Stock Summary Report',
+				title: 'Production Requirement Report',
 				name: 'Low Stock and Stock Summary Report',
 				icon: 'mdi-clipboard-list-outline',
 			},
@@ -145,12 +145,12 @@ const reportGroups = [
 				icon: 'mdi-account-cash-outline',
 			},
 			{
-				title: 'Accounts Receivable Summary',
+				title: 'Customer Due Collection Report',
 				name: 'Accounts Receivable Summary',
 				icon: 'mdi-cash-plus',
 			},
 			{
-				title: 'Accounts Payable Summary',
+				title: 'Supplier Due Payment Report',
 				name: 'Accounts Payable Summary',
 				icon: 'mdi-cash-minus',
 			},

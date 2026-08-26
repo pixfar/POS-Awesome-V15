@@ -1,3 +1,14 @@
+/* This page stacks several report-card groups of organically-sized content --
+   let it size to its content and the outer .invoice-shell scroll the whole
+   page, instead of clipping/scrolling within a fixed viewport-height share
+   (.pos-list-card's behavior, which is built for exactly one full-height
+   table). Without this, groups beyond the fold are just hidden on shorter
+   screens instead of being reachable by scrolling. */
+.erp-reports-card {
+	flex: 0 0 auto;
+	overflow: visible;
+}
+
 .erp-reports-groups {
 	display: flex;
 	flex-direction: column;
