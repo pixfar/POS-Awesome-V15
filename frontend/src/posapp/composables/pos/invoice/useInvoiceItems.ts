@@ -69,6 +69,11 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 		if (["Order", "Quotation"].includes(invoiceType.value)) {
 			return false;
 		}
+		// "Update Stock" off means this sale never touches the stock ledger, so
+		// quantity-vs-availability enforcement (qty field/+-/- steppers) doesn't apply.
+		if (!invoiceStore.updateStock) {
+			return false;
+		}
 		return parseBooleanSetting(
 			pos_profile.value?.posa_block_sale_beyond_available_qty,
 		);
@@ -204,6 +209,11 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 		format.methods.formatFloat(val, resolveFloatPrecision(prec));
 
 	const shouldEnforceStockLimits = (item: any) => {
+		// "Update Stock" off means this sale never touches the stock ledger, so
+		// there's no availability ceiling to enforce on cart quantities.
+		if (!invoiceStore.updateStock) {
+			return false;
+		}
 		if (
 			pos_profile.value &&
 			!parseBooleanSetting(pos_profile.value.posa_validate_stock) &&

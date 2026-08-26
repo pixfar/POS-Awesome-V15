@@ -325,7 +325,8 @@ const {
 	activeView,
 } = storeToRefs(uiStore);
 const { currentCashier } = storeToRefs(employeeStore);
-const { deferStockValidationToPayment: invoiceTypeDefersStockValidation } = storeToRefs(invoiceStore);
+const { deferStockValidationToPayment: invoiceTypeDefersStockValidation, updateStock: saleUpdateStock } =
+	storeToRefs(invoiceStore);
 
 const __ = (window as any).__;
 
@@ -454,15 +455,20 @@ const isReturnInvoice = computed(() => {
 	return !!invoiceStore.invoiceDoc?.is_return;
 });
 
+// When "Update Stock" is off for this sale, it will never touch the stock ledger,
+// so stock-availability checks at cart-add/scan time don't apply - only meaningful
+// for the sales ("pos") context, since Purchase/Requisition/etc. don't have this toggle.
+const saleStockCheckDisabled = computed(() => props.context === "pos" && !saleUpdateStock.value);
+
 const blockSaleBeyondAvailableQty = computed(() => {
-	if (props.context === "purchase" || props.context === "requisition" || props.context === "material_transfer" || props.context === "bom" || invoiceTypeDefersStockValidation.value) {
+	if (props.context === "purchase" || props.context === "requisition" || props.context === "material_transfer" || props.context === "bom" || invoiceTypeDefersStockValidation.value || saleStockCheckDisabled.value) {
 		return false;
 	}
 	return parseBooleanSetting(pos_profile.value?.posa_block_sale_beyond_available_qty);
 });
 
 const deferStockValidationToPayment = computed(
-	() => props.context === "purchase" || props.context === "requisition" || props.context === "material_transfer" || props.context === "bom" || invoiceTypeDefersStockValidation.value,
+	() => props.context === "purchase" || props.context === "requisition" || props.context === "material_transfer" || props.context === "bom" || invoiceTypeDefersStockValidation.value || saleStockCheckDisabled.value,
 );
 const forceCustomerPriceList = computed(() =>
 	parseBooleanSetting(pos_profile.value?.posa_force_price_from_customer_price_list),

@@ -1539,6 +1539,15 @@ export default {
 	},
 	watch: {
 		...invoiceWatchers,
+		sale_update_stock: {
+			immediate: true,
+			handler(val) {
+				// Mirror the toggle into invoiceStore so ItemsSelector/scan can
+				// skip stock-availability checks entirely while it's off - this
+				// sale won't touch the stock ledger, so there's nothing to block.
+				this.invoiceStore.setUpdateStock(val);
+			},
+		},
 		"invoiceStore.invoiceDoc"(doc) {
 			// invoiceDoc only comes into existence once the first item lands in
 			// the cart (see the custom_do_number getter/setter above) — if a DO

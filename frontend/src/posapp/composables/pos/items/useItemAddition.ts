@@ -308,8 +308,15 @@ export function useItemAddition() {
 				typeof context?.invoiceType === "string"
 					? context.invoiceType
 					: context?.invoiceType?.value;
+			// "Update Stock" off means this sale never touches the stock ledger, so
+			// availability checks below don't apply - same gate as ItemsSelector's
+			// saleStockCheckDisabled/deferStockValidationToPayment computed.
+			const saleStockCheckDisabled =
+				context.invoiceStore?.updateStock === false;
 			const deferStockValidationToPayment =
-				currentInvoiceType === "Order" || currentInvoiceType === "Quotation";
+				currentInvoiceType === "Order" ||
+				currentInvoiceType === "Quotation" ||
+				saleStockCheckDisabled;
 
 			const blockSale = parseBooleanSetting(
 				context.pos_profile?.posa_block_sale_beyond_available_qty,

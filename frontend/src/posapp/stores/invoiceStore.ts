@@ -70,6 +70,14 @@ const cloneItem = <T>(item: T): T => ({ ...item });
 export const useInvoiceStore = defineStore("invoice", () => {
 	const invoiceDoc = ref<PartialInvoiceDoc | null>(null);
 	const invoiceType = ref("Invoice");
+	/**
+	 * Mirrors the "Update Stock" toggle on the Sales Invoice sale dock (`sale_update_stock`
+	 * in Invoice.vue). When `false`, this sale will not touch the stock ledger, so
+	 * stock-availability checks at cart-add/scan time are skipped entirely - see
+	 * `deferStockValidationToPayment` below and `shouldValidateStockForSubmission` in
+	 * usePaymentSubmission.ts, which already skips server-side validation on the same basis.
+	 */
+	const updateStock = ref(true);
 	// Normalized state: keys array + items map
 	const itemOrder = ref<string[]>([]);
 	const itemsData = reactive(new Map<string, CartItem>());
@@ -219,6 +227,11 @@ export const useInvoiceStore = defineStore("invoice", () => {
 	const deferStockValidationToPayment = computed(() =>
 		invoiceType.value === "Order" || invoiceType.value === "Quotation",
 	);
+
+	/** Sets `updateStock` to mirror the sale dock's "Update Stock" toggle. */
+	const setUpdateStock = (value: boolean) => {
+		updateStock.value = value !== false;
+	};
 
 	/**
 	 * Sets `invoiceType`. Falls back to `"Invoice"` when `value` is empty or not a string.
@@ -590,6 +603,8 @@ export const useInvoiceStore = defineStore("invoice", () => {
 	return {
 		invoiceDoc,
 		invoiceType,
+		updateStock,
+		setUpdateStock,
 		deferStockValidationToPayment,
 		items,
 		itemOrder,
