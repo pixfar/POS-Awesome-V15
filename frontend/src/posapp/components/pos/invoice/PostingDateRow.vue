@@ -7,6 +7,7 @@
 			format="dd-MM-yyyy"
 			auto-apply
 			teleport
+			:disabled="disabled"
 			:placeholder="placeholderText"
 			class="sleek-field posting-date-input pos-themed-input mb-2"
 			@update:model-value="onUpdate"
@@ -37,9 +38,12 @@ interface Props {
 	formatCurrency: (_val: number | undefined) => string;
 	priceList?: string;
 	priceLists?: string[];
+	disabled?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+	disabled: false,
+});
 
 const __ = (str: string) => (window.__ ? window.__(str) : str);
 

@@ -85,6 +85,7 @@
 											format="dd-MM-yyyy"
 											auto-apply
 											teleport
+											:disabled="!canEditPostingDate"
 											:placeholder="__('Transfer Date')"
 											class="sleek-field pos-themed-input"
 										/>
@@ -320,6 +321,12 @@ export default {
 		// Same gate Invoice.vue uses for its own DO Number card -- keep the two
 		// in sync if that role check ever changes.
 		const canEditDoNumber = computed(() => {
+			const roles = frappe?.boot?.user?.roles || [];
+			return roles.includes('BSP Admin') || roles.includes('System Manager');
+		});
+		// Same gate as canEditDoNumber -- kept as its own computed for a clearer
+		// name at the date-field call site.
+		const canEditPostingDate = computed(() => {
 			const roles = frappe?.boot?.user?.roles || [];
 			return roles.includes('BSP Admin') || roles.includes('System Manager');
 		});
@@ -707,6 +714,7 @@ export default {
 			setPanel,
 			canChangePosWarehouse,
 			canEditDoNumber,
+			canEditPostingDate,
 			customDoNumber,
 			doNumberLookupLoading,
 			fromWarehouse,

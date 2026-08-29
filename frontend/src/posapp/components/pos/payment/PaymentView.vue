@@ -511,6 +511,8 @@ import { refreshRegisterPosProfile } from "../../../../utils/pos_profile";
 import { usePosPaySelection } from "../../../composables/pos/payments/usePosPaySelection";
 import { useCompactTransactionPanel } from "../../../composables/core/useCompactTransactionPanel";
 import { ONLINE_ONLY_MODE } from "../../../config/runtime";
+import { useRouter } from "vue-router";
+import { isFundTransferManager } from "../../../utils/posWarehouseAccess";
 
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
@@ -538,6 +540,7 @@ export default {
 
 	setup(props) {
 		const { proxy } = getCurrentInstance();
+		const router = useRouter();
 		const uiStore = useUIStore();
 		const customersStore = useCustomersStore();
 		const { selectedCustomer } = storeToRefs(customersStore);
@@ -762,9 +765,34 @@ export default {
 			() => total_payment_methods.value - total_selected_invoices.value,
 		);
 
+		// Belt-and-suspenders alongside the redirect guard below (onMounted /
+		// the partyType watcher) -- even if a Supplier payment view somehow
+		// stays mounted for a non-privileged user, the actual submit stays
+		// blocked. Only BSP Admin/System Manager can make a Supplier Payment,
+		// same gate as Fund Transfer's "New Transfer" and the Navbar's
+		// "Supplier" payment link.
 		const canSubmit = computed(
-			() => !!partyName.value && total_payment_methods.value > 0,
+			() =>
+				!!partyName.value &&
+				total_payment_methods.value > 0 &&
+				(props.partyType !== "Supplier" || isFundTransferManager()),
 		);
+
+		// Redirects away from the Supplier payment view for anyone without
+		// permission -- covers direct navigation to /payments/supplier (a
+		// bookmark, browser back/forward, etc.) since the Navbar link and
+		// PaymentList's "Supplier Payment" button are already hidden for them.
+		const redirectIfSupplierNotAllowed = () => {
+			if (props.partyType !== "Supplier" || isFundTransferManager()) {
+				return false;
+			}
+			proxy?.eventBus?.emit("show_message", {
+				title: __("You do not have permission to make Supplier Payments."),
+				color: "error",
+			});
+			router.replace("/payments/customer");
+			return true;
+		};
 
 		const autoSelectInvoicesForAmount = () => {
 			if (!autoAllocate.value || !partyName.value) return;
@@ -1114,6 +1142,7 @@ export default {
 		watch(
 			() => props.partyType,
 			async () => {
+				if (redirectIfSupplierNotAllowed()) return;
 				partyName.value = "";
 				partySearchText.value = "";
 				partyOptions.value = [];
@@ -1141,6 +1170,7 @@ export default {
 
 		// ── Lifecycle ────────────────────────────────────────────────
 		onMounted(() => {
+			if (redirectIfSupplierNotAllowed()) return;
 			if (props.partyType === "Supplier") onPartySearch("");
 			if (proxy?.eventBus) {
 				proxy.eventBus.on("network-online", syncPending);

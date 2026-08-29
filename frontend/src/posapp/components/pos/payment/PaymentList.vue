@@ -20,6 +20,7 @@
 						{{ __("Customer Payment") }}
 					</v-btn>
 					<v-btn
+						v-if="canMakeSupplierPayment"
 						color="primary"
 						variant="tonal"
 						class="text-none"
@@ -316,6 +317,7 @@ import DateFilterField from '../shared/DateFilterField.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import { useToastStore } from '../../../stores/toastStore';
+import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 
 export default {
 	name: 'PaymentList',
@@ -329,6 +331,10 @@ export default {
 		const isSystemManager = computed(() =>
 			(frappe?.boot?.user?.roles || []).includes('System Manager'),
 		);
+		// Same gate as Fund Transfer's "New Transfer" and the Navbar's
+		// "Supplier" payment link -- only BSP Admin/System Manager can make a
+		// Supplier Payment.
+		const canMakeSupplierPayment = computed(() => isFundTransferManager());
 
 		const actionLoadingName = ref(null);
 		const confirmDialog = ref(false);
@@ -737,6 +743,7 @@ export default {
 			goToNew,
 			openPaymentDetail,
 			isSystemManager,
+			canMakeSupplierPayment,
 			actionLoadingName,
 			confirmDialog,
 			confirmDialogItem,

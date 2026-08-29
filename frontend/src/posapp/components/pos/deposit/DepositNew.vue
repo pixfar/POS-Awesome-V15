@@ -44,6 +44,7 @@
 											v-model="postingDate"
 											:label="__('Posting Date')"
 											:clearable="false"
+											:disabled="!canEditPostingDate"
 											field-class="pos-themed-input"
 										/>
 									</div>
@@ -181,7 +182,7 @@ import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import { uploadFile } from '../../../utils/uploadFile';
-import { isPosWarehouseSwitcher } from '../../../utils/posWarehouseAccess';
+import { isPosWarehouseSwitcher, isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import DateFilterField from '../shared/DateFilterField.vue';
 
 const getTodayDate = () =>
@@ -204,6 +205,9 @@ export default {
 		// Transfer/Requisition: only System Manager can pick a different
 		// warehouse -- everyone else is locked to their POS profile's default.
 		const canChangeWarehouse = computed(() => isPosWarehouseSwitcher());
+		// Same gate as the DO Number card on Sales/Purchase/Material Transfer --
+		// only BSP Admin/System Manager can back- or post-date a deposit.
+		const canEditPostingDate = computed(() => isFundTransferManager());
 		const warehouseOptions = ref([]);
 		const warehouseLabel = ref('');
 		const warehouseLoading = ref(false);
@@ -423,6 +427,7 @@ export default {
 			userDisplay,
 			userLoading,
 			canChangeWarehouse,
+			canEditPostingDate,
 			warehouseOptions,
 			warehouseLabel,
 			warehouseLoading,

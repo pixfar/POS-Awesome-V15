@@ -103,6 +103,7 @@
 									:price-list="selected_price_list"
 									:price-lists="price_lists"
 									:formatCurrency="formatCurrency"
+									:disabled="!canEditPostingDate"
 									@update:posting_date_display="
 										(val) => {
 											posting_date_display = val;
@@ -607,6 +608,10 @@ export default {
 			return roles.includes("System Manager");
 		},
 		canEditDoNumber() {
+			const roles = frappe?.boot?.user?.roles || [];
+			return roles.includes("BSP Admin") || roles.includes("System Manager");
+		},
+		canEditPostingDate() {
 			const roles = frappe?.boot?.user?.roles || [];
 			return roles.includes("BSP Admin") || roles.includes("System Manager");
 		},

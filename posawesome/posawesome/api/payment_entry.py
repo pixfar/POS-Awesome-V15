@@ -15,7 +15,10 @@ from erpnext.accounts.party import get_party_account
 from erpnext.accounts.utils import get_account_currency
 from erpnext.setup.utils import get_exchange_rate
 from posawesome.posawesome.api.payment_processing.creation import create_payment_entry
-from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
+from posawesome.posawesome.utils.warehouse_doc_permissions import (
+    is_system_manager,
+    is_privileged_invoice_viewer,
+)
 from posawesome.posawesome.api.payment_processing.utils import (
     get_bank_cash_account,
     set_paid_amount_and_received_amount,
@@ -601,6 +604,18 @@ def make_payment_direct(
     auto_allocate=False,
 ):
     """Create Payment Entry(ies) with ERPNext-style invoice allocation."""
+    # Same gate as Fund Transfer creation (see fund_transfer.py's
+    # _require_fund_transfer_manager) -- Supplier Payment is a money-out
+    # action restricted to BSP Admin/System Manager. The POS frontend already
+    # hides the "Supplier Payment" entry points for everyone else; this is
+    # the actual enforcement, since a hidden button alone doesn't stop a
+    # direct API call.
+    if party_type == "Supplier" and not is_privileged_invoice_viewer():
+        frappe.throw(
+            _("Only a user with the BSP Admin or System Manager role can make a Supplier Payment."),
+            frappe.PermissionError,
+        )
+
     if isinstance(payment_methods, str):
         payment_methods = json.loads(payment_methods)
     if isinstance(selected_invoices, str):

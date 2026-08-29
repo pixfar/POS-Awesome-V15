@@ -305,11 +305,13 @@ export default {
 					],
 				},
 				{
+					// "Supplier" is spliced in dynamically by updateNavigationItems()
+					// -- only BSP Admin/System Manager can make a Supplier Payment,
+					// same gate as Fund Transfer's "New Transfer" above.
 					text: "Payment",
 					icon: "mdi-cash-multiple",
 					children: [
 						{ text: "Customer", icon: "mdi-account", to: "/payments/customer" },
-						{ text: "Supplier", icon: "mdi-truck-delivery", to: "/payments/supplier" },
 						{ text: "Payments", icon: "mdi-format-list-bulleted", to: "/payments/list" },
 					],
 				},
@@ -590,6 +592,26 @@ export default {
 						{ text: "BOM List", icon: "mdi-format-list-bulleted", to: "/boms/list" },
 					],
 				});
+			}
+			// Same gate as "New Transfer" above -- only BSP Admin/System Manager
+			// can make a Supplier Payment. Rebuilds the "Payment" entry (and its
+			// children array) rather than mutating it in place -- `items` is only
+			// a shallow copy of `this.baseItems`, so splicing into the existing
+			// children array would permanently leak "Supplier" into baseItems
+			// and duplicate it on every later call to this method.
+			if (isFundTransferManager()) {
+				const paymentIndex = items.findIndex((i) => i.text === "Payment");
+				if (paymentIndex !== -1) {
+					const paymentItem = items[paymentIndex];
+					items[paymentIndex] = {
+						...paymentItem,
+						children: [
+							...paymentItem.children.slice(0, 1),
+							{ text: "Supplier", icon: "mdi-truck-delivery", to: "/payments/supplier" },
+							...paymentItem.children.slice(1),
+						],
+					};
+				}
 			}
 			this.items = items;
 		},

@@ -75,6 +75,7 @@
 											v-model="expenseDate"
 											:label="__('Expense Date')"
 											:clearable="false"
+											:disabled="!canEditPostingDate"
 											field-class="pos-themed-input"
 										/>
 									</div>
@@ -213,7 +214,7 @@ import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
-import { isPosWarehouseSwitcher } from '../../../utils/posWarehouseAccess';
+import { isPosWarehouseSwitcher, isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import DateFilterField from '../shared/DateFilterField.vue';
 
 const getTodayDate = () =>
@@ -246,6 +247,9 @@ export default {
 		// different warehouse -- everyone else is locked to their POS
 		// profile's default.
 		const canChangeWarehouse = computed(() => isPosWarehouseSwitcher());
+		// Same gate as the DO Number card on Sales/Purchase/Material Transfer --
+		// only BSP Admin/System Manager can back- or post-date an expense.
+		const canEditPostingDate = computed(() => isFundTransferManager());
 		const warehouseOptions = ref([]);
 		const warehouseLabel = ref('');
 		const warehouseLoading = ref(false);
@@ -434,6 +438,7 @@ export default {
 			employeeLoading,
 			employeeDisplay,
 			canChangeWarehouse,
+			canEditPostingDate,
 			warehouseOptions,
 			warehouseLabel,
 			warehouseLoading,

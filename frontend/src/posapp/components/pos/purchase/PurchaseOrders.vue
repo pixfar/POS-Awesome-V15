@@ -76,6 +76,7 @@
 											enable-time-picker
 											auto-apply
 											teleport
+											:disabled="!canEditPostingDate"
 											:placeholder="frappe._('Purchase Date')"
 											class="sleek-field pos-themed-input mb-2"
 										/>
@@ -442,6 +443,7 @@ export default {
 		const warehouseLabel = ref(null);
 		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
 		const canEditDoNumber = computed(() => isFundTransferManager());
+		const canEditPostingDate = computed(() => isFundTransferManager());
 		const payments = ref([]);
 		const discountAmount = ref(0);
 		const itemSearchQuery = ref("");
@@ -899,6 +901,7 @@ export default {
 			receiveNow,
 			canChangePosWarehouse,
 			canEditDoNumber,
+			canEditPostingDate,
 			doNumber,
 			responsiveStyles,
 			isCompact,
