@@ -28,6 +28,7 @@ from posawesome.posawesome.api.invoice_processing.stock import (
 from posawesome.posawesome.api.payment_processing.utils import get_bank_cash_account as get_bank_account
 from posawesome.posawesome.api.utilities import ensure_child_doctype, set_batch_nos_for_bundels
 from posawesome.posawesome.api.payments import redeeming_customer_credit
+from posawesome.posawesome.utils.warehouse_doc_permissions import ensure_can_create
 from posawesome.posawesome.api.idempotency import (
     extract_invoice_client_request_id,
     find_invoice_by_client_request_id,
@@ -783,6 +784,7 @@ def _normalize_return_payment_rows(invoice_doc, conversion_rate=1):
 
 @frappe.whitelist()
 def update_invoice(data):
+    ensure_can_create(_("create or edit an invoice"))
     currency_cache = {}
     data = json.loads(data)
     client_request_id = extract_invoice_client_request_id(data)
@@ -1013,6 +1015,7 @@ def update_invoice(data):
 
 @frappe.whitelist()
 def submit_invoice(invoice, data, submit_in_background=False):
+    ensure_can_create(_("submit an invoice"))
     data = json.loads(data)
     invoice = json.loads(invoice)
     client_request_id = extract_invoice_client_request_id(invoice, data)

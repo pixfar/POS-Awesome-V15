@@ -12,6 +12,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_warehouse_doc_list_rows,
 	get_warehouse_doc_status_counts,
 	is_system_manager,
+	ensure_can_create,
 )
 
 ALLOWED_STATUS_TRANSITIONS = {'Sent': {'Received', 'Rejected'}}
@@ -26,6 +27,7 @@ def _parse_json(value):
 @frappe.whitelist()
 def create_requisition(data):
 	"""Create and submit a requisition from POS."""
+	ensure_can_create(_('create a Requisition'))
 	data = _parse_json(data)
 	if not data:
 		frappe.throw(_('Requisition data is required.'))

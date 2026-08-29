@@ -14,6 +14,7 @@ from frappe import _
 
 SYSTEM_MANAGER_ROLE = 'System Manager'
 BSP_ADMIN_ROLE = 'BSP Admin'
+BSP_VIEWER_ROLE = 'BSP Viewer'
 
 
 def is_system_manager(user=None):
@@ -28,6 +29,40 @@ def is_privileged_invoice_viewer(user=None):
 	if user == 'Administrator' or is_system_manager(user):
 		return True
 	return BSP_ADMIN_ROLE in frappe.get_roles(user)
+
+
+def is_read_only_viewer(user=None):
+	"""True when this user holds BSP Viewer -- view/report/export/print
+	everything, create nothing (see the Custom DocPerm fixture granting that
+	role read/report/export/print/email=1 and nothing else on every
+	transaction doctype). System Manager/Administrator always pass through,
+	matching every other override in this module, in case someone is ever
+	given both roles."""
+	user = user or frappe.session.user
+	if user == 'Administrator' or is_system_manager(user):
+		return False
+	return BSP_VIEWER_ROLE in frappe.get_roles(user)
+
+
+def ensure_can_create(action_label):
+	"""Raise PermissionError if this user is a read-only BSP Viewer.
+
+	POS Awesome's own creation endpoints generally set
+	ignore_permissions=True on the documents they build (the cashier/staff
+	creating a Sales Invoice etc. doesn't necessarily hold the underlying
+	DocType's own "create" permission -- POS Profile/warehouse assignment is
+	the real authorization boundary there), which means Frappe's own
+	DocType-permission check -- BSP Viewer's create=0 -- never gets a chance
+	to run. Call this explicitly at the top of every such entrypoint instead.
+
+	`action_label` is a short verb phrase completing "cannot {label}", e.g.
+	"create a Sales Invoice".
+	"""
+	if is_read_only_viewer():
+		frappe.throw(
+			_('BSP Viewer is a read-only role and cannot {0}.').format(action_label),
+			frappe.PermissionError,
+		)
 
 
 def user_has_warehouse_restrictions(user=None):

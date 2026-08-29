@@ -10,6 +10,7 @@ from frappe.utils import flt, today
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_permission_scoped_names,
 	is_system_manager,
+	ensure_can_create,
 )
 from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
 
@@ -49,6 +50,7 @@ def get_bank_options():
 @frappe.whitelist()
 def create_daily_deposit(data):
 	"""Create and submit a BSP Daily Deposit for the logged-in POS user."""
+	ensure_can_create(_('create a Deposit'))
 	data = _parse_json(data)
 	if not data:
 		frappe.throw(_('Deposit data is required.'))

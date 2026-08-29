@@ -14,7 +14,10 @@ from .invoice_processing.creation import _resolve_territory_for_warehouse
 from .invoice_processing.returns import get_invoice_for_return
 from .payment_processing.utils import get_pos_change_account
 from .payment_processing.creation import refund_payments_for_return
-from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission_scoped_names
+from posawesome.posawesome.utils.warehouse_doc_permissions import (
+	get_permission_scoped_names,
+	ensure_can_create,
+)
 
 
 def _resolve_pos_profile(pos_profile):
@@ -260,6 +263,7 @@ def _create_purchase_receipt(po_doc, payload, default_warehouse, transaction_dat
 
 
 def create_supplier(data):
+    ensure_can_create(_("create a Supplier"))
     payload = json.loads(data) if isinstance(data, str) else data
 
     supplier_name = payload.get("supplier_name") or payload.get("supplier")
@@ -476,6 +480,7 @@ def get_last_buying_rate(supplier, item_codes, company=None):
 
 
 def create_purchase_item(data):
+    ensure_can_create(_("create an Item"))
     payload = json.loads(data) if isinstance(data, str) else data
     profile = _resolve_pos_profile(payload.get("pos_profile"))
     _ensure_allowed(profile, "posa_allow_create_purchase_items", _("Create items"))
@@ -709,6 +714,7 @@ def _resolve_purchase_invoice_custom_is_paid(payments, grand_total):
 
 
 def _create_purchase_invoice_from_pos(payload):
+    ensure_can_create(_("create a Purchase Invoice"))
     profile = _resolve_pos_profile(payload.get("pos_profile"))
     _ensure_purchase_invoice_allowed(profile)
 

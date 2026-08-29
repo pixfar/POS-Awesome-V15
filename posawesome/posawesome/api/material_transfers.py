@@ -15,6 +15,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_warehouse_doc_list_rows,
 	get_warehouse_doc_status_counts,
 	is_system_manager,
+	ensure_can_create,
 )
 
 
@@ -32,6 +33,7 @@ def _enrich_list_row(row):
 
 @frappe.whitelist()
 def create_material_transfer(data):
+	ensure_can_create(_('create a Material Transfer'))
 	data = _parse_json(data)
 	if not data:
 		frappe.throw(_('Material Transfer data is required.'))

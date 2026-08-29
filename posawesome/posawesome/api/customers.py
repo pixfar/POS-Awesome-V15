@@ -274,6 +274,11 @@ def create_customer(
     city=None,
     country=None,
 ):
+    if method == "create":
+        from posawesome.posawesome.utils.warehouse_doc_permissions import ensure_can_create
+
+        ensure_can_create(_("create a Customer"))
+
     pos_profile = json.loads(pos_profile_doc)
 
     # Format birthday to MySQL compatible format (YYYY-MM-DD) if provided

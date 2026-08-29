@@ -18,6 +18,7 @@ from posawesome.posawesome.api.payment_processing.creation import create_payment
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
     is_system_manager,
     is_privileged_invoice_viewer,
+    ensure_can_create,
 )
 from posawesome.posawesome.api.payment_processing.utils import (
     get_bank_cash_account,
@@ -659,6 +660,8 @@ def make_payment_direct(
     auto_allocate=False,
 ):
     """Create Payment Entry(ies) with ERPNext-style invoice allocation."""
+    ensure_can_create(_("create a Payment"))
+
     # Same gate as Fund Transfer creation (see fund_transfer.py's
     # _require_fund_transfer_manager) -- Supplier Payment is a money-out
     # action restricted to BSP Admin/System Manager. The POS frontend already

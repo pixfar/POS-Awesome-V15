@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today
 
-from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
+from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager, ensure_can_create
 from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
 
 DEFAULT_MODE_OF_PAYMENT = 'Cash'
@@ -56,6 +56,7 @@ def get_expense_claim_types():
 @frappe.whitelist()
 def create_expense_claim(data):
 	"""Create and submit an Expense Claim for the logged-in POS user's Employee record."""
+	ensure_can_create(_('create an Expense'))
 	data = _parse_json(data)
 	if not data:
 		frappe.throw(_('Expense data is required.'))
