@@ -106,6 +106,12 @@
 									</h3>
 									<div class="invoice-section-heading__actions">
 										<span
+											v-if="invoicesTotal"
+											class="text-caption text-medium-emphasis mr-2"
+										>
+											{{ invoicesTotal }} {{ __("Outstanding Invoices") }}
+										</span>
+										<span
 											v-if="selected_invoices.length"
 											class="text-caption text-primary mr-2"
 										>
@@ -582,7 +588,6 @@ export default {
 		const historyLoadingMore = ref(false);
 		const invoicesScrollRef = ref(null);
 		const historyScrollRef = ref(null);
-		let refreshTimer = null;
 
 		// ── Format helpers ───────────────────────────────────────────
 		const formatAmt = (val) => {
@@ -619,6 +624,11 @@ export default {
 		const outstanding_invoices = ref([]);
 		const invoices_loading = ref(false);
 		const partyOutstanding = ref(0);
+		// True total row count (invoices/dues), not just how many the
+		// paginated/infinite-scroll list has loaded so far -- see
+		// get_party_outstanding's "count" and get_all_outstanding_invoices's
+		// "total" on the backend.
+		const invoicesTotal = ref(0);
 		const isSubmitting = ref(false);
 
 		const resolvedCompany = () =>
@@ -656,6 +666,7 @@ export default {
 						? [...outstanding_invoices.value, ...rows]
 						: rows;
 					invoicesHasMore.value = Boolean(payload.has_more);
+					invoicesTotal.value = Number(payload.total) || 0;
 					partyOutstanding.value = 0;
 					return;
 				}
@@ -688,12 +699,16 @@ export default {
 					: rows;
 				invoicesHasMore.value = rows.length >= PAGE_SIZE;
 				partyOutstanding.value = outResult?.message?.outstanding || 0;
+				invoicesTotal.value = Number(outResult?.message?.count) || 0;
 				if (partyName.value) {
 					setDefaultPaymentAmount(partyOutstanding.value);
 				}
 			} catch (e) {
 				console.error("Failed to fetch outstanding invoices", e);
-				if (!append) outstanding_invoices.value = [];
+				if (!append) {
+					outstanding_invoices.value = [];
+					invoicesTotal.value = 0;
+				}
 			} finally {
 				invoices_loading.value = false;
 				invoicesLoadingMore.value = false;
@@ -973,21 +988,6 @@ export default {
 			}
 		};
 
-		const startRealtimeRefresh = () => {
-			stopRealtimeRefresh();
-			refreshTimer = setInterval(() => {
-				if (document.hidden || isSubmitting.value) return;
-				syncData();
-			}, 30000);
-		};
-
-		const stopRealtimeRefresh = () => {
-			if (refreshTimer) {
-				clearInterval(refreshTimer);
-				refreshTimer = null;
-			}
-		};
-
 		// ── Opening shift ────────────────────────────────────────────
 		const applyOpeningData = async (data) => {
 			if (!data) return null;
@@ -1178,12 +1178,10 @@ export default {
 			}
 			fetchOutstandingInvoices();
 			if (partyName.value) fetchPaymentHistory();
-			startRealtimeRefresh();
 			nextTick(checkOpeningEntry);
 		});
 
 		onBeforeUnmount(() => {
-			stopRealtimeRefresh();
 			if (proxy?.eventBus) {
 				proxy.eventBus.off("network-online", syncPending);
 				proxy.eventBus.off("server-online", syncPending);
@@ -1249,6 +1247,7 @@ export default {
 			autoAllocate,
 			outstanding_invoices,
 			invoices_loading,
+			invoicesTotal,
 			selected_invoices,
 			total_selected_invoices,
 			payment_methods,
@@ -1403,10 +1402,16 @@ export default {
 	min-height: 0;
 }
 
+/* Deliberately NOT overflow/max-height here -- .payment-table-scroll (the
+   ancestor div carrying @scroll="onInvoicesScroll"/"onHistoryScroll") must
+   be the *only* scrolling container. Giving the table's own internal
+   wrapper its own overflow:auto here made *it* the element that actually
+   scrolled once content overflowed, so the ancestor's scroll listener
+   (which drives the infinite-scroll fetch-more) never fired -- the list
+   silently capped at the first page. */
 .payment-invoices-table :deep(.v-table__wrapper),
 .payment-history-table :deep(.v-table__wrapper) {
-	max-height: 100%;
-	overflow-y: auto;
+	overflow: visible;
 }
 
 .payment-summary-list {

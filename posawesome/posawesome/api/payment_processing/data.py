@@ -86,6 +86,262 @@ def _get_open_purchase_invoices(
     )
 
 
+def _get_unreconciled_journal_dues(
+    party,
+    party_type,
+    company,
+    currency=None,
+    include_all_currencies=False,
+):
+    """Journal Entry party rows representing a due that was never invoiced --
+    e.g. an opening balance posted directly via Journal Entry during data
+    migration, instead of through a Sales/Purchase Invoice. Returned in the
+    same shape as an invoice row (see get_outstanding_invoices) so the
+    frontend's outstanding-invoices table, selection, and payment allocation
+    all handle it identically to a real invoice, with voucher_type
+    "Journal Entry" as the only tell.
+
+    A row only counts if it isn't already tied to a specific invoice
+    (reference_type blank, or Sales/Purchase Order for an advance) -- the
+    same rule ERPNext's own Payment Reconciliation tool uses to find
+    "unreconciled" JE rows. One that *is* tied to an invoice already shows
+    up via that invoice's own outstanding_amount, so counting it here too
+    would double the due.
+
+    "Outstanding" for a JE row isn't a stored field the way it is on an
+    invoice -- it's derived: the row's raw due amount (grouped per Journal
+    Entry, since one JE can carry more than one line for the same party --
+    a migration batch commonly posts one JE covering many customers/
+    suppliers at once, each as their own line), minus whatever's already
+    been allocated against that JE *by this specific party* via a submitted
+    Payment Entry (reference_doctype="Journal Entry", reference_name=<JE
+    name>) -- see _allocate_payment_references, which creates exactly that
+    reference when a payment covers one of these rows. Scoping the
+    already-allocated lookup to this party (via the parent Payment Entry's
+    own party/party_type, since Payment Entry Reference itself has no
+    per-row link back to which JE line it covered) is what keeps one
+    customer's payment from also silently reducing every other customer's
+    due on the same shared migration JE.
+    """
+    if not party or not company:
+        return []
+
+    party_account = get_party_account(party_type, party, company)
+    if not party_account:
+        return []
+
+    # Receivable: a due *from* the customer is a debit balance. Payable: a
+    # due *to* the supplier is a credit balance.
+    due_expr = (
+        "jea.debit_in_account_currency - jea.credit_in_account_currency"
+        if party_type != "Supplier"
+        else "jea.credit_in_account_currency - jea.debit_in_account_currency"
+    )
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT je.name AS voucher_no,
+               MIN(je.posting_date) AS posting_date,
+               MIN(jea.account_currency) AS currency,
+               SUM({due_expr}) AS amount
+        FROM `tabJournal Entry Account` jea
+        INNER JOIN `tabJournal Entry` je ON je.name = jea.parent
+        WHERE je.docstatus = 1
+          AND je.company = %(company)s
+          AND jea.party_type = %(party_type)s
+          AND jea.party = %(party)s
+          AND jea.account = %(account)s
+          AND (
+              jea.reference_type IS NULL
+              OR jea.reference_type = ''
+              OR jea.reference_type IN ('Sales Order', 'Purchase Order')
+          )
+        GROUP BY je.name
+        HAVING amount > 0
+        """,
+        {
+            "company": company,
+            "party_type": party_type,
+            "party": party,
+            "account": party_account,
+        },
+        as_dict=True,
+    )
+    if not rows:
+        return []
+
+    je_names = [row.voucher_no for row in rows]
+    allocated_rows = frappe.db.sql(
+        """
+        SELECT per.reference_name AS je_name, COALESCE(SUM(per.allocated_amount), 0) AS allocated
+        FROM `tabPayment Entry Reference` per
+        INNER JOIN `tabPayment Entry` pe ON pe.name = per.parent
+        WHERE per.reference_doctype = 'Journal Entry'
+          AND per.reference_name IN %(je_names)s
+          AND pe.docstatus = 1
+          AND pe.party_type = %(party_type)s
+          AND pe.party = %(party)s
+        GROUP BY per.reference_name
+        """,
+        {"je_names": je_names, "party_type": party_type, "party": party},
+        as_dict=True,
+    )
+    allocated_map = {row.je_name: flt(row.allocated) for row in allocated_rows}
+
+    label_doctype = "Supplier" if party_type == "Supplier" else "Customer"
+    label_field = "supplier_name" if party_type == "Supplier" else "customer_name"
+    party_name = frappe.get_cached_value(label_doctype, party, label_field) or party
+
+    normalized_rows = []
+    for row in rows:
+        outstanding = flt(flt(row.amount) - allocated_map.get(row.voucher_no, 0.0), 2)
+        if outstanding <= 0:
+            continue
+
+        row_currency = row.currency or currency
+        if currency and not include_all_currencies and row_currency and row_currency != currency:
+            continue
+
+        normalized_rows.append(
+            frappe._dict(
+                {
+                    "voucher_no": row.voucher_no,
+                    "voucher_type": "Journal Entry",
+                    "outstanding_amount": outstanding,
+                    "outstanding_amount_in_invoice_currency": outstanding,
+                    "invoice_amount": outstanding,
+                    "due_date": row.posting_date,
+                    "posting_date": row.posting_date,
+                    "currency": row_currency,
+                    "pos_profile": None,
+                    "customer": party,
+                    "customer_name": party_name,
+                    "party": party,
+                    "party_name": party_name,
+                    "party_type": party_type,
+                    "conversion_rate": 1,
+                }
+            )
+        )
+
+    return normalized_rows
+
+
+def _get_unreconciled_journal_dues_for_company(company, party_type):
+    """Company-wide, all-parties version of _get_unreconciled_journal_dues --
+    powers the "browse everyone's outstanding" view (get_all_outstanding_invoices)
+    for when no specific customer/supplier has been picked yet.
+
+    Matched by the account's own account_type (Receivable/Payable) rather
+    than resolving each individual party's receivable/payable account, since
+    there's no single party to resolve one for here -- this only misses a
+    party whose receivable/payable account has been overridden to something
+    without that account_type set, which the per-party path above doesn't
+    have this limitation for.
+
+    Known simplification (shared with ERPNext's own Payment Reconciliation
+    tool, which allocates at the same granularity): if one Journal Entry
+    carries rows for more than one party, a payment against any one of them
+    is subtracted from the JE's total here rather than tracked per party,
+    since Payment Entry Reference only records which JE was paid, not which
+    party row within it.
+    """
+    if not company:
+        return []
+
+    account_type = "Payable" if party_type == "Supplier" else "Receivable"
+    due_expr = (
+        "jea.credit_in_account_currency - jea.debit_in_account_currency"
+        if party_type == "Supplier"
+        else "jea.debit_in_account_currency - jea.credit_in_account_currency"
+    )
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT je.name AS voucher_no,
+               jea.party AS party,
+               MIN(je.posting_date) AS posting_date,
+               MIN(jea.account_currency) AS currency,
+               SUM({due_expr}) AS amount
+        FROM `tabJournal Entry Account` jea
+        INNER JOIN `tabJournal Entry` je ON je.name = jea.parent
+        INNER JOIN `tabAccount` acc ON acc.name = jea.account
+        WHERE je.docstatus = 1
+          AND je.company = %(company)s
+          AND jea.party_type = %(party_type)s
+          AND jea.party IS NOT NULL AND jea.party != ''
+          AND acc.account_type = %(account_type)s
+          AND (
+              jea.reference_type IS NULL
+              OR jea.reference_type = ''
+              OR jea.reference_type IN ('Sales Order', 'Purchase Order')
+          )
+        GROUP BY je.name, jea.party
+        HAVING amount > 0
+        """,
+        {"company": company, "party_type": party_type, "account_type": account_type},
+        as_dict=True,
+    )
+    if not rows:
+        return []
+
+    je_names = list({row.voucher_no for row in rows})
+    # Keyed by (JE name, party) -- not just JE name -- since one migration JE
+    # commonly carries several different parties' lines, and Payment Entry
+    # Reference itself has no per-row link back to which line it covered;
+    # the parent Payment Entry's own party/party_type is what disambiguates
+    # which party's portion of that shared JE a given payment actually paid.
+    allocated_rows = frappe.db.sql(
+        """
+        SELECT per.reference_name AS je_name, pe.party AS party,
+               COALESCE(SUM(per.allocated_amount), 0) AS allocated
+        FROM `tabPayment Entry Reference` per
+        INNER JOIN `tabPayment Entry` pe ON pe.name = per.parent
+        WHERE per.reference_doctype = 'Journal Entry'
+          AND per.reference_name IN %(je_names)s
+          AND pe.docstatus = 1
+          AND pe.party_type = %(party_type)s
+        GROUP BY per.reference_name, pe.party
+        """,
+        {"je_names": je_names, "party_type": party_type},
+        as_dict=True,
+    )
+    allocated_map = {(row.je_name, row.party): flt(row.allocated) for row in allocated_rows}
+
+    label_doctype = "Supplier" if party_type == "Supplier" else "Customer"
+    label_field = "supplier_name" if party_type == "Supplier" else "customer_name"
+    party_names = {}
+
+    normalized_rows = []
+    for row in rows:
+        outstanding = flt(
+            flt(row.amount) - allocated_map.get((row.voucher_no, row.party), 0.0), 2
+        )
+        if outstanding <= 0:
+            continue
+
+        if row.party not in party_names:
+            party_names[row.party] = (
+                frappe.get_cached_value(label_doctype, row.party, label_field) or row.party
+            )
+
+        normalized_rows.append(
+            {
+                "voucher_no": row.voucher_no,
+                "voucher_type": "Journal Entry",
+                "outstanding_amount": outstanding,
+                "invoice_amount": outstanding,
+                "due_date": str(row.posting_date) if row.posting_date else "",
+                "posting_date": str(row.posting_date) if row.posting_date else "",
+                "currency": row.currency or "",
+                "party": row.party or "",
+                "party_name": party_names[row.party],
+            }
+        )
+
+    return normalized_rows
+
+
 def _coerce_text_filter(value, field_label):
     if value is None:
         return None
@@ -243,6 +499,16 @@ def get_outstanding_invoices(
                     }
                 )
             )
+
+        normalized_rows.extend(
+            _get_unreconciled_journal_dues(
+                party=customer,
+                party_type=party_type,
+                company=company,
+                currency=currency,
+                include_all_currencies=include_all_currencies,
+            )
+        )
 
         normalized_rows = sorted(
             normalized_rows,

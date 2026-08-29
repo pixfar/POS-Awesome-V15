@@ -10,7 +10,7 @@ to preserve stable dotted paths used by existing clients and hooks.
 import json
 import frappe
 from frappe import _
-from frappe.utils import flt, nowdate, getdate
+from frappe.utils import flt, cint, nowdate, getdate
 from erpnext.accounts.party import get_party_account
 from erpnext.accounts.utils import get_account_currency
 from erpnext.setup.utils import get_exchange_rate
@@ -28,6 +28,8 @@ from posawesome.posawesome.api.payment_processing.data import (
     get_unallocated_payments,
     get_available_pos_profiles,
     get_unreconciled_entries,
+    _get_unreconciled_journal_dues,
+    _get_unreconciled_journal_dues_for_company,
 )
 from posawesome.posawesome.api.payment_processing.reconciliation import auto_reconcile_customer_invoices
 from posawesome.posawesome.api.payment_processing.processor import process_pos_payment
@@ -129,28 +131,47 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
         if not inv_no:
             continue
 
-        inv_doc = frappe.get_cached_doc(voucher_type, inv_no)
-        if inv_no not in remaining_inv:
-            remaining_inv[inv_no] = flt(inv_doc.outstanding_amount)
+        # A Journal Entry due (see _get_unreconciled_journal_dues) isn't an
+        # invoice -- it has no outstanding_amount/grand_total/conversion_rate
+        # fields to read a doc for, so its row already carries everything
+        # needed (as derived at query time) instead of being looked up here.
+        is_journal_due = voucher_type == "Journal Entry"
+        if is_journal_due:
+            if inv_no not in remaining_inv:
+                remaining_inv[inv_no] = flt(inv.get("outstanding_amount"))
+            inv_currency = inv.get("currency") or party_account_currency
+            inv_conv_rate = flt(inv.get("conversion_rate")) or 1
+            inv_due_date = inv.get("due_date") or inv.get("posting_date")
+        else:
+            inv_doc = frappe.get_cached_doc(voucher_type, inv_no)
+            if inv_no not in remaining_inv:
+                remaining_inv[inv_no] = flt(inv_doc.outstanding_amount)
+            inv_currency = inv_doc.currency
+            inv_conv_rate = flt(inv_doc.conversion_rate) or 1
+            inv_due_date = inv_doc.due_date
+
         if remaining_inv[inv_no] <= 0:
             continue
 
-        inv_currency = inv_doc.currency
-        inv_conv_rate = flt(inv_doc.conversion_rate) or 1
-
         if inv_currency == party_account_currency:
             inv_outstanding_party = flt(remaining_inv[inv_no])
-            inv_total_party = flt(
-                inv_doc.grand_total or inv_doc.rounded_total or inv_outstanding_party
+            inv_total_party = (
+                inv_outstanding_party
+                if is_journal_due
+                else flt(inv_doc.grand_total or inv_doc.rounded_total or inv_outstanding_party)
             )
         elif party_account_currency == company_currency:
             inv_outstanding_party = flt(
                 remaining_inv[inv_no] * inv_conv_rate, precision
             )
-            inv_total_party = flt(
-                inv_doc.base_rounded_total
-                or inv_doc.base_grand_total
-                or inv_outstanding_party
+            inv_total_party = (
+                inv_outstanding_party
+                if is_journal_due
+                else flt(
+                    inv_doc.base_rounded_total
+                    or inv_doc.base_grand_total
+                    or inv_outstanding_party
+                )
             )
         else:
             inv_to_party = flt(
@@ -159,10 +180,14 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
             inv_outstanding_party = flt(
                 remaining_inv[inv_no] * inv_to_party, precision
             )
-            inv_total_party = flt(
-                (inv_doc.base_rounded_total or inv_doc.base_grand_total)
-                * inv_to_party,
-                precision,
+            inv_total_party = (
+                inv_outstanding_party
+                if is_journal_due
+                else flt(
+                    (inv_doc.base_rounded_total or inv_doc.base_grand_total)
+                    * inv_to_party,
+                    precision,
+                )
             )
 
         if inv_outstanding_party <= 0:
@@ -177,7 +202,7 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
             {
                 "reference_doctype": voucher_type,
                 "reference_name": inv_no,
-                "due_date": inv_doc.due_date,
+                "due_date": inv_due_date,
                 "total_amount": inv_total_party,
                 "outstanding_amount": inv_outstanding_party,
                 "allocated_amount": allocation,
@@ -209,7 +234,16 @@ def get_all_outstanding_invoices(
     page_start=0,
     page_length=10,
 ):
-    """Return outstanding invoices for a company without filtering by party."""
+    """Return outstanding invoices for a company without filtering by party.
+
+    Includes both invoice-based dues and dues posted directly via Journal
+    Entry (e.g. opening balances from data migration) -- see
+    _get_unreconciled_journal_dues_for_company. Invoice and JE rows come from
+    two separate queries with no shared ordering key, so they're merged and
+    paginated here in Python rather than at the SQL level; MAX_ROWS caps the
+    invoice fetch to keep that bounded on a company with a very large number
+    of outstanding invoices.
+    """
     company = company or _default_company()
     if not company:
         return {"invoices": [], "total": 0, "has_more": False}
@@ -222,8 +256,8 @@ def get_all_outstanding_invoices(
     party_field = "supplier" if party_type == "Supplier" else "customer"
     name_field = "supplier_name" if party_type == "Supplier" else "customer_name"
 
+    MAX_ROWS = 2000
     filters = {"company": company, "docstatus": 1, "outstanding_amount": (">", 0)}
-    total = frappe.db.count(doctype, filters)
 
     invoices = frappe.get_list(
         doctype,
@@ -239,8 +273,7 @@ def get_all_outstanding_invoices(
             f"`tab{doctype}`.`{name_field}` as party_name",
         ],
         order_by="posting_date asc, name asc",
-        limit_start=page_start,
-        limit_page_length=page_length,
+        limit_page_length=MAX_ROWS,
     )
 
     rows = [
@@ -257,9 +290,14 @@ def get_all_outstanding_invoices(
         }
         for inv in invoices
     ]
+    rows.extend(_get_unreconciled_journal_dues_for_company(company, party_type))
+    rows.sort(key=lambda r: (r["posting_date"] or "", r["voucher_no"] or ""))
+
+    total = len(rows)
+    page = rows[page_start : page_start + page_length]
 
     return {
-        "invoices": rows,
+        "invoices": page,
         "total": total,
         "has_more": (page_start + page_length) < total,
     }
@@ -560,9 +598,21 @@ def delete_cancelled_payment_entry(name):
 
 @frappe.whitelist()
 def get_party_outstanding(party, party_type="Customer", company=None):
-    """Return total outstanding amount for a customer or supplier."""
+    """Return total outstanding amount (and row count) for a customer or
+    supplier.
+
+    Includes both invoice-based dues (Sales/Purchase Invoice) and dues that
+    were posted directly via Journal Entry -- e.g. opening balances brought
+    over at data migration instead of through an invoice. See
+    _get_unreconciled_journal_dues for how a JE row's outstanding amount is
+    derived. `count` powers the "N Outstanding Invoices" label in the
+    frontend -- cheap to add here (a single extra COUNT(*) alongside the
+    SUM already being computed) rather than a second round trip, and it's
+    the true total regardless of how many rows the paginated invoice list
+    has loaded so far.
+    """
     if not party:
-        return {"outstanding": 0}
+        return {"outstanding": 0, "count": 0}
 
     company = company or _default_company()
     if party_type == "Supplier":
@@ -572,13 +622,9 @@ def get_party_outstanding(party, party_type="Customer", company=None):
         doctype = "Sales Invoice"
         party_field = "customer"
 
-    filters = {party_field: party, "docstatus": 1, "outstanding_amount": (">", 0)}
-    if company:
-        filters["company"] = company
-
-    outstanding = frappe.db.sql(
+    outstanding, invoice_count = frappe.db.sql(
         f"""
-        SELECT COALESCE(SUM(outstanding_amount), 0)
+        SELECT COALESCE(SUM(outstanding_amount), 0), COUNT(*)
         FROM `tab{doctype}`
         WHERE {party_field} = %(party)s
           AND docstatus = 1
@@ -586,9 +632,18 @@ def get_party_outstanding(party, party_type="Customer", company=None):
           {("AND company = %(company)s" if company else "")}
         """,
         {"party": party, "company": company},
-    )[0][0]
+    )[0]
 
-    return {"outstanding": flt(outstanding)}
+    journal_dues = _get_unreconciled_journal_dues(
+        party=party,
+        party_type=party_type,
+        company=company,
+        include_all_currencies=True,
+    )
+    outstanding = flt(outstanding) + sum(flt(row.get("outstanding_amount")) for row in journal_dues)
+    count = cint(invoice_count) + len(journal_dues)
+
+    return {"outstanding": flt(outstanding), "count": count}
 
 
 @frappe.whitelist()
