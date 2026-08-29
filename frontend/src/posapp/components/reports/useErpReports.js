@@ -130,6 +130,11 @@ const reportGroups = [
 			},
 			{
 				title: 'Production Requirement Report',
+				name: 'Production Requirement Report',
+				icon: 'mdi-clipboard-list-outline',
+			},
+			{
+				title: 'Showroom Wise Low Stock Summary Report',
 				name: 'Low Stock and Stock Summary Report',
 				icon: 'mdi-clipboard-list-outline',
 			},
