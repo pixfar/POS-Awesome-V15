@@ -14,19 +14,12 @@
 			@nav-click="handleNavClick"
 			@go-desk="goDesk"
 		>
-			<!-- Slot for status indicator -->
-			<template #status-indicator>
-				<div class="status-entry-surface">
-					<StatusIndicator
-						:network-online="networkOnline"
-						:server-online="serverOnline"
-						:server-connecting="serverConnecting"
-						:is-ip-host="isIpHost"
-						:bootstrap-warning-active="bootstrapWarningActive"
-						:bootstrap-warning-tooltip="bootstrapWarningTooltip"
-					/>
-				</div>
-			</template>
+			<!-- Network/server status indicator (the "Online"/"Limited"/"Offline"
+			     pill) is deliberately hidden by request -- NavbarAppBar's
+			     `.gadget-wrapper:empty { display: none; }` collapses this slot
+			     cleanly with no gap when nothing is provided for it, so this
+			     is simply left unrendered rather than removing the underlying
+			     StatusIndicator component/state. -->
 
 			<!-- Slot for cache usage meter -->
 			<template #cache-usage-meter>
@@ -119,7 +112,6 @@ import NavbarAppBar from "./navbar/NavbarAppBar.vue";
 import NavbarDrawer from "./navbar/NavbarDrawer.vue";
 import NavbarSettingsPanel from "./navbar/NavbarSettingsPanel.vue";
 import NotificationBell from "./navbar/NotificationBell.vue";
-import StatusIndicator from "./navbar/StatusIndicator.vue";
 import CacheUsageMeter from "./navbar/CacheUsageMeter.vue";
 import AboutDialog from "./navbar/AboutDialog.vue";
 import EmployeeSwitchDialog from "./pos/employee/EmployeeSwitchDialog.vue";
@@ -187,7 +179,6 @@ export default {
 		NavbarDrawer,
 		NavbarSettingsPanel,
 		NotificationBell,
-		StatusIndicator,
 		CacheUsageMeter,
 		AboutDialog,
 		EmployeeSwitchDialog,
