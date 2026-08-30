@@ -340,8 +340,19 @@ def get_buying_price_list():
     return _resolve_buying_price_list()
 
 
-def get_supplier_info(supplier):
-    """Get supplier details including the effective buying price list."""
+def get_supplier_info(supplier, company=None):
+    """Get supplier details including the effective buying price list.
+
+    outstanding_amount is the total due for this supplier -- open Purchase
+    Invoices plus any due posted directly via Journal Entry (e.g. a migrated
+    opening balance) that was never invoiced, same "Due" concept already
+    shown on the Payments > Supplier screen (see
+    payment_processing.data.get_outstanding_invoices /
+    _get_unreconciled_journal_dues). Company is needed only to resolve the
+    Journal Entry side (it scopes which payable account to look at); falls
+    back to the user's/site's default company when the caller (the new
+    Purchase Invoice screen) doesn't have one yet.
+    """
     supplier = _resolve_supplier(supplier)
     if not supplier:
         frappe.throw(_("Supplier not found."))
@@ -353,7 +364,7 @@ def get_supplier_info(supplier):
     if buying_price_list:
         price_list_currency = frappe.db.get_value("Price List", buying_price_list, "currency")
 
-    outstanding_amount = (
+    invoice_outstanding = (
         frappe.db.sql(
             """
             SELECT COALESCE(SUM(outstanding_amount), 0)
@@ -367,6 +378,20 @@ def get_supplier_info(supplier):
         or 0
     )
 
+    journal_outstanding = 0
+    resolved_company = company or (
+        frappe.defaults.get_user_default("Company") or frappe.defaults.get_global_default("Company")
+    )
+    if resolved_company:
+        from posawesome.posawesome.api.payment_processing.data import _get_unreconciled_journal_dues
+
+        journal_rows = _get_unreconciled_journal_dues(
+            party=supplier,
+            party_type="Supplier",
+            company=resolved_company,
+        )
+        journal_outstanding = flt(sum(flt(row.get("outstanding_amount")) for row in journal_rows))
+
     return {
         "supplier": supplier,
         "supplier_name": supplier_doc.supplier_name,
@@ -374,7 +399,9 @@ def get_supplier_info(supplier):
         "default_currency": supplier_doc.default_currency,
         "buying_price_list": buying_price_list,
         "price_list_currency": price_list_currency,
-        "outstanding_amount": flt(outstanding_amount),
+        "outstanding_amount": flt(flt(invoice_outstanding) + journal_outstanding),
+        "invoice_outstanding": flt(invoice_outstanding),
+        "journal_outstanding": journal_outstanding,
     }
 
 

@@ -128,50 +128,55 @@
 								</v-card>
 							</div>
 
-							<v-card
-								v-if="canEditDoNumber"
-								flat
-								class="invoice-section-card pos-themed-card"
+							<div
+								v-if="canEditDoNumber || canEditPaymentAccount"
+								class="invoice-meta-grid"
 							>
-								<div class="invoice-section-heading">
-									<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
-								</div>
-								<div class="pa-3">
-									<v-text-field
-										v-model="doNumber"
-										:label="__('DO Number')"
-										density="compact"
-										variant="outlined"
-										hide-details
-										class="pos-themed-input"
-									/>
-								</div>
-							</v-card>
+								<v-card
+									v-if="canEditDoNumber"
+									flat
+									class="invoice-section-card pos-themed-card"
+								>
+									<div class="invoice-section-heading">
+										<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
+									</div>
+									<div class="pa-3">
+										<v-text-field
+											v-model="doNumber"
+											:label="__('DO Number')"
+											density="compact"
+											variant="outlined"
+											hide-details
+											class="pos-themed-input"
+										/>
+									</div>
+								</v-card>
 
-							<v-card
-								v-if="canEditPaymentAccount"
-								flat
-								class="invoice-section-card pos-themed-card"
-							>
-								<div class="invoice-section-heading">
-									<h3 class="invoice-section-heading__title">{{ __("Accounts") }}</h3>
-								</div>
-								<div class="pa-3">
-									<v-autocomplete
-										v-model="paymentAccountOverride"
-										:items="cashAccountOptions"
-										item-title="name"
-										item-value="name"
-										:label="__('Accounts')"
-										density="compact"
-										variant="outlined"
-										hide-details
-										clearable
-										:loading="cashAccountsLoading"
-										class="pos-themed-input"
-									/>
-								</div>
-							</v-card>
+								<v-card
+									v-if="canEditPaymentAccount"
+									flat
+									class="invoice-section-card pos-themed-card"
+								>
+									<div class="invoice-section-heading">
+										<h3 class="invoice-section-heading__title">{{ __("Accounts") }}</h3>
+									</div>
+									<div class="pa-3">
+										<v-autocomplete
+											v-model="paymentAccountOverride"
+											:items="cashAccountOptions"
+											item-title="name"
+											item-value="name"
+											:label="__('Accounts')"
+											density="compact"
+											variant="outlined"
+											hide-details
+											clearable
+											:loading="cashAccountsLoading"
+											class="pos-themed-input"
+										/>
+									</div>
+								</v-card>
+							</div>
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading">

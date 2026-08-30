@@ -82,7 +82,16 @@ def get_customer_balance(customer):
 
 
 @frappe.whitelist()
-def get_customer_outstanding(customer):
+def get_customer_outstanding(customer, company=None):
+    """Total due for this customer -- open Sales Invoices plus any due
+    posted directly via Journal Entry (e.g. a migrated opening balance) that
+    was never invoiced, same "Due" concept already shown on the Payments >
+    Customer screen (see payment_processing.data.get_outstanding_invoices /
+    _get_unreconciled_journal_dues). Company is needed only to resolve the
+    Journal Entry side (it scopes which receivable account to look at);
+    falls back to the user's/site's default company when the caller (the
+    new Sales Invoice screen) doesn't have one yet.
+    """
     if not customer:
         return {"outstanding": 0}
 
@@ -96,7 +105,29 @@ def get_customer_outstanding(customer):
             (customer,),
             as_dict=True,
         )
-        return {"outstanding": flt(result[0].get("outstanding", 0)) if result else 0}
+        invoice_outstanding = flt(result[0].get("outstanding", 0)) if result else 0
+
+        journal_outstanding = 0
+        resolved_company = company or (
+            frappe.defaults.get_user_default("Company") or frappe.defaults.get_global_default("Company")
+        )
+        if resolved_company:
+            from posawesome.posawesome.api.payment_processing.data import (
+                _get_unreconciled_journal_dues,
+            )
+
+            journal_rows = _get_unreconciled_journal_dues(
+                party=customer,
+                party_type="Customer",
+                company=resolved_company,
+            )
+            journal_outstanding = flt(sum(flt(row.get("outstanding_amount")) for row in journal_rows))
+
+        return {
+            "outstanding": flt(invoice_outstanding + journal_outstanding),
+            "invoice_outstanding": invoice_outstanding,
+            "journal_outstanding": journal_outstanding,
+        }
     except Exception as e:
         frappe.log_error(f"Error fetching customer outstanding: {e}")
         return {"outstanding": 0}

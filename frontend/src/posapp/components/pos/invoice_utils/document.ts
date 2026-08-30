@@ -177,6 +177,15 @@ export function get_invoice_doc(context: any) {
 	// so carry it through explicitly -- admin-only field set directly on
 	// invoice_doc by the DO Number input in Invoice.vue.
 	doc.custom_do_number = context.invoice_doc?.custom_do_number ?? doc.custom_do_number ?? null;
+	// Admin-only "Accounts" override (System Manager / BSP Admin) -- routes
+	// this invoice's payment(s) through a different showroom's Cash In Hand
+	// account than the cashier's own active POS Profile default. Re-verified
+	// server-side in invoice_processing/creation.py before being honored, so
+	// sending it for a non-admin is harmless (silently ignored there).
+	doc.payment_account =
+		context.canEditPaymentAccount && context.paymentAccountOverride
+			? context.paymentAccountOverride
+			: null;
 
 	// Keep stock update explicit for invoice doctypes so submit-time checks are predictable.
 	if (doc.doctype === "Sales Invoice" || doc.doctype === "POS Invoice") {

@@ -24,8 +24,8 @@ def get_buying_price_list():
 
 
 @frappe.whitelist()
-def get_supplier_info(supplier):
-	return po.get_supplier_info(supplier)
+def get_supplier_info(supplier, company=None):
+	return po.get_supplier_info(supplier, company=company)
 
 
 @frappe.whitelist()

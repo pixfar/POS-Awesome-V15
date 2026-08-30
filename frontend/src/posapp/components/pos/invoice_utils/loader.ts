@@ -111,7 +111,7 @@ export async function fetch_customer_outstanding(context: any) {
 		}
 		const r = await frappe.call({
 			method: "posawesome.posawesome.api.customer.get_customer_outstanding",
-			args: { customer: context.customer },
+			args: { customer: context.customer, company: context.pos_profile?.company },
 		});
 		context.customer_outstanding = r?.message?.outstanding || 0;
 	} catch (error) {

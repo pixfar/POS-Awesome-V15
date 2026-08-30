@@ -26,9 +26,10 @@ from posawesome.posawesome.api.invoice_processing.stock import (
     _collect_stock_errors,
 )
 from posawesome.posawesome.api.payment_processing.utils import get_bank_cash_account as get_bank_account
+from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
 from posawesome.posawesome.api.utilities import ensure_child_doctype, set_batch_nos_for_bundels
 from posawesome.posawesome.api.payments import redeeming_customer_credit
-from posawesome.posawesome.utils.warehouse_doc_permissions import ensure_can_create
+from posawesome.posawesome.utils.warehouse_doc_permissions import ensure_can_create, is_privileged_invoice_viewer
 from posawesome.posawesome.api.idempotency import (
     extract_invoice_client_request_id,
     find_invoice_by_client_request_id,
@@ -766,6 +767,29 @@ def _reapply_incoming_payment_amounts(invoice_doc, incoming_payments):
             payment.amount = amounts_by_mode[payment.mode_of_payment]
 
 
+def _apply_payment_account_override(invoice_doc, payment_account_override):
+    """Route every payment row's company-side account through the same
+    "showroom cash account" concept Purchase already uses (see
+    purchase_orders._create_payment_entry): the submitting cashier's POS
+    Profile account_for_change_amount by default, or -- System Manager /
+    BSP Admin only, re-verified here rather than trusted from the client --
+    a different Cash In Hand account picked from the "Accounts" dropdown.
+
+    Left as a strict no-op (existing ERPNext Mode of Payment default
+    accounts untouched) when neither applies, so sites that never configured
+    account_for_change_amount see no behaviour change at all.
+    """
+    if payment_account_override and not is_privileged_invoice_viewer():
+        payment_account_override = None
+
+    account = payment_account_override or get_pos_change_account()
+    if not account:
+        return
+
+    for payment in invoice_doc.payments or []:
+        payment.account = account
+
+
 def _normalize_return_payment_rows(invoice_doc, conversion_rate=1):
     if not invoice_doc.is_return:
         return
@@ -890,6 +914,7 @@ def update_invoice(data):
     # Set missing values first
     invoice_doc.set_missing_values()
     _reapply_incoming_payment_amounts(invoice_doc, data.get("payments"))
+    _apply_payment_account_override(invoice_doc, data.get("payment_account"))
     if effective_price_list:
         invoice_doc.selling_price_list = effective_price_list
 
@@ -1105,6 +1130,12 @@ def submit_invoice(invoice, data, submit_in_background=False):
         )
 
     _deduplicate_free_items(invoice_doc)
+
+    # Covers the "existing draft invoice, invoice_doc.update(invoice)" branch
+    # above -- update_invoice() already applied this for the "create" branch,
+    # but calling it again here is a harmless no-op in that case (same
+    # computation, same result) and guarantees both branches end up covered.
+    _apply_payment_account_override(invoice_doc, invoice.get("payment_account"))
 
     if invoice_doc.redeem_loyalty_points and not invoice_doc.loyalty_program:
         invoice_doc.loyalty_program = frappe.db.get_value("Customer", invoice_doc.customer, "loyalty_program")

@@ -83,7 +83,7 @@ export function usePurchaseOrder(options: {
 		try {
 			const { message } = await frappe.call({
 				method: "posawesome.posawesome.api.purchase_invoices.get_supplier_info",
-				args: { supplier: supplierName },
+				args: { supplier: supplierName, company: posProfile.value?.company },
 			});
 			if (message) {
 				supplierPriceList.value = message.buying_price_list || null;

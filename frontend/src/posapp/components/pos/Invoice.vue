@@ -161,28 +161,58 @@
 						</v-card>
 					</div>
 
-					<v-card
-						v-if="canEditDoNumber"
-						flat
-						class="invoice-section-card pos-themed-card"
+					<div
+						v-if="canEditDoNumber || canEditPaymentAccount"
+						class="invoice-meta-grid"
 					>
-						<div class="invoice-section-heading">
-							<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
-						</div>
-						<div class="pa-3">
-							<v-text-field
-								v-model="custom_do_number"
-								:label="__('DO Number')"
-								density="compact"
-								variant="outlined"
-								hide-details
-								class="pos-themed-input"
-								:loading="doNumberLookupLoading"
-								@keyup.enter="handleDoNumberLookup"
-								@update:focused="onDoNumberFocusChange"
-							/>
-						</div>
-					</v-card>
+						<v-card
+							v-if="canEditDoNumber"
+							flat
+							class="invoice-section-card pos-themed-card"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
+							</div>
+							<div class="pa-3">
+								<v-text-field
+									v-model="custom_do_number"
+									:label="__('DO Number')"
+									density="compact"
+									variant="outlined"
+									hide-details
+									class="pos-themed-input"
+									:loading="doNumberLookupLoading"
+									@keyup.enter="handleDoNumberLookup"
+									@update:focused="onDoNumberFocusChange"
+								/>
+							</div>
+						</v-card>
+
+						<v-card
+							v-if="canEditPaymentAccount"
+							flat
+							class="invoice-section-card pos-themed-card"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title">{{ __("Accounts") }}</h3>
+							</div>
+							<div class="pa-3">
+								<v-autocomplete
+									v-model="paymentAccountOverride"
+									:items="cashAccountOptions"
+									item-title="name"
+									item-value="name"
+									:label="__('Accounts')"
+									density="compact"
+									variant="outlined"
+									hide-details
+									clearable
+									:loading="cashAccountsLoading"
+									class="pos-themed-input"
+								/>
+							</div>
+						</v-card>
+					</div>
 
 					<div class="invoice-meta-grid">
 						<v-card
@@ -516,6 +546,9 @@ export default {
 			warehouses: [],
 			doNumberLookupLoading: false,
 			doNumberDraft: "",
+			cashAccountOptions: [],
+			cashAccountsLoading: false,
+			paymentAccountOverride: null,
 		};
 	},
 
@@ -612,6 +645,10 @@ export default {
 			return roles.includes("BSP Admin") || roles.includes("System Manager");
 		},
 		canEditPostingDate() {
+			const roles = frappe?.boot?.user?.roles || [];
+			return roles.includes("BSP Admin") || roles.includes("System Manager");
+		},
+		canEditPaymentAccount() {
 			const roles = frappe?.boot?.user?.roles || [];
 			return roles.includes("BSP Admin") || roles.includes("System Manager");
 		},
@@ -1154,6 +1191,34 @@ export default {
 			this.update_price_list();
 			this.fetch_available_currencies();
 			this.refresh_parked_orders();
+
+			// Admin-only "Accounts" override -- default to this POS Profile's own
+			// change account, then let a System Manager / BSP Admin pick a
+			// different showroom's Cash In Hand account from the dropdown (see
+			// canEditPaymentAccount / get_invoice_doc's payment_account wiring).
+			this.paymentAccountOverride = data.pos_profile?.account_for_change_amount || null;
+			if (this.canEditPaymentAccount) {
+				this.loadCashInHandAccounts(this.company);
+			}
+		},
+		async loadCashInHandAccounts(company) {
+			if (!company || !this.canEditPaymentAccount) {
+				this.cashAccountOptions = [];
+				return;
+			}
+			this.cashAccountsLoading = true;
+			try {
+				const accounts = await frappe.call({
+					method: "posawesome.posawesome.api.payment_processing.utils.get_cash_in_hand_accounts",
+					args: { company },
+				});
+				this.cashAccountOptions = accounts.message || [];
+			} catch (error) {
+				console.error("Error loading Cash In Hand accounts:", error);
+				this.cashAccountOptions = [];
+			} finally {
+				this.cashAccountsLoading = false;
+			}
 		},
 		async refresh_parked_orders() {
 			if (!this.pos_profile || !this.pos_opening_shift?.name) {

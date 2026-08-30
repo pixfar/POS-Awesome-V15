@@ -66,8 +66,8 @@ def get_customer_balance(customer):
 
 
 @frappe.whitelist()
-def get_customer_outstanding(customer):
-    return customers.get_customer_outstanding(customer)
+def get_customer_outstanding(customer, company=None):
+    return customers.get_customer_outstanding(customer, company=company)
 
 
 @frappe.whitelist()
