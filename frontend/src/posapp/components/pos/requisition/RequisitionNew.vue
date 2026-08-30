@@ -45,6 +45,7 @@
 											class="pos-themed-input mb-2"
 										/>
 										<v-autocomplete
+											v-if="canChangeTargetWarehouse"
 											v-model="targetWarehouse"
 											:items="targetWarehouseOptions"
 											item-title="warehouse_name"
@@ -54,6 +55,18 @@
 											variant="outlined"
 											color="primary"
 											hide-details
+											class="pos-themed-input"
+										/>
+										<v-text-field
+											v-else
+											:model-value="targetWarehouseLabel || targetWarehouse"
+											:label="__('Target Warehouse')"
+											density="compact"
+											variant="outlined"
+											color="primary"
+											hide-details
+											readonly
+											prepend-inner-icon="mdi-warehouse"
 											class="pos-themed-input"
 										/>
 									</div>
@@ -245,7 +258,7 @@ import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import { useRequisition } from '../../../composables/pos/requisition/useRequisition';
 import { useItemsStore } from '../../../stores/itemsStore';
-import { isPosWarehouseSwitcher } from '../../../utils/posWarehouseAccess';
+import { isPosWarehouseSwitcher, isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import ItemsSelector from '../items/ItemsSelector.vue';
 import RequisitionItemsTable from './RequisitionItemsTable.vue';
 import { getOpeningStorage } from '../../../../offline/index';
@@ -254,6 +267,9 @@ import { useCompactTransactionPanel } from '../../../composables/core/useCompact
 
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
+// Non-privileged users (see canChangeTargetWarehouse below) are locked to
+// this target warehouse rather than picking a different one.
+const DEFAULT_TARGET_WAREHOUSE = 'Store Room - BSP';
 
 export default {
 	name: 'RequisitionNew',
@@ -283,6 +299,7 @@ export default {
 		const warehouseOptions = ref([]);
 		const sourceWarehouseOptions = ref([]);
 		const sourceWarehouseLabel = ref('');
+		const targetWarehouseLabel = ref('');
 		const warehouseLoading = ref(false);
 		const itemSearchQuery = ref('');
 		const selectedSearchItemCode = ref(null);
@@ -291,6 +308,10 @@ export default {
 		let itemSearchTimeout = null;
 
 		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
+		// Same gate as the DO Number card / posting date fields elsewhere --
+		// anyone without BSP Admin/System Manager is locked to the "Store
+		// Room" target warehouse rather than picking a different one.
+		const canChangeTargetWarehouse = computed(() => isFundTransferManager());
 
 		const {
 			requisitionItems,
@@ -432,12 +453,25 @@ export default {
 			warehouseLoading.value = false;
 		};
 
+		const applyDefaultTargetWarehouse = () => {
+			const match = warehouseOptions.value.find(
+				(row) => row.name === DEFAULT_TARGET_WAREHOUSE,
+			);
+			targetWarehouse.value = match ? match.name : DEFAULT_TARGET_WAREHOUSE;
+			targetWarehouseLabel.value = match
+				? match.warehouse_name || match.name
+				: DEFAULT_TARGET_WAREHOUSE;
+		};
+
 		const loadWarehouses = async () => {
 			await loadAllWarehouses();
 			if (canChangePosWarehouse.value) {
 				await loadSourceWarehouses();
 			} else {
 				await loadActiveSourceWarehouse();
+			}
+			if (!canChangeTargetWarehouse.value) {
+				applyDefaultTargetWarehouse();
 			}
 		};
 
@@ -564,10 +598,12 @@ export default {
 			selectorCols,
 			setPanel,
 			canChangePosWarehouse,
+			canChangeTargetWarehouse,
 			sourceWarehouse,
 			sourceWarehouseLabel,
 			sourceWarehouseOptions,
 			targetWarehouse,
+			targetWarehouseLabel,
 			targetWarehouseOptions,
 			warehouseLoading,
 			requiredDateDisplay,

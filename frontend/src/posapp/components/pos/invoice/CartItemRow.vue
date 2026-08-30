@@ -78,7 +78,13 @@
 
 			<!-- Stock Qty Column -->
 			<td v-else-if="column.key === 'actual_qty'" class="text-center" :data-column-key="'actual_qty'">
-				<span style="color: #000000; font-size: 1rem; font-weight: 500;">
+				<!-- Non-stock items (services etc.) have no real inventory, so
+				     there's nothing meaningful to show here. -->
+				<span
+					v-if="item.is_stock_item === 0 || item.is_stock_item === false"
+					class="text-medium-emphasis"
+				>—</span>
+				<span v-else style="color: #000000; font-size: 1rem; font-weight: 500;">
 					{{ formatFloat(Math.max(0, item.actual_qty || 0)) }}
 				</span>
 			</td>

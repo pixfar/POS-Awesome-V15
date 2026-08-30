@@ -96,7 +96,10 @@
 				</div>
 			</template>
 			<template v-slot:item.actual_qty="{ item }">
-				<span class="golden--text" :class="{ 'negative-number': isNegative(item.actual_qty) }">
+				<!-- Non-stock items (services etc.) have no Bin record, so
+				     actual_qty is meaningless here -- nothing to show. -->
+				<span v-if="item.is_stock_item === 0 || item.is_stock_item === false" class="text-medium-emphasis">—</span>
+				<span v-else class="golden--text" :class="{ 'negative-number': isNegative(item.actual_qty) }">
 					{{ formatActualQty(item.actual_qty) }}
 				</span>
 			</template>

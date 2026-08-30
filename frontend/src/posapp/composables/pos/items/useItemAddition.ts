@@ -357,6 +357,7 @@ export function useItemAddition() {
 				!context.isReturnInvoice &&
 				!deferStockValidationToPayment &&
 				blockSale &&
+				item.is_stock_item &&
 				!allowNegativeStock
 			) {
 				const existingItem =

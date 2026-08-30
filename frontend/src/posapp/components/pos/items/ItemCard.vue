@@ -8,6 +8,7 @@
 	>
 		<div class="card-item-image-container">
 			<div
+				v-if="!isNonStockItem"
 				class="stock-badge"
 				:class="numericStockQty > 10 ? 'stock-badge--ok' : 'stock-badge--low'"
 			>
@@ -58,7 +59,7 @@
 						</span>
 					</div>
 				</div>
-				<div class="card-item-stock">
+				<div v-if="!isNonStockItem" class="card-item-stock">
 					<v-icon size="small" class="stock-icon"> mdi-package-variant </v-icon>
 					<span
 						class="stock-amount"
@@ -161,6 +162,12 @@ const formattedBadgeStock = computed(() => {
 	}
 	return Number(numericStockQty.value.toFixed(2));
 });
+
+// A non-stock item (a service charge etc.) has no Bin record, so
+// actual_qty is meaningless -- it can even read negative. Nothing to show.
+const isNonStockItem = computed(
+	() => props.item.is_stock_item === 0 || props.item.is_stock_item === false,
+);
 
 const onClick = (event) => {
 	emit("click", event, props.item);
