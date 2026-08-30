@@ -148,6 +148,31 @@
 								</div>
 							</v-card>
 
+							<v-card
+								v-if="canEditPaymentAccount"
+								flat
+								class="invoice-section-card pos-themed-card"
+							>
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">{{ __("Accounts") }}</h3>
+								</div>
+								<div class="pa-3">
+									<v-autocomplete
+										v-model="paymentAccountOverride"
+										:items="cashAccountOptions"
+										item-title="name"
+										item-value="name"
+										:label="__('Accounts')"
+										density="compact"
+										variant="outlined"
+										hide-details
+										clearable
+										:loading="cashAccountsLoading"
+										class="pos-themed-input"
+									/>
+								</div>
+							</v-card>
+
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading">
 									<h3 class="invoice-section-heading__title">
@@ -444,6 +469,15 @@ export default {
 		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
 		const canEditDoNumber = computed(() => isFundTransferManager());
 		const canEditPostingDate = computed(() => isFundTransferManager());
+		// "Accounts" override -- System Manager / BSP Admin only. Defaults to
+		// the active POS Profile's own account_for_change_amount (same account
+		// every other payment already uses), but an admin can pick a different
+		// showroom's cash account instead; re-verified server-side, this flag
+		// is UX-only.
+		const canEditPaymentAccount = computed(() => isFundTransferManager());
+		const cashAccountOptions = ref([]);
+		const cashAccountsLoading = ref(false);
+		const paymentAccountOverride = ref(null);
 		const payments = ref([]);
 		const discountAmount = ref(0);
 		const itemSearchQuery = ref("");
@@ -794,6 +828,9 @@ export default {
 					update_stock: updateStock.value ? 1 : 0,
 					custom_is_paid: customIsPaid.value ? 1 : 0,
 					custom_do_number: doNumber.value || null,
+					// Server re-verifies System Manager / BSP Admin before honoring
+					// this -- see purchase_orders._create_purchase_invoice_from_pos.
+					payment_account: canEditPaymentAccount.value ? (paymentAccountOverride.value || null) : null,
 					pos_profile: pos_profile.value,
 					payments: payments.value,
 					discount_amount: discountAmount.value,
@@ -849,6 +886,23 @@ export default {
 			}
 		};
 
+		const loadCashInHandAccounts = async (company) => {
+			if (!canEditPaymentAccount.value || !company) return;
+			cashAccountsLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: "posawesome.posawesome.api.payment_processing.utils.get_cash_in_hand_accounts",
+					args: { company },
+				});
+				cashAccountOptions.value = message || [];
+			} catch (e) {
+				console.error("Failed to load Cash In Hand accounts", e);
+				cashAccountOptions.value = [];
+			} finally {
+				cashAccountsLoading.value = false;
+			}
+		};
+
 		onMounted(async () => {
 			const cachedData = getOpeningStorage();
 			if (cachedData?.pos_profile) pos_profile.value = cachedData.pos_profile;
@@ -857,6 +911,16 @@ export default {
 				() => uiStore.posProfile,
 				(p) => {
 					if (p) pos_profile.value = p;
+				},
+				{ immediate: true },
+			);
+			watch(
+				() => pos_profile.value?.company,
+				(company) => {
+					// Default to this POS Profile's own change account -- the
+					// user can still pick a different one from the dropdown.
+					paymentAccountOverride.value = pos_profile.value?.account_for_change_amount || null;
+					loadCashInHandAccounts(company);
 				},
 				{ immediate: true },
 			);
@@ -902,6 +966,10 @@ export default {
 			canChangePosWarehouse,
 			canEditDoNumber,
 			canEditPostingDate,
+			canEditPaymentAccount,
+			cashAccountOptions,
+			cashAccountsLoading,
+			paymentAccountOverride,
 			doNumber,
 			responsiveStyles,
 			isCompact,

@@ -17,6 +17,7 @@ from .payment_processing.creation import refund_payments_for_return
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_permission_scoped_names,
 	ensure_can_create,
+	is_privileged_invoice_viewer,
 )
 
 
@@ -568,7 +569,7 @@ def _get_mode_of_payment_account(mode, company):
     return account
 
 
-def _create_payment_entry(reference_doc, payments, company, transaction_date):
+def _create_payment_entry(reference_doc, payments, company, transaction_date, override_account=None):
     if not payments:
         return []
 
@@ -590,8 +591,12 @@ def _create_payment_entry(reference_doc, payments, company, transaction_date):
     # account_for_change_amount, not each mode of payment's own account --
     # this is what lets accounting be tracked per showroom instead of per
     # payment method. Falls back to the mode of payment's own account only
-    # if the POS Profile has no change account configured.
-    change_account = get_pos_change_account()
+    # if the POS Profile has no change account configured. `override_account`
+    # (System Manager / BSP Admin only -- re-verified by the caller, never
+    # trusted from the client alone) takes priority over both when set, so
+    # an admin can route this specific payment through a different cash
+    # account than the showroom's own default.
+    change_account = override_account or get_pos_change_account()
 
     for pay in payments:
         amount = flt(pay.get("amount"))
@@ -734,6 +739,15 @@ def _create_purchase_invoice_from_pos(payload):
     if not company:
         frappe.throw(_("Company is required."))
 
+    # "Accounts" override -- System Manager / BSP Admin only. The field is
+    # already hidden client-side for everyone else, but that's UX only; a
+    # payload claiming an override from a non-privileged session is silently
+    # ignored here rather than trusted, so payments still fall back to the
+    # POS Profile's own account_for_change_amount for them.
+    payment_account_override = payload.get("payment_account")
+    if payment_account_override and not is_privileged_invoice_viewer():
+        payment_account_override = None
+
     warehouse = payload.get("warehouse") or profile.get("warehouse") or get_default_warehouse(company)
     transaction_date = (
         payload.get("posting_date")
@@ -870,7 +884,8 @@ def _create_purchase_invoice_from_pos(payload):
         if pos_handles_payment:
             invoice.reload()
             payment_names = _create_payment_entry(
-                invoice, meaningful_payments, company, transaction_date
+                invoice, meaningful_payments, company, transaction_date,
+                override_account=payment_account_override,
             )
 
         if _purchase_invoice_has_custom_is_paid():

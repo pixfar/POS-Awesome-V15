@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 from erpnext.accounts.doctype.journal_entry.journal_entry import get_default_bank_cash_account
 
 
@@ -101,3 +102,44 @@ def get_mode_of_payment_accounts(company, mode_of_payments):
         if account:
             currency_map[mode] = account.get("account_currency")
     return currency_map
+
+
+@frappe.whitelist()
+def get_cash_in_hand_accounts(company):
+    """Every non-group Cash account under the company's "Cash In Hand"
+    parent group -- one per showroom's till, same accounts each POS
+    Profile's own account_for_change_amount is picked from. Backs the
+    Purchase Invoice screen's admin-only "Accounts" override dropdown
+    (System Manager / BSP Admin), so an admin can route a specific
+    purchase's payment through a different showroom's cash account than
+    their own active POS Profile's default.
+
+    Gated server-side (not just hidden client-side) since this is meant to
+    be admin-only functionality, even though the account list itself isn't
+    sensitive -- and ignore_permissions on the actual fetch because regular
+    POS users generally have no Account-doctype read permission at all,
+    which would otherwise make this silently return nothing for them.
+    """
+    from posawesome.posawesome.utils.warehouse_doc_permissions import is_privileged_invoice_viewer
+
+    if not is_privileged_invoice_viewer():
+        frappe.throw(_("Not permitted"), exc=frappe.PermissionError)
+
+    if not company:
+        return []
+
+    parent = frappe.db.get_value(
+        "Account",
+        {"company": company, "account_name": "Cash In Hand", "is_group": 1},
+        "name",
+    )
+    if not parent:
+        return []
+
+    return frappe.get_all(
+        "Account",
+        filters={"company": company, "parent_account": parent, "is_group": 0, "disabled": 0},
+        fields=["name", "account_name"],
+        order_by="account_name asc",
+        ignore_permissions=True,
+    )
