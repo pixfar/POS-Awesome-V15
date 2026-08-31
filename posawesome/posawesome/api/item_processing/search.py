@@ -672,7 +672,7 @@ def get_items_groups():
 
 @frappe.whitelist()
 def get_items_count(pos_profile, item_groups=None):
-    pos_profile, _ = _ensure_pos_profile(pos_profile)
+    pos_profile, _profile_json = _ensure_pos_profile(pos_profile)
     if isinstance(item_groups, str):
         try:
             item_groups = json.loads(item_groups)

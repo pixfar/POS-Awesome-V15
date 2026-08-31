@@ -50,7 +50,7 @@ def search_invoices_for_return(
         - has_more: Boolean indicating if there are more invoices to load
     """
     started_at = time.perf_counter()
-    enforce_return_validity, _ = _get_return_validity_settings(pos_profile)
+    enforce_return_validity, _default_validity_days = _get_return_validity_settings(pos_profile)
 
     # Start with base filters
     filters = {
@@ -221,7 +221,7 @@ def search_invoices_for_return(
 def get_invoice_for_return(invoice_name, pos_profile=None, doctype="Sales Invoice"):
     """Return one invoice with returnable item quantities after past returns."""
     started_at = time.perf_counter()
-    enforce_return_validity, _ = _get_return_validity_settings(pos_profile)
+    enforce_return_validity, _default_validity_days = _get_return_validity_settings(pos_profile)
 
     invoice_doc = frappe.get_cached_doc(doctype, invoice_name)
     # Purchase Invoice has no `customer`/`customer_name` fields — it uses

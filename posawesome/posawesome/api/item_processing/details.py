@@ -14,7 +14,7 @@ def get_items_details(pos_profile, items_data, price_list=None, customer=None, w
 
     started_at = time.perf_counter()
 
-    pos_profile, _ = _ensure_pos_profile(pos_profile)
+    pos_profile, _profile_json = _ensure_pos_profile(pos_profile)
     items_data = json.loads(items_data)
 
     if not items_data:

@@ -86,7 +86,7 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
     """Allocate payment entry against invoices using ERPNext party-currency amounts."""
     if not invoices:
         pe.total_allocated_amount = 0
-        party_amount, _ = _party_amount_available(pe, party_type)
+        party_amount, _party_currency = _party_amount_available(pe, party_type)
         pe.unallocated_amount = flt(party_amount)
         return 0
 
@@ -222,7 +222,7 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
             ) or 1
             remaining_inv[inv_no] -= flt(allocation / inv_to_party, precision)
 
-    party_amount, _ = _party_amount_available(pe, party_type)
+    party_amount, _party_currency = _party_amount_available(pe, party_type)
     pe.total_allocated_amount = total_allocated
     pe.unallocated_amount = flt(party_amount - total_allocated, precision)
     return total_allocated
@@ -741,7 +741,7 @@ def make_payment_direct(
             )
         else:
             pe.total_allocated_amount = 0
-            party_amount, _ = _party_amount_available(pe, party_type)
+            party_amount, _party_currency = _party_amount_available(pe, party_type)
             pe.unallocated_amount = flt(party_amount)
 
         pe.insert(ignore_permissions=True)

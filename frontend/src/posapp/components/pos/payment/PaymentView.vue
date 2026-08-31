@@ -636,16 +636,46 @@ export default {
 			(typeof frappe !== "undefined" && frappe.defaults?.get_default?.("company")) ||
 			"";
 
+		// Rows are keyed by (voucher_type, voucher_no) -- an invoice and a
+		// Journal Entry due never collide, but two responses for the same
+		// page can (see outstandingFetchSeq below), so merging by key rather
+		// than blindly concatenating is what actually keeps "load more"
+		// duplicate-proof.
+		const mergeInvoiceRows = (existingRows, newRows) => {
+			const seen = new Set(existingRows.map((row) => `${row.voucher_type}::${row.voucher_no}`));
+			const deduped = newRows.filter((row) => {
+				const key = `${row.voucher_type}::${row.voucher_no}`;
+				if (seen.has(key)) return false;
+				seen.add(key);
+				return true;
+			});
+			return [...existingRows, ...deduped];
+		};
+
+		// Bumped at the start of every fetchOutstandingInvoices() call, and
+		// compared again once each call's network round trip resolves. This
+		// screen fires that call from several independent places (onMounted,
+		// the async checkOpeningEntry() re-fetch once company resolves, the
+		// partyName/partyType watchers, and manual Sync) -- without this
+		// guard, an older call's response landing *after* a newer call has
+		// already replaced the list re-appends/re-replaces on top of it,
+		// which is what was producing the duplicated Outstanding Invoices
+		// rows on this screen.
+		let outstandingFetchSeq = 0;
+
 		const fetchOutstandingInvoices = async ({ append = false } = {}) => {
 			if (append) {
-				if (!invoicesHasMore.value || invoicesLoadingMore.value) return;
+				if (!invoicesHasMore.value || invoicesLoadingMore.value || invoices_loading.value) return;
 				invoicesLoadingMore.value = true;
 			} else {
 				invoices_loading.value = true;
 				invoicesPageStart.value = 0;
 				invoicesHasMore.value = true;
-				if (!append) outstanding_invoices.value = [];
+				outstanding_invoices.value = [];
 			}
+
+			const requestToken = ++outstandingFetchSeq;
+			const isStale = () => requestToken !== outstandingFetchSeq;
 
 			try {
 				const pageStart = append ? outstanding_invoices.value.length : 0;
@@ -660,10 +690,11 @@ export default {
 							page_length: PAGE_SIZE,
 						},
 					});
+					if (isStale()) return;
 					const payload = result.message || {};
 					const rows = Array.isArray(payload.invoices) ? payload.invoices : [];
 					outstanding_invoices.value = append
-						? [...outstanding_invoices.value, ...rows]
+						? mergeInvoiceRows(outstanding_invoices.value, rows)
 						: rows;
 					invoicesHasMore.value = Boolean(payload.has_more);
 					invoicesTotal.value = Number(payload.total) || 0;
@@ -693,9 +724,10 @@ export default {
 						},
 					}),
 				]);
+				if (isStale()) return;
 				const rows = Array.isArray(invResult.message) ? invResult.message : [];
 				outstanding_invoices.value = append
-					? [...outstanding_invoices.value, ...rows]
+					? mergeInvoiceRows(outstanding_invoices.value, rows)
 					: rows;
 				invoicesHasMore.value = rows.length >= PAGE_SIZE;
 				partyOutstanding.value = outResult?.message?.outstanding || 0;
@@ -705,13 +737,15 @@ export default {
 				}
 			} catch (e) {
 				console.error("Failed to fetch outstanding invoices", e);
-				if (!append) {
+				if (!append && !isStale()) {
 					outstanding_invoices.value = [];
 					invoicesTotal.value = 0;
 				}
 			} finally {
-				invoices_loading.value = false;
-				invoicesLoadingMore.value = false;
+				if (!isStale()) {
+					invoices_loading.value = false;
+					invoicesLoadingMore.value = false;
+				}
 			}
 		};
 
