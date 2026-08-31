@@ -77,7 +77,14 @@
 				<div class="pos-detail-meta-grid">
 					<div v-for="field in metaFields" :key="field.label" class="pos-detail-meta-field">
 						<span class="pos-detail-meta-field__label">{{ field.label }}</span>
-						<span class="pos-detail-meta-field__value">{{ field.value || "—" }}</span>
+						<v-tooltip v-if="isTruncated(field.value)" :text="String(field.value)" location="bottom">
+							<template #activator="{ props: tooltipProps }">
+								<span v-bind="tooltipProps" class="pos-detail-meta-field__value">
+									{{ truncateValue(field.value) }}
+								</span>
+							</template>
+						</v-tooltip>
+						<span v-else class="pos-detail-meta-field__value">{{ field.value || "—" }}</span>
 					</div>
 				</div>
 
@@ -142,6 +149,18 @@ export default {
 		actions: { type: Array, default: () => [] },
 	},
 	emits: ["back"],
+	methods: {
+		// Truncation threshold for meta field values (e.g. Requisition's long
+		// free-text Notes) -- anything longer than 50 characters gets cut
+		// with "..." and the full text moved into a hover tooltip instead
+		// of stretching the meta grid.
+		isTruncated(value) {
+			return typeof value === "string" && value.length > 50;
+		},
+		truncateValue(value) {
+			return `${String(value).slice(0, 50)}...`;
+		},
+	},
 };
 </script>
 
