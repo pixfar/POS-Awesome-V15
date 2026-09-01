@@ -13,6 +13,7 @@ export interface MaterialTransferItem {
 	// (or the fetch onAddItem kicks off) fills it in; not the qty being
 	// transferred (that's `qty` above).
 	stock_qty: number;
+	custom_default_weigt_of_measure?: number;
 }
 
 export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
@@ -106,6 +107,7 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 			uom: item.stock_uom,
 			qty: 1,
 			stock_qty: 0,
+			custom_default_weigt_of_measure: item.custom_default_weigt_of_measure || 0,
 		});
 		// Newly added row starts at stock_qty 0 -- re-fetch for the whole
 		// table (simpler and cheap enough than tracking just the delta).

@@ -89,6 +89,13 @@
 				</span>
 			</td>
 
+			<!-- Weight Column: qty * the item's own weight-per-unit -->
+			<td v-else-if="column.key === 'weight'" class="text-center" :data-column-key="'weight'">
+				<span class="text-medium-emphasis">
+					{{ formatFloat(Number(item.qty || 0) * Number(item.custom_default_weigt_of_measure || 0)) }}
+				</span>
+			</td>
+
 			<!-- Quantity Column -->
 			<td v-else-if="column.key === 'qty'" class="text-center" :data-column-key="'qty'">
 				<div class="posa-cart-table__qty-counter" :class="{ 'rtl-layout': isRTL }">

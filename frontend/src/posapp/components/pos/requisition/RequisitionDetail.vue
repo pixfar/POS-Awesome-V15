@@ -91,6 +91,7 @@ export default {
 			{ key: 'item_name', label: __('Item Name') },
 			{ key: 'item_group', label: __('Item Group') },
 			{ key: 'required_qty', label: __('Required Qty'), align: 'end' },
+			{ key: 'weight', label: __('Weight'), align: 'end' },
 			{ key: 'uom', label: __('UOM') },
 			{ key: 'schedule_date', label: __('Required Date') },
 		];
@@ -110,6 +111,7 @@ export default {
 			return [
 				{ label: __('Item Count'), value: detail.value.items?.length || 0 },
 				{ label: __('Total Qty'), value: totalQty },
+				{ label: __('Total Weight'), value: Number(detail.value.total_weight || 0).toFixed(2) },
 			];
 		});
 

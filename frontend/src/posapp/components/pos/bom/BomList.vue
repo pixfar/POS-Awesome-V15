@@ -136,6 +136,9 @@
 					<template #item.quantity="{ item }">
 						<span class="pos-list-cell-muted">{{ formatQty(item.quantity) }} {{ item.uom }}</span>
 					</template>
+					<template #item.total_weight="{ item }">
+						<span class="pos-list-cell-muted">{{ Number(item.total_weight || 0).toFixed(2) }}</span>
+					</template>
 					<template #item.is_active="{ item }">
 						<v-chip size="small" variant="tonal" :color="item.is_active ? 'green' : 'grey'">
 							{{ item.is_active ? __("Yes") : __("No") }}
@@ -285,7 +288,9 @@ export default {
 		const confirmDialogColor = ref('error');
 
 		const canCancel = (item) => isSystemManager.value && item.docstatus === 1;
-		const canDelete = (item) => item.docstatus === 0 || item.docstatus === 2;
+		// Delete is hidden from the UI -- users are no longer allowed to delete
+		// Draft/Cancelled BOMs from POS Awesome.
+		const canDelete = () => false;
 
 		const rowActions = (item) => [
 			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },
@@ -398,6 +403,7 @@ export default {
 			{ title: __('BOM'), key: 'name', sortable: true },
 			{ title: __('Item'), key: 'item', sortable: true },
 			{ title: __('Qty'), key: 'quantity', sortable: true, align: 'end' },
+			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Active'), key: 'is_active', sortable: true },
 			{ title: __('Default'), key: 'is_default', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },

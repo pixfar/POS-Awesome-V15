@@ -100,6 +100,13 @@
 			</div>
 		</template>
 
+		<template v-slot:item.weight="{ item }">
+			<!-- qty * the item's own custom_default_weigt_of_measure -->
+			<span class="text-medium-emphasis">
+				{{ formatNumber(Number(item.qty || 0) * Number(item.custom_default_weigt_of_measure || 0)) }}
+			</span>
+		</template>
+
 		<template v-slot:item.rate="{ item }">
 			<div class="pos-table__editor-box">
 				<div

@@ -1035,6 +1035,7 @@ export default {
 				{ title: __("Item Code"), key: "item_code", align: "start", width: "14%" },
 				{ title: __("UOM"), key: "uom", align: "center", width: "13%" },
 				{ title: __("QTY"), key: "qty", align: "center", width: "13%" },
+				{ title: __("Weight"), key: "weight", align: "center", width: "10%" },
 				{ title: __("Rate"), key: "rate", align: "center", width: "14%" },
 				{ title: __("Amount"), key: "amount", align: "end", width: "10%" },
 				{ title: __("Actions"), key: "actions", align: "center", width: "50px" },

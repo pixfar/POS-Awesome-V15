@@ -17,6 +17,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	is_system_manager,
 	ensure_can_create,
 )
+from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 
 def _parse_json(value):
@@ -150,6 +151,10 @@ def get_material_transfers_list(
 		**shared_filter_args,
 	)
 
+	weight_by_parent = get_total_weight_by_parent('Material Transfer Item', [row['name'] for row in rows])
+	for row in rows:
+		row['total_weight'] = weight_by_parent.get(row['name'], 0.0)
+
 	transfers = [_enrich_list_row(row) for row in rows]
 
 	return {
@@ -165,6 +170,42 @@ def get_material_transfer_detail(transfer):
 	doc = frappe.get_doc('Material Transfer', transfer)
 	ensure_warehouse_doc_read_access(doc, 'from_warehouse', 'to_warehouse')
 	owner_name = frappe.db.get_value('User', doc.owner, 'full_name') or doc.owner
+
+	# custom_default_weigt_of_measure (weight per unit) lives on the Item
+	# master, not the Material Transfer Item child row.
+	item_codes = {row.item_code for row in doc.items if row.item_code}
+	weight_by_item = (
+		frappe._dict(
+			frappe.get_all(
+				'Item',
+				filters={'name': ['in', list(item_codes)]},
+				fields=['name', 'custom_default_weigt_of_measure'],
+				as_list=True,
+			)
+		)
+		if item_codes
+		else {}
+	)
+
+	items = []
+	total_weight = 0.0
+	for row in doc.items:
+		weight = flt(weight_by_item.get(row.item_code)) * flt(row.qty)
+		total_weight += weight
+		items.append(
+			{
+				'name': row.name,
+				'item_code': row.item_code,
+				'item_name': row.item_name,
+				'item_group': row.item_group,
+				'qty': flt(row.qty),
+				'received_qty': flt(row.received_qty),
+				'uom': row.uom,
+				'schedule_date': row.schedule_date,
+				'weight': flt(weight),
+			}
+		)
+
 	return {
 		'name': doc.name,
 		'transaction_date': doc.transaction_date,
@@ -180,20 +221,9 @@ def get_material_transfer_detail(transfer):
 		'amended_from': doc.get('amended_from'),
 		'total_qty': flt(sum(flt(row.qty) for row in doc.items)),
 		'total_received_qty': flt(sum(flt(row.received_qty) for row in doc.items)),
+		'total_weight': flt(total_weight),
 		'item_count': len(doc.items),
-		'items': [
-			{
-				'name': row.name,
-				'item_code': row.item_code,
-				'item_name': row.item_name,
-				'item_group': row.item_group,
-				'qty': flt(row.qty),
-				'received_qty': flt(row.received_qty),
-				'uom': row.uom,
-				'schedule_date': row.schedule_date,
-			}
-			for row in doc.items
-		],
+		'items': items,
 		'can_confirm': can_confirm_receipt(doc),
 	}
 
@@ -220,6 +250,7 @@ def search_items(search_text=None, limit=20):
 			'item_group',
 			'stock_uom',
 			'standard_rate',
+			'custom_default_weigt_of_measure',
 		],
 		order_by='item_name asc',
 		limit_page_length=limit,

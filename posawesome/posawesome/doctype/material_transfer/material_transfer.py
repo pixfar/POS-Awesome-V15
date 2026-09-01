@@ -24,6 +24,31 @@ def _ensure_transfer_read_access(doc):
 	ensure_warehouse_doc_read_access(doc, 'from_warehouse', 'to_warehouse')
 
 
+def _get_transit_warehouse(company):
+	"""The warehouse stock actually sits in between dispatch and receipt --
+	see the module-level note on why this exists at all: without a real
+	transit leg, stock landed at the target warehouse's ledger the instant
+	the Material Transfer was submitted, before anyone had actually
+	confirmed the goods arrived."""
+	transit_warehouse = frappe.db.get_value('Company', company, 'default_in_transit_warehouse')
+	if not transit_warehouse:
+		transit_warehouse = frappe.db.get_value(
+			'Warehouse',
+			{'company': company, 'warehouse_type': 'Transit', 'disabled': 0, 'is_group': 0},
+			'name',
+		)
+	if not transit_warehouse:
+		frappe.throw(
+			_(
+				'No in-transit warehouse is configured for company {0}. Set '
+				'"Default In Transit Warehouse" on the Company, or create a '
+				'Warehouse with type "Transit".'
+			).format(company),
+			title=_('Missing In-Transit Warehouse'),
+		)
+	return transit_warehouse
+
+
 class MaterialTransfer(Document):
 	def before_insert(self):
 		self.requested_by = frappe.session.user
@@ -41,18 +66,25 @@ class MaterialTransfer(Document):
 		self._dispatch_stock_entry()
 
 	def before_cancel(self):
-		if not self.stock_entry:
-			return
-		se = frappe.db.get_value('Stock Entry', self.stock_entry, ['docstatus', 'name'], as_dict=True)
-		if se and se.docstatus != 2:
-			frappe.throw(
-				_('Cancel the linked Stock Entry {0} before cancelling this Material Transfer.').format(
-					frappe.bold(self.stock_entry)
-				),
-				title=_('Active Stock Entry Exists'),
-			)
+		for fieldname in ('stock_entry', 'stock_entry_received'):
+			se_name = self.get(fieldname)
+			if not se_name:
+				continue
+			se = frappe.db.get_value('Stock Entry', se_name, ['docstatus', 'name'], as_dict=True)
+			if se and se.docstatus != 2:
+				frappe.throw(
+					_('Cancel the linked Stock Entry {0} before cancelling this Material Transfer.').format(
+						frappe.bold(se_name)
+					),
+					title=_('Active Stock Entry Exists'),
+				)
 
 	def _create_stock_entry(self):
+		"""Dispatch leg only -- moves stock from From Warehouse into the
+		company's in-transit warehouse (add_to_transit=1), *not* into To
+		Warehouse directly. Stock only actually reaches To Warehouse once
+		confirm_receipt() below creates and submits the receipt leg -- see
+		_get_transit_warehouse's note for why."""
 		if not self.from_warehouse:
 			frappe.throw(_('From Warehouse is required.'))
 		if not self.to_warehouse:
@@ -62,12 +94,15 @@ class MaterialTransfer(Document):
 		if not company:
 			frappe.throw(_('Could not determine Company from From Warehouse.'))
 
+		transit_warehouse = _get_transit_warehouse(company)
+
 		se = frappe.new_doc('Stock Entry')
 		se.stock_entry_type = 'Material Transfer'
 		se.purpose = 'Material Transfer'
 		se.company = company
+		se.add_to_transit = 1
 		se.from_warehouse = self.from_warehouse
-		se.to_warehouse = self.to_warehouse
+		se.to_warehouse = transit_warehouse
 		se.custom_material_transfer = self.name
 
 		for row in self.items:
@@ -90,7 +125,7 @@ class MaterialTransfer(Document):
 				'stock_uom': item_details.stock_uom,
 				'conversion_factor': 1,
 				's_warehouse': self.from_warehouse,
-				't_warehouse': self.to_warehouse,
+				't_warehouse': transit_warehouse,
 				'custom_material_transfer_item': row.name,
 			})
 
@@ -226,18 +261,24 @@ def confirm_receipt(transfer, received_quantities=None):
 	if se.docstatus not in (0, 1):
 		frappe.throw(_('Goods are not in transit yet.'))
 
-	# Confirming receipt only records how much actually arrived (received_qty on the
-	# Material Transfer's own items) — it never edits the linked Stock Entry's
-	# quantities. The Stock Entry already posted the full sent qty to the stock ledger
-	# on dispatch and Frappe disallows changing quantities on a submitted document
-	# (see: "Cannot Update After Submit"); any shortfall is tracked here, not corrected
-	# in stock.
+	# Confirming receipt records how much actually arrived (received_qty on
+	# the Material Transfer's own items) -- it never edits the dispatch
+	# Stock Entry's quantities, which Frappe disallows changing on a
+	# submitted document anyway ("Cannot Update After Submit"). What DOES
+	# happen here now is the actual second stock movement: a receipt Stock
+	# Entry moving exactly the received quantities from the in-transit
+	# warehouse into To Warehouse. Until this runs, the goods have only ever
+	# left From Warehouse -- they were never posted to To Warehouse's stock
+	# ledger, so production/stock calculations there can't see them early.
+	# A shortfall (received < sent) simply stays parked in the in-transit
+	# warehouse rather than silently vanishing or over-crediting the target.
 	if isinstance(received_quantities, str):
 		received_quantities = json.loads(received_quantities)
 	received_quantities = received_quantities or {}
 
 	mt_item_by_name = {row.name: row for row in doc.items}
 	any_positive = False
+	receive_rows = []
 
 	for se_item in se.items:
 		mt_item_name = getattr(se_item, 'custom_material_transfer_item', None)
@@ -256,6 +297,7 @@ def confirm_receipt(transfer, received_quantities=None):
 			)
 		if new_qty > 0:
 			any_positive = True
+			receive_rows.append((se_item, mt_item_name, new_qty))
 
 		frappe.db.set_value(
 			'Material Transfer Item', mt_item_name, 'received_qty', new_qty, update_modified=False
@@ -278,6 +320,42 @@ def confirm_receipt(transfer, received_quantities=None):
 		'Requisition Received',
 		update_modified=False,
 	)
+
+	# Receipt leg: transit warehouse -> To Warehouse, for exactly what was
+	# recorded as received above. This is the moment stock actually becomes
+	# available at To Warehouse.
+	transit_warehouse = se.to_warehouse
+	se_in = frappe.new_doc('Stock Entry')
+	se_in.stock_entry_type = 'Material Transfer'
+	se_in.purpose = 'Material Transfer'
+	se_in.company = se.company
+	se_in.from_warehouse = transit_warehouse
+	se_in.to_warehouse = doc.to_warehouse
+	se_in.outgoing_stock_entry = se.name
+	se_in.custom_material_transfer = doc.name
+
+	for se_item, mt_item_name, received_qty in receive_rows:
+		se_in.append('items', {
+			'item_code': se_item.item_code,
+			'item_name': se_item.item_name,
+			'description': se_item.description,
+			's_warehouse': transit_warehouse,
+			't_warehouse': doc.to_warehouse,
+			'qty': received_qty,
+			'transfer_qty': received_qty,
+			'uom': se_item.uom,
+			'stock_uom': se_item.stock_uom,
+			'conversion_factor': flt(se_item.conversion_factor) or 1,
+			'against_stock_entry': se.name,
+			'ste_detail': se_item.name,
+			'custom_material_transfer_item': mt_item_name,
+		})
+
+	se_in.set_stock_entry_type()
+	se_in.flags.ignore_permissions = True
+	se_in.insert(ignore_permissions=True)
+	se_in.submit()
+	doc.db_set('stock_entry_received', se_in.name, update_modified=False)
 
 	doc.reload()
 	status = _calculate_receipt_status(doc)

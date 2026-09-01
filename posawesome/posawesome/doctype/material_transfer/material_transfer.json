@@ -18,6 +18,7 @@
   "items",
   "section_break_se",
   "stock_entry",
+  "stock_entry_received",
   "section_break_notes",
   "notes",
   "connections_tab",
@@ -103,9 +104,18 @@
    "label": "Stock Entry"
   },
   {
+   "description": "Dispatch leg: moves stock from From Warehouse into the company's in-transit warehouse. Created and submitted immediately when this Material Transfer is submitted.",
    "fieldname": "stock_entry",
    "fieldtype": "Link",
-   "label": "Stock Entry",
+   "label": "Stock Entry (Dispatch)",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "description": "Receipt leg: moves stock from the in-transit warehouse into To Warehouse. Only created once Confirm Receipt is used -- stock only actually lands at To Warehouse then, not at dispatch time.",
+   "fieldname": "stock_entry_received",
+   "fieldtype": "Link",
+   "label": "Stock Entry (Received)",
    "options": "Stock Entry",
    "read_only": 1
   },

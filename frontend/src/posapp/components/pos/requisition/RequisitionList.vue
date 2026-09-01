@@ -177,6 +177,9 @@
 							{{ item.target_warehouse }}
 						</span>
 					</template>
+					<template #item.total_weight="{ item }">
+						<span class="pos-list-cell-muted">{{ Number(item.total_weight || 0).toFixed(2) }}</span>
+					</template>
 					<template #item.transfer_status="{ item }">
 						<v-chip size="small" variant="tonal" :color="statusColor(displayStatus(item))">
 							{{ displayStatus(item) }}
@@ -349,6 +352,7 @@ export default {
 			{ title: __('Date'), key: 'transaction_date', sortable: true },
 			{ title: __('From'), key: 'source_warehouse', sortable: true },
 			{ title: __('To'), key: 'target_warehouse', sortable: true },
+			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'transfer_status', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '180px' },
 		];
@@ -550,7 +554,9 @@ export default {
 				label: __('Delete'),
 				icon: 'mdi-delete-outline',
 				color: 'error',
-				show: item.docstatus === 0 || item.docstatus === 2,
+				// Hidden from the UI -- users are no longer allowed to delete
+				// Draft/Cancelled Requisitions from POS Awesome.
+				show: false,
 			},
 		];
 

@@ -205,6 +205,7 @@ def _build_search_plan(
         "max_discount",
         "brand",
         "allow_negative_stock",
+        "custom_default_weigt_of_measure",
     ]
     if include_description:
         fields.append("description")

@@ -30,7 +30,7 @@
 						<div class="subtitle">
 							{{
 								notifications.length
-									? __("Recent updates about your invoices")
+									? __("Invoice updates and your ERPNext notifications")
 									: __("You have no notifications right now")
 							}}
 						</div>
@@ -58,12 +58,13 @@
 						</div>
 					</div>
 					<v-list v-else density="compact" class="notification-items">
-						<v-list-item v-for="item in notifications" :key="item.id" class="notification-item">
-							<template #prepend>
-								<div class="notification-icon" :class="item.color || 'error'">
-									<v-icon size="18">mdi-bell-alert-outline</v-icon>
-								</div>
-							</template>
+						<v-list-item
+							v-for="item in notifications"
+							:key="item.id"
+							class="notification-item"
+							:class="{ 'notification-item--clickable': !!item.link }"
+							@click="item.link && openItem(item)"
+						>
 							<div class="notification-content">
 								<div class="notification-title">{{ item.title }}</div>
 								<div v-if="item.detail" class="notification-detail">
@@ -92,6 +93,8 @@ interface NotificationItem {
 	detail?: string;
 	timestamp: string | number | Date;
 	color?: string;
+	icon?: string;
+	link?: string;
 }
 
 interface Props {
@@ -108,6 +111,7 @@ const { notifications, unreadCount } = toRefs(props);
 const emit = defineEmits<{
 	(_event: "mark-read"): void;
 	(_event: "clear"): void;
+	(_event: "open-item", _item: NotificationItem): void;
 }>();
 
 // @ts-ignore
@@ -122,6 +126,13 @@ watch(open, (value) => {
 
 function clearAll() {
 	emit("clear");
+}
+
+function openItem(item: NotificationItem) {
+	emit("open-item", item);
+	if (item.link) {
+		window.open(item.link, "_blank", "noopener");
+	}
 }
 
 function formatTimestamp(ts: string | number | Date) {
@@ -229,6 +240,22 @@ function formatTimestamp(ts: string | number | Date) {
 
 .notification-icon.error {
 	background: linear-gradient(135deg, #e53935, #e57373);
+}
+
+.notification-icon.primary {
+	background: linear-gradient(135deg, #1e88e5, #64b5f6);
+}
+
+.notification-icon.muted {
+	background: linear-gradient(135deg, #9e9e9e, #bdbdbd);
+}
+
+.notification-item--clickable {
+	cursor: pointer;
+}
+
+.notification-item--clickable:hover {
+	background: color-mix(in srgb, var(--pos-primary) 6%, transparent);
 }
 
 .notification-content {

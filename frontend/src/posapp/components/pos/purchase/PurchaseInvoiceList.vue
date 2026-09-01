@@ -213,6 +213,9 @@
 						<span v-if="item.custom_do_number" class="pos-list-cell-muted">{{ item.custom_do_number }}</span>
 						<span v-else class="pos-list-cell-muted">—</span>
 					</template>
+					<template #item.total_weight="{ item }">
+						<span class="pos-list-cell-muted">{{ Number(item.total_weight || 0).toFixed(2) }}</span>
+					</template>
 					<template #item.grand_total="{ item }">
 						<span class="pos-list-cell-primary">
 							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.grand_total) }}
@@ -454,7 +457,9 @@ export default {
 			!item.is_return && !NON_CANCELLABLE_STATUSES.includes(item.status);
 		const canCancel = (item) =>
 			isSystemManager.value && !NON_CANCELLABLE_STATUSES.includes(item.status);
-		const canDelete = (item) => item.status === 'Cancelled';
+		// Delete is hidden from the UI -- users are no longer allowed to delete
+		// Cancelled Purchase Invoices from POS Awesome.
+		const canDelete = () => false;
 		const canReceive = (item) =>
 			item.receipt_status === 'Not Received' || item.receipt_status === 'Partly Received';
 
@@ -633,6 +638,7 @@ export default {
 			{ title: __('Status'), key: 'status', sortable: true },
 			{ title: __('Receipt Status'), key: 'receipt_status', sortable: true },
 			{ title: __('DO Number'), key: 'custom_do_number', sortable: true },
+			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Total'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },

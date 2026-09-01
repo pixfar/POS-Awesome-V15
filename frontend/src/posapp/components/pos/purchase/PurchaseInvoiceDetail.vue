@@ -72,6 +72,7 @@ export default {
 				{ key: 'item_name', label: this.__('Item Name') },
 				{ key: 'warehouse', label: this.__('Warehouse') },
 				{ key: 'qty', label: this.__('Qty'), align: 'end' },
+				{ key: 'weight', label: this.__('Weight'), align: 'end' },
 				{ key: 'uom', label: this.__('UOM') },
 				{ key: 'rate', label: this.__('Rate'), align: 'end' },
 				{ key: 'amount', label: this.__('Amount'), align: 'end' },
@@ -88,7 +89,10 @@ export default {
 		totals() {
 			const symbol = this.currencySymbol(this.detail.currency);
 			const money = (val) => `${symbol}${this.formatCurrency(val)}`;
-			const rows = [{ label: this.__('Net Total'), value: money(this.detail.net_total) }];
+			const rows = [
+				{ label: this.__('Net Total'), value: money(this.detail.net_total) },
+				{ label: this.__('Total Weight'), value: Number(this.detail.total_weight || 0).toFixed(2) },
+			];
 			if (this.detail.discount_amount) {
 				rows.push({ label: this.__('Discount'), value: money(this.detail.discount_amount) });
 			}

@@ -185,7 +185,9 @@ export default {
 		const confirmDialogColor = ref('error');
 
 		const canCancel = (item) => isSystemManager.value && item.docstatus === 1;
-		const canDelete = (item) => item.docstatus === 0 || item.docstatus === 2;
+		// Delete is hidden from the UI -- users are no longer allowed to delete
+		// Draft/Cancelled Daily Deposits from POS Awesome.
+		const canDelete = () => false;
 
 		const rowActions = (item) => [
 			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },

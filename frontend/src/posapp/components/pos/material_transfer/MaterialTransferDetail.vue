@@ -146,6 +146,7 @@ export default {
 			{ key: 'item_group', label: __('Item Group') },
 			{ key: 'qty', label: __('Qty'), align: 'end' },
 			{ key: 'received_qty', label: __('Received Qty'), align: 'end' },
+			{ key: 'weight', label: __('Weight'), align: 'end' },
 			{ key: 'uom', label: __('UOM') },
 			{ key: 'schedule_date', label: __('Required Date') },
 		];
@@ -167,6 +168,7 @@ export default {
 				{ label: __('Item Count'), value: detail.value.items?.length || 0 },
 				{ label: __('Total Qty'), value: totalQty },
 				{ label: __('Total Received Qty'), value: totalReceived },
+				{ label: __('Total Weight'), value: Number(detail.value.total_weight || 0).toFixed(2) },
 			];
 		});
 

@@ -47,6 +47,7 @@ from posawesome.posawesome.api.payment_processing.creation import refund_payment
 from posawesome.posawesome.api.invoice_processing.data import get_last_invoice_rates
 from posawesome.posawesome.api.utils import log_perf_event
 from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission_scoped_names
+from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 
 @frappe.whitelist()
@@ -239,6 +240,10 @@ def get_sales_invoices_list(
             else:
                 row["delivery_status"] = delivery_statuses.get(row["name"])
 
+    weight_by_parent = get_total_weight_by_parent(item_doctype, [row["name"] for row in rows])
+    for row in rows:
+        row["total_weight"] = weight_by_parent.get(row["name"], 0.0)
+
     total = len(
         frappe.get_list(
             doctype,
@@ -281,6 +286,40 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
 
     doc = frappe.get_doc(doctype, name)
     owner_name = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
+
+    # custom_default_weigt_of_measure (weight per unit) lives on the Item
+    # master, not the invoice's own item child row -- one bulk lookup.
+    item_codes = {row.item_code for row in doc.items if row.item_code}
+    weight_by_item = (
+        frappe._dict(
+            frappe.get_all(
+                "Item",
+                filters={"name": ["in", list(item_codes)]},
+                fields=["name", "custom_default_weigt_of_measure"],
+                as_list=True,
+            )
+        )
+        if item_codes
+        else {}
+    )
+    total_weight = 0.0
+    items = []
+    for row in doc.items:
+        weight = flt(weight_by_item.get(row.item_code)) * flt(row.qty)
+        total_weight += weight
+        items.append(
+            {
+                "item_code": row.item_code,
+                "item_name": row.item_name,
+                "qty": flt(row.qty),
+                "uom": row.uom,
+                "rate": flt(row.rate),
+                "amount": flt(row.amount),
+                "warehouse": row.get("warehouse"),
+                "weight": flt(weight),
+            }
+        )
+
     return {
         "name": doc.name,
         "doctype": doctype,
@@ -297,6 +336,7 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
         "custom_do_number": doc.get("custom_do_number"),
         "net_total": flt(doc.net_total),
         "total_qty": flt(doc.total_qty),
+        "total_weight": flt(total_weight),
         "discount_amount": flt(doc.get("discount_amount")),
         "additional_discount_percentage": flt(doc.get("additional_discount_percentage")),
         "grand_total": flt(doc.grand_total),
@@ -322,18 +362,7 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
             }
             for row in (doc.get("taxes") or [])
         ],
-        "items": [
-            {
-                "item_code": row.item_code,
-                "item_name": row.item_name,
-                "qty": flt(row.qty),
-                "uom": row.uom,
-                "rate": flt(row.rate),
-                "amount": flt(row.amount),
-                "warehouse": row.get("warehouse"),
-            }
-            for row in doc.items
-        ],
+        "items": items,
     }
 
 

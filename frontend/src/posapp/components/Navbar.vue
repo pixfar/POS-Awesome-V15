@@ -43,10 +43,11 @@
 
 			<template #notification-bell>
 				<NotificationBell
-					:notifications="history"
-					:unread-count="unreadCount"
-					@mark-read="toastStore.markRead()"
-					@clear="toastStore.clearHistory()"
+					:notifications="mergedNotifications"
+					:unread-count="mergedUnreadCount"
+					@mark-read="handleNotificationsRead"
+					@clear="handleNotificationsClear"
+					@open-item="handleNotificationOpen"
 				/>
 			</template>
 
@@ -129,6 +130,7 @@ import { useToastStore } from "../stores/toastStore";
 import { useUIStore } from "../stores/uiStore";
 import { useEmployeeStore } from "../stores/employeeStore";
 import { useOfflineSyncStore } from "../stores/offlineSyncStore";
+import { useNotificationLogStore } from "../stores/notificationLogStore";
 import { storeToRefs } from "pinia";
 
 export default {
@@ -139,6 +141,7 @@ export default {
 		const uiStore = useUIStore();
 		const employeeStore = useEmployeeStore();
 		const offlineSyncStore = useOfflineSyncStore();
+		const notificationLogStore = useNotificationLogStore();
 		// Extract reactive refs
 		const {
 			visible,
@@ -151,8 +154,16 @@ export default {
 		} = storeToRefs(toastStore);
 		const { isFrozen, freezeTitle, freezeMessage } = storeToRefs(uiStore);
 		const { currentCashier, currentCashierDisplay } = storeToRefs(employeeStore);
+		// Frappe's per-user Notification Log (mentions, assignments, shares,
+		// energy points, alerts) merged into the bell alongside `history` --
+		// see notificationLogStore.ts.
+		const { logs: notificationLogs, unreadCount: notificationLogUnreadCount } =
+			storeToRefs(notificationLogStore);
 
 		return {
+			notificationLogStore,
+			notificationLogs,
+			notificationLogUnreadCount,
 			isRtl,
 			rtlStyles,
 			rtlClasses,
@@ -358,6 +369,18 @@ export default {
 		},
 	},
 	computed: {
+		// Session-only toast history (this.history) merged with Frappe's
+		// persisted per-user Notification Log (this.notificationLogs --
+		// mentions, assignments, shares, energy points, alerts), newest first,
+		// capped to the 10 most recent for the bell.
+		mergedNotifications() {
+			return [...this.history, ...this.notificationLogs]
+				.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+				.slice(0, 10);
+		},
+		mergedUnreadCount() {
+			return (this.unreadCount || 0) + (this.notificationLogUnreadCount || 0);
+		},
 		appBarColor() {
 			return this.isDark ? this.$vuetify.theme.themes.dark.colors.surface : "white";
 		},
@@ -511,6 +534,27 @@ export default {
 		}
 	},
 	methods: {
+		// Opening the bell marks both notification sources read: the toast
+		// history's local unread counter, and Frappe's Notification Log
+		// entries on the server (never deleted -- see notificationLogStore.ts).
+		handleNotificationsRead() {
+			this.toastStore.markRead();
+			this.notificationLogStore.markAllRead();
+		},
+		// "Clear All" only clears the POS's own ephemeral toast history --
+		// Notification Log entries are real Frappe documents shared with
+		// Desk, so they're marked read (already done via handleNotificationsRead
+		// on open) rather than deleted.
+		handleNotificationsClear() {
+			this.toastStore.clearHistory();
+		},
+		// Clicking a Notification Log entry (it has a `link`, unlike toast
+		// history entries) marks that single entry read on the server.
+		handleNotificationOpen(item) {
+			if (item && item.link) {
+				this.notificationLogStore.markOneRead(item.id);
+			}
+		},
 		preInitialize() {
 			// Early initialization to prevent cache-related element destruction
 			// Use reactive assignment instead of direct property modification

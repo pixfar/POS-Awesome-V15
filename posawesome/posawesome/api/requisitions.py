@@ -14,6 +14,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	is_system_manager,
 	ensure_can_create,
 )
+from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 ALLOWED_STATUS_TRANSITIONS = {'Sent': {'Received', 'Rejected'}}
 
@@ -147,6 +148,12 @@ def get_requisitions_list(
 		**shared_filter_args,
 	)
 
+	weight_by_parent = get_total_weight_by_parent(
+		'Requisition Item', [row['name'] for row in rows], qty_field='required_qty',
+	)
+	for row in rows:
+		row['total_weight'] = weight_by_parent.get(row['name'], 0.0)
+
 	requisitions = [_enrich_list_row(row) for row in rows]
 
 	return {
@@ -162,6 +169,42 @@ def get_requisition_detail(requisition):
 	doc = frappe.get_doc('Requisition', requisition)
 	ensure_warehouse_doc_read_access(doc, 'source_warehouse', 'target_warehouse')
 	owner_name = frappe.db.get_value('User', doc.owner, 'full_name') or doc.owner
+
+	# custom_default_weigt_of_measure (weight per unit) lives on the Item
+	# master, not the Requisition Item child row -- one bulk lookup rather
+	# than N+1 queries per item.
+	item_codes = {row.item_code for row in doc.items if row.item_code}
+	weight_by_item = (
+		frappe._dict(
+			frappe.get_all(
+				'Item',
+				filters={'name': ['in', list(item_codes)]},
+				fields=['name', 'custom_default_weigt_of_measure'],
+				as_list=True,
+			)
+		)
+		if item_codes
+		else {}
+	)
+
+	items = []
+	total_weight = 0.0
+	for row in doc.items:
+		weight = flt(weight_by_item.get(row.item_code)) * flt(row.required_qty)
+		total_weight += weight
+		items.append(
+			{
+				'name': row.name,
+				'item_code': row.item_code,
+				'item_name': row.item_name,
+				'item_group': row.item_group,
+				'required_qty': flt(row.required_qty),
+				'uom': row.uom,
+				'schedule_date': row.schedule_date,
+				'weight': flt(weight),
+			}
+		)
+
 	return {
 		'name': doc.name,
 		'transaction_date': doc.transaction_date,
@@ -174,19 +217,9 @@ def get_requisition_detail(requisition):
 		'creation': doc.creation,
 		'amended_from': doc.get('amended_from'),
 		'total_required_qty': flt(sum(flt(row.required_qty) for row in doc.items)),
+		'total_weight': flt(total_weight),
 		'item_count': len(doc.items),
-		'items': [
-			{
-				'name': row.name,
-				'item_code': row.item_code,
-				'item_name': row.item_name,
-				'item_group': row.item_group,
-				'required_qty': flt(row.required_qty),
-				'uom': row.uom,
-				'schedule_date': row.schedule_date,
-			}
-			for row in doc.items
-		],
+		'items': items,
 		'can_manage_status': bool(is_system_manager()) and doc.transfer_status == 'Sent',
 	}
 
@@ -281,6 +314,7 @@ def search_items(search_text=None, limit=20):
 			'item_group',
 			'stock_uom',
 			'standard_rate',
+			'custom_default_weigt_of_measure',
 		],
 		order_by='item_name asc',
 		limit_page_length=limit,

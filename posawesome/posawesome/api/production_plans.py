@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import flt, get_datetime, today
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
+from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 ALLOWED_TRANSITIONS = {
 	'Draft': {'Start Production': 'Work In Progress'},
@@ -70,6 +71,7 @@ def search_manufacturable_items(search_text=None, limit=20):
 			item.item_name AS item_name,
 			item.item_group AS item_group,
 			item.stock_uom AS stock_uom,
+			item.custom_default_weigt_of_measure AS custom_default_weigt_of_measure,
 			bom.name AS bom_no
 		FROM `tabItem` item
 		INNER JOIN `tabBOM` bom ON bom.item = item.name
@@ -259,6 +261,12 @@ def get_production_plans_list(
 	)
 	rows = [_enrich_list_row(row) for row in rows]
 
+	weight_by_parent = get_total_weight_by_parent(
+		item_doctype, [row['name'] for row in rows], qty_field='planned_qty',
+	)
+	for row in rows:
+		row['total_weight'] = weight_by_parent.get(row['name'], 0.0)
+
 	total = len(
 		frappe.get_list(
 			doctype,
@@ -305,18 +313,43 @@ def get_production_plan_detail(name):
 
 	doc = frappe.get_doc('Production Plan', name)
 
-	# Production Plan Item has no item_name field of its own; look it up in bulk.
+	# Production Plan Item has no item_name (or weight) field of its own;
+	# custom_default_weigt_of_measure lives on the Item master -- look both
+	# up in one bulk query.
 	item_codes = list({row.item_code for row in doc.po_items if row.item_code})
-	item_names = (
-		{
-			row.name: row.item_name
-			for row in frappe.get_all('Item', filters={'name': ['in', item_codes]}, fields=['name', 'item_name'])
-		}
+	item_rows = (
+		frappe.get_all(
+			'Item',
+			filters={'name': ['in', item_codes]},
+			fields=['name', 'item_name', 'custom_default_weigt_of_measure'],
+		)
 		if item_codes
-		else {}
+		else []
 	)
+	item_names = {row.name: row.item_name for row in item_rows}
+	weight_by_item = {row.name: flt(row.custom_default_weigt_of_measure) for row in item_rows}
 
 	owner_name = frappe.db.get_value('User', doc.owner, 'full_name') or doc.owner
+
+	items = []
+	total_weight = 0.0
+	for row in doc.po_items:
+		weight = weight_by_item.get(row.item_code, 0.0) * flt(row.planned_qty)
+		total_weight += weight
+		items.append(
+			{
+				'item_code': row.item_code,
+				'item_name': item_names.get(row.item_code),
+				'bom_no': row.bom_no,
+				'planned_qty': flt(row.planned_qty),
+				'pending_qty': flt(row.get('pending_qty')),
+				'produced_qty': flt(row.get('produced_qty')),
+				'stock_uom': row.stock_uom,
+				'warehouse': row.warehouse,
+				'planned_start_date': row.planned_start_date,
+				'weight': flt(weight),
+			}
+		)
 
 	return {
 		'name': doc.name,
@@ -329,24 +362,12 @@ def get_production_plan_detail(name):
 		'status': doc.status,
 		'total_planned_qty': flt(doc.total_planned_qty),
 		'total_produced_qty': flt(doc.get('total_produced_qty')),
+		'total_weight': flt(total_weight),
 		'created_by': owner_name,
 		'creation': doc.creation,
 		'amended_from': doc.get('amended_from'),
 		'item_count': len(doc.po_items),
-		'items': [
-			{
-				'item_code': row.item_code,
-				'item_name': item_names.get(row.item_code),
-				'bom_no': row.bom_no,
-				'planned_qty': flt(row.planned_qty),
-				'pending_qty': flt(row.get('pending_qty')),
-				'produced_qty': flt(row.get('produced_qty')),
-				'stock_uom': row.stock_uom,
-				'warehouse': row.warehouse,
-				'planned_start_date': row.planned_start_date,
-			}
-			for row in doc.po_items
-		],
+		'items': items,
 		'docstatus': doc.docstatus,
 		'available_actions': _available_actions(doc.workflow_state, doc.docstatus),
 	}

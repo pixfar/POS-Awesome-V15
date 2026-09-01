@@ -360,6 +360,7 @@ export default {
 				bom_no: item.bom_no,
 				uom: item.stock_uom,
 				qty: 1,
+				custom_default_weigt_of_measure: item.custom_default_weigt_of_measure || 0,
 			});
 		};
 

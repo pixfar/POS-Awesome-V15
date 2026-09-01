@@ -20,6 +20,7 @@ import themePlugin from "./plugins/theme";
 import { pinia } from "./stores";
 import { useToastStore } from "./stores/toastStore";
 import { useSocketStore } from "./stores/socketStore";
+import { useNotificationLogStore } from "./stores/notificationLogStore";
 import { createPosAppRouter } from "./router";
 import {
 	installGlobalErrorHandlers,
@@ -81,6 +82,9 @@ export async function runPosBootSync() {
 async function startOptionalRuntimeServices() {
 	const socketStore = useSocketStore();
 	socketStore.init();
+
+	const notificationLogStore = useNotificationLogStore();
+	notificationLogStore.init();
 
 	await import("../sw-updater").catch((error) => {
 		console.warn("Failed to initialize POS service worker updater", error);

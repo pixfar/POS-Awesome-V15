@@ -45,7 +45,10 @@
 					<span>{{ draft.posting_time?.split(".")[0] || "" }}</span>
 				</div>
 				<div class="drafts-list__card-actions">
+					<!-- Delete is hidden from the UI -- users are no longer allowed to
+					     delete draft invoices from POS Awesome. -->
 					<v-btn
+						v-if="false"
 						icon
 						size="x-small"
 						variant="text"

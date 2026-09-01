@@ -7,12 +7,13 @@
 					<th class="text-center">{{ __("UOM") }}</th>
 					<th v-if="showStockQty" class="text-center">{{ __("Stock Qty") }}</th>
 					<th class="text-center">{{ __("Qty") }}</th>
+					<th class="text-center">{{ __("Weight") }}</th>
 					<th class="text-center" style="width: 48px;"></th>
 				</tr>
 			</thead>
 			<tbody>
 				<tr v-if="!items.length">
-					<td :colspan="showStockQty ? 5 : 4" class="text-center text-medium-emphasis py-4">
+					<td :colspan="showStockQty ? 6 : 5" class="text-center text-medium-emphasis py-4">
 						{{ __("Add items from the selector or search above") }}
 					</td>
 				</tr>
@@ -35,6 +36,7 @@
 							@update:model-value="(v) => $emit('update-qty', { item, value: v })"
 						/>
 					</td>
+					<td class="text-center text-caption">{{ lineWeight(item) }}</td>
 					<td class="text-center">
 						<v-btn
 							icon="mdi-delete-outline"
@@ -69,6 +71,12 @@ export default {
 		// qty (4, then 2, then 6...) never compounds.
 		remainingStockQty(item) {
 			return Math.max(0, Number(item.stock_qty || 0) - Number(item.qty || 0));
+		},
+		// qty * the item's own custom_default_weigt_of_measure (weight per
+		// unit, set on the Item master).
+		lineWeight(item) {
+			const weight = Number(item.qty || 0) * Number(item.custom_default_weigt_of_measure || 0);
+			return weight ? weight.toFixed(2) : 0;
 		},
 	},
 };

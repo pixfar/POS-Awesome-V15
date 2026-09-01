@@ -21,6 +21,7 @@ export interface PurchaseItem {
 	received_qty: number;
 	receivedQtyManual: boolean;
 	warehouse?: string | null;
+	custom_default_weigt_of_measure?: number;
 	_isEditingQty?: boolean;
 	_editingQtyValue?: string;
 	_isEditingRate?: boolean;
@@ -176,6 +177,7 @@ export function usePurchaseOrder(options: {
 					warehouse.value || posProfile.value?.warehouse || null,
 				received_qty: receiveNow.value ? 1 : 0,
 				receivedQtyManual: false,
+				custom_default_weigt_of_measure: item.custom_default_weigt_of_measure || 0,
 			};
 
 			purchaseItems.value.unshift(newItem);

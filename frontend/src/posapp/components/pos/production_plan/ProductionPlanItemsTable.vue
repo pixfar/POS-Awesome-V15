@@ -7,12 +7,13 @@
 					<th>{{ __("BOM") }}</th>
 					<th class="text-center">{{ __("UOM") }}</th>
 					<th class="text-center">{{ __("Qty") }}</th>
+					<th class="text-center">{{ __("Weight") }}</th>
 					<th class="text-center" style="width: 48px;"></th>
 				</tr>
 			</thead>
 			<tbody>
 				<tr v-if="!items.length">
-					<td colspan="5" class="text-center text-medium-emphasis py-4">
+					<td colspan="6" class="text-center text-medium-emphasis py-4">
 						{{ __("Add items from the selector or search above") }}
 					</td>
 				</tr>
@@ -45,6 +46,9 @@
 							class="pos-themed-input qty-field"
 							@update:model-value="(v) => $emit('update-qty', { item, value: v })"
 						/>
+					</td>
+					<td class="text-center text-caption">
+						{{ (Number(item.qty || 0) * Number(item.custom_default_weigt_of_measure || 0)).toFixed(2) }}
 					</td>
 					<td class="text-center">
 						<v-btn

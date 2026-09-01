@@ -101,6 +101,14 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 			align: "center",
 			required: true,
 		},
+		{
+			// qty * the item's own custom_default_weigt_of_measure (weight per
+			// unit, set on the Item master).
+			title: __("Weight"),
+			key: "weight",
+			align: "center",
+			required: false,
+		},
 		{ title: __("UOM"), key: "uom", align: "center", required: false },
 		{
 			title: __("Price List Rate"),

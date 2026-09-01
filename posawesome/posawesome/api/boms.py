@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import cint, flt
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
+from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 
 def _parse_json(value):
@@ -110,7 +111,8 @@ def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_ite
 			item.name AS item_code,
 			item.item_name AS item_name,
 			item.item_group AS item_group,
-			item.stock_uom AS stock_uom
+			item.stock_uom AS stock_uom,
+			item.custom_default_weigt_of_measure AS custom_default_weigt_of_measure
 		FROM `tabItem` item
 		WHERE {where_clause}
 		ORDER BY item.item_name ASC
@@ -244,6 +246,10 @@ def get_boms_list(
 	)
 	rows = [_enrich_list_row(row) for row in rows]
 
+	weight_by_parent = get_total_weight_by_parent('BOM Item', [row['name'] for row in rows])
+	for row in rows:
+		row['total_weight'] = weight_by_parent.get(row['name'], 0.0)
+
 	total = len(
 		frappe.get_list(
 			doctype,
@@ -275,6 +281,39 @@ def get_bom_detail(name):
 	doc = frappe.get_doc('BOM', name)
 	status = 'Cancelled' if doc.docstatus == 2 else ('Submitted' if doc.docstatus == 1 else 'Draft')
 
+	# custom_default_weigt_of_measure (weight per unit) lives on the Item
+	# master, not the BOM Item child row.
+	item_codes = {row.item_code for row in doc.items if row.item_code}
+	weight_by_item = (
+		frappe._dict(
+			frappe.get_all(
+				'Item',
+				filters={'name': ['in', list(item_codes)]},
+				fields=['name', 'custom_default_weigt_of_measure'],
+				as_list=True,
+			)
+		)
+		if item_codes
+		else {}
+	)
+
+	items = []
+	total_weight = 0.0
+	for row in doc.items:
+		weight = flt(weight_by_item.get(row.item_code)) * flt(row.qty)
+		total_weight += weight
+		items.append(
+			{
+				'item_code': row.item_code,
+				'item_name': row.item_name,
+				'qty': flt(row.qty),
+				'uom': row.uom,
+				'rate': flt(row.rate),
+				'amount': flt(row.amount),
+				'weight': flt(weight),
+			}
+		)
+
 	return {
 		'name': doc.name,
 		'item': doc.item,
@@ -287,19 +326,10 @@ def get_bom_detail(name):
 		'docstatus': doc.docstatus,
 		'status': status,
 		'total_cost': flt(doc.total_cost),
+		'total_weight': flt(total_weight),
 		'creation': doc.creation,
 		'modified': doc.modified,
-		'items': [
-			{
-				'item_code': row.item_code,
-				'item_name': row.item_name,
-				'qty': flt(row.qty),
-				'uom': row.uom,
-				'rate': flt(row.rate),
-				'amount': flt(row.amount),
-			}
-			for row in doc.items
-		],
+		'items': items,
 	}
 
 

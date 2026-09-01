@@ -12,6 +12,7 @@ export interface RequisitionItem {
 	item_group: string;
 	uom: string;
 	qty: number;
+	custom_default_weigt_of_measure?: number;
 }
 
 export function useRequisition(options: { posProfile: Ref<any> }) {
@@ -58,6 +59,7 @@ export function useRequisition(options: { posProfile: Ref<any> }) {
 			item_group: item.item_group,
 			uom: item.stock_uom,
 			qty: 1,
+			custom_default_weigt_of_measure: item.custom_default_weigt_of_measure || 0,
 		});
 	};
 

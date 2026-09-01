@@ -99,6 +99,7 @@ export default {
 			{ key: 'planned_qty', label: __('Planned Qty'), align: 'end' },
 			{ key: 'produced_qty', label: __('Produced Qty'), align: 'end' },
 			{ key: 'pending_qty', label: __('Pending Qty'), align: 'end' },
+			{ key: 'weight', label: __('Weight'), align: 'end' },
 			{ key: 'stock_uom', label: __('UOM') },
 			{ key: 'warehouse', label: __('Target Warehouse') },
 			{ key: 'planned_start_date', label: __('Required Date') },
@@ -115,6 +116,7 @@ export default {
 			{ label: __('Item Count'), value: detail.value.item_count || 0 },
 			{ label: __('Total Planned Qty'), value: Number(detail.value.total_planned_qty || 0) },
 			{ label: __('Total Produced Qty'), value: Number(detail.value.total_produced_qty || 0) },
+			{ label: __('Total Weight'), value: Number(detail.value.total_weight || 0).toFixed(2) },
 		]);
 
 		const statusColor = (status) => {

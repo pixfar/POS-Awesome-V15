@@ -176,12 +176,13 @@
 												<th>{{ __("Raw Material") }}</th>
 												<th class="text-center">{{ __("UOM") }}</th>
 												<th class="text-center">{{ __("Qty") }}</th>
+												<th class="text-center">{{ __("Weight") }}</th>
 												<th class="text-center" style="width: 48px;"></th>
 											</tr>
 										</thead>
 										<tbody>
 											<tr v-if="!rawMaterials.length">
-												<td colspan="4" class="text-center text-medium-emphasis py-4">
+												<td colspan="5" class="text-center text-medium-emphasis py-4">
 													{{ __("Add raw materials from the search above") }}
 												</td>
 											</tr>
@@ -202,6 +203,9 @@
 														class="pos-themed-input qty-field"
 														@update:model-value="(v) => updateRawMaterialQty(row, v)"
 													/>
+												</td>
+												<td class="text-center text-caption">
+													{{ (Number(row.qty || 0) * Number(row.custom_default_weigt_of_measure || 0)).toFixed(2) }}
 												</td>
 												<td class="text-center">
 													<v-btn
@@ -491,6 +495,7 @@ export default {
 				item_name: item.item_name,
 				uom: item.stock_uom,
 				qty: 1,
+				custom_default_weigt_of_measure: item.custom_default_weigt_of_measure || 0,
 			});
 		};
 

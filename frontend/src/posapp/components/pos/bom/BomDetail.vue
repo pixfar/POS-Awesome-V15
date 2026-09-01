@@ -54,6 +54,7 @@ export default {
 			{ key: 'item_code', label: __('Item Code') },
 			{ key: 'item_name', label: __('Item Name') },
 			{ key: 'qty', label: __('Qty'), align: 'end' },
+			{ key: 'weight', label: __('Weight'), align: 'end' },
 			{ key: 'uom', label: __('UOM') },
 			{ key: 'rate', label: __('Rate'), align: 'end' },
 			{ key: 'amount', label: __('Amount'), align: 'end' },
@@ -64,6 +65,7 @@ export default {
 		const totals = computed(() => [
 			{ label: __('Raw Material Lines'), value: (detail.value.items || []).length },
 			{ label: __('Total Cost'), value: Number(detail.value.total_cost || 0) },
+			{ label: __('Total Weight'), value: Number(detail.value.total_weight || 0).toFixed(2) },
 		]);
 
 		const statusColor = (status) => {

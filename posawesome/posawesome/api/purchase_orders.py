@@ -19,6 +19,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_can_create,
 	is_privileged_invoice_viewer,
 )
+from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 
 def _resolve_pos_profile(pos_profile):
@@ -1065,6 +1066,10 @@ def get_purchase_invoices_list(
         else:
             row["receipt_status"] = receipt_statuses.get(row["name"])
 
+    weight_by_parent = get_total_weight_by_parent(item_doctype, [row["name"] for row in rows])
+    for row in rows:
+        row["total_weight"] = weight_by_parent.get(row["name"], 0.0)
+
     total = len(
         frappe.get_list(
             doctype,
@@ -1103,6 +1108,40 @@ def get_purchase_invoice_detail(name):
     """Full detail (header + items) for the Purchase Invoice list's detail page."""
     doc = frappe.get_doc("Purchase Invoice", name)
     owner_name = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
+
+    # custom_default_weigt_of_measure (weight per unit) lives on the Item
+    # master, not the invoice's own item child row -- one bulk lookup.
+    item_codes = {row.item_code for row in doc.items if row.item_code}
+    weight_by_item = (
+        frappe._dict(
+            frappe.get_all(
+                "Item",
+                filters={"name": ["in", list(item_codes)]},
+                fields=["name", "custom_default_weigt_of_measure"],
+                as_list=True,
+            )
+        )
+        if item_codes
+        else {}
+    )
+    total_weight = 0.0
+    items = []
+    for row in doc.items:
+        weight = flt(weight_by_item.get(row.item_code)) * flt(row.qty)
+        total_weight += weight
+        items.append(
+            {
+                "item_code": row.item_code,
+                "item_name": row.item_name,
+                "qty": flt(row.qty),
+                "uom": row.uom,
+                "rate": flt(row.rate),
+                "amount": flt(row.amount),
+                "warehouse": row.get("warehouse"),
+                "weight": flt(weight),
+            }
+        )
+
     return {
         "name": doc.name,
         "supplier": doc.supplier,
@@ -1119,6 +1158,7 @@ def get_purchase_invoice_detail(name):
         "custom_do_number": doc.get("custom_do_number"),
         "net_total": flt(doc.net_total),
         "total_qty": flt(doc.total_qty),
+        "total_weight": flt(total_weight),
         "discount_amount": flt(doc.get("discount_amount")),
         "grand_total": flt(doc.grand_total),
         "paid_amount": flt(doc.get("paid_amount")),
@@ -1133,18 +1173,7 @@ def get_purchase_invoice_detail(name):
             }
             for row in (doc.get("taxes") or [])
         ],
-        "items": [
-            {
-                "item_code": row.item_code,
-                "item_name": row.item_name,
-                "qty": flt(row.qty),
-                "uom": row.uom,
-                "rate": flt(row.rate),
-                "amount": flt(row.amount),
-                "warehouse": row.get("warehouse"),
-            }
-            for row in doc.items
-        ],
+        "items": items,
     }
 
 
@@ -1395,7 +1424,7 @@ def search_items(search_text=None, limit=20):
         "Item",
         filters=filters,
         or_filters=or_filters,
-        fields=["name", "item_name", "stock_uom", "standard_rate"],
+        fields=["name", "item_name", "stock_uom", "standard_rate", "custom_default_weigt_of_measure"],
         limit_page_length=limit,
         order_by="name asc",
     )

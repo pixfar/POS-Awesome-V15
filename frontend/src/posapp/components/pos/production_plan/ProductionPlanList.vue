@@ -167,6 +167,9 @@
 					<template #item.total_planned_qty="{ item }">
 						<span class="pos-list-cell-muted">{{ formatQty(item.total_planned_qty) }}</span>
 					</template>
+					<template #item.total_weight="{ item }">
+						<span class="pos-list-cell-muted">{{ Number(item.total_weight || 0).toFixed(2) }}</span>
+					</template>
 					<template #item.workflow_state="{ item }">
 						<v-chip size="small" variant="tonal" :color="statusColor(item.workflow_state)">
 							{{ item.workflow_state }}
@@ -335,6 +338,7 @@ export default {
 			{ title: __('Date'), key: 'posting_date', sortable: true },
 			{ title: __('Source Warehouse'), key: 'for_warehouse', sortable: true },
 			{ title: __('Planned Qty'), key: 'total_planned_qty', sortable: true, align: 'end' },
+			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'workflow_state', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '260px' },
 		];
@@ -560,7 +564,9 @@ export default {
 				label: __('Delete'),
 				icon: ACTION_ICONS.Delete,
 				color: 'error',
-				show: item.docstatus === 0 || item.docstatus === 2,
+				// Hidden from the UI -- users are no longer allowed to delete
+				// Draft/Cancelled Production Plans from POS Awesome.
+				show: false,
 			});
 			return actions;
 		};

@@ -275,14 +275,13 @@ def cancel_expense_claim(expense_claim):
 	# _pay_expense_claim() always pays a claim out in full on creation, via a
 	# submitted Payment Entry referencing this claim -- ERPNext blocks
 	# doc.cancel() below with "linked with Payment Entry" until that's gone.
-	# Reuse the same cascade-cancel bsp_engineering already applies to Sales/
-	# Purchase Invoice instead of re-deriving it here.
-	from bsp_engineering.doc_events.invoice.cancel_linked_payments import (
-		cancel_linked_payment_entries,
-	)
-
-	cancel_linked_payment_entries(doc)
-
+	# The same cascade-cancel bsp_engineering applies to Sales/Purchase Invoice
+	# is wired as a before_cancel hook on Expense Claim too (see
+	# bsp_engineering/hooks.py), so it runs automatically inside doc.cancel()
+	# below rather than being called manually here -- calling it beforehand
+	# left this `doc` stale (hrms re-saves the Expense Claim as a side effect
+	# of cancelling its Payment Entry) and doc.cancel() would then fail with
+	# "Document has been modified after you have opened it".
 	doc.flags.ignore_permissions = True
 	doc.cancel()
 	return {"name": doc.name, "status": doc.status}

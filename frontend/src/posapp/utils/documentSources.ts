@@ -234,7 +234,9 @@ export function getDocumentSourceOption(
 export function canDeleteDocumentSourceRecord(
 	source: CommercialDocumentSourceKey,
 ): boolean {
-	return source === "invoice";
+	// Delete is hidden from the UI -- users are no longer allowed to delete
+	// draft invoices from POS Awesome.
+	return false;
 }
 
 function normalizeDocumentStatus(
