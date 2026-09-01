@@ -31,9 +31,13 @@
 					<span class="pos-list-stat__label">{{ __("Sent") }}</span>
 					<strong class="pos-list-stat__value">{{ statusCounts.Sent || 0 }}</strong>
 				</div>
+				<div class="pos-list-stat">
+					<span class="pos-list-stat__label">{{ __("Seen") }}</span>
+					<strong class="pos-list-stat__value">{{ statusCounts.Seen || 0 }}</strong>
+				</div>
 				<div class="pos-list-stat pos-list-stat--success">
-					<span class="pos-list-stat__label">{{ __("Received") }}</span>
-					<strong class="pos-list-stat__value">{{ statusCounts.Received || 0 }}</strong>
+					<span class="pos-list-stat__label">{{ __("Completed") }}</span>
+					<strong class="pos-list-stat__value">{{ statusCounts.Completed || 0 }}</strong>
 				</div>
 				<div class="pos-list-stat">
 					<span class="pos-list-stat__label">{{ __("Rejected") }}</span>
@@ -283,7 +287,7 @@
 			:title="confirmDialogTitle"
 			:message="confirmDialogMessage"
 			:confirm-label="__(pendingAction?.status || 'Confirm')"
-			:confirm-color="pendingAction?.status === 'Received' ? 'success' : 'error'"
+			:confirm-color="confirmColorForStatus(pendingAction?.status)"
 			:loading="confirmLoading"
 			@confirm="performUpdateStatus"
 		/>
@@ -300,10 +304,20 @@ import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 
 const STATUS_CONFIRM_MESSAGES = {
-	Received: __('Mark this requisition as Received? This confirms the stock transfer is complete.'),
+	Seen: __('Mark this requisition as Seen? This lets the requester know it is being processed.'),
+	Completed: __('Mark this requisition as Completed? This confirms the stock transfer is complete.'),
 	Rejected: __('Reject this requisition? This cannot be undone.'),
 	Cancel: __('Cancel this requisition? This cannot be undone.'),
 	Delete: __('Permanently delete this cancelled requisition? This cannot be undone.'),
+};
+
+// Confirm-dialog accent color per target status.
+const CONFIRM_COLOR_BY_STATUS = {
+	Seen: 'primary',
+	Completed: 'success',
+	Rejected: 'error',
+	Cancel: 'error',
+	Delete: 'error',
 };
 
 export default {
@@ -331,7 +345,7 @@ export default {
 		const hasMore = ref(false);
 		const statusCounts = ref({});
 
-		const statusOptions = ['Sent', 'Received', 'Rejected'];
+		const statusOptions = ['Sent', 'Seen', 'Completed', 'Rejected'];
 		const statusFilter = ref(null);
 		const fromDate = ref('');
 		const toDate = ref('');
@@ -508,7 +522,8 @@ export default {
 		const statusColor = (status) => {
 			const map = {
 				Sent: 'orange',
-				Received: 'green',
+				Seen: 'blue',
+				Completed: 'green',
 				Rejected: 'red',
 				Cancelled: 'red',
 				Draft: 'grey',
@@ -516,8 +531,10 @@ export default {
 			return map[status] || 'grey';
 		};
 
+		const confirmColorForStatus = (status) => CONFIRM_COLOR_BY_STATUS[status] || 'error';
+
 		// A Requisition can be cancelled (docstatus=2) independently of its
-		// transfer_status label (Sent/Received/Rejected never changes on
+		// transfer_status label (Sent/Seen/Completed/Rejected never changes on
 		// cancel) -- show the real docstatus-derived state so a cancelled row
 		// doesn't misleadingly still read "Sent" in orange.
 		const displayStatus = (item) => {
@@ -529,11 +546,18 @@ export default {
 		const rowActions = (item) => [
 			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },
 			{
-				key: 'received',
-				label: __('Received'),
+				key: 'seen',
+				label: __('Mark as Seen'),
+				icon: 'mdi-eye-check-outline',
+				color: 'primary',
+				show: item.can_manage_status && item.transfer_status === 'Sent',
+			},
+			{
+				key: 'completed',
+				label: __('Completed'),
 				icon: 'mdi-check-circle-outline',
 				color: 'success',
-				show: item.can_manage_status,
+				show: item.can_manage_status && item.transfer_status === 'Seen',
 			},
 			{
 				key: 'rejected',
@@ -563,8 +587,10 @@ export default {
 		const handleRowAction = (key, item) => {
 			if (key === 'view') {
 				openRequisitionDetail(item);
-			} else if (key === 'received') {
-				requestUpdateStatus(item.name, 'Received');
+			} else if (key === 'seen') {
+				requestUpdateStatus(item.name, 'Seen');
+			} else if (key === 'completed') {
+				requestUpdateStatus(item.name, 'Completed');
 			} else if (key === 'rejected') {
 				requestUpdateStatus(item.name, 'Rejected');
 			} else if (key === 'cancel') {
@@ -618,16 +644,20 @@ export default {
 					});
 					toastStore.show({ title: __('Requisition {0} deleted', [requisition]), color: 'success' });
 				} else {
+					const freezeMessages = {
+						Seen: __('Marking as seen...'),
+						Completed: __('Marking as completed...'),
+						Rejected: __('Marking as rejected...'),
+					};
 					await frappe.call({
 						method: 'posawesome.posawesome.api.requisitions.set_requisition_status',
 						args: { requisition, status },
 						freeze: true,
-						freeze_message:
-							status === 'Received' ? __('Marking as received...') : __('Marking as rejected...'),
+						freeze_message: freezeMessages[status] || __('Updating status...'),
 					});
 					toastStore.show({
 						title: __('Requisition {0} marked {1}', [requisition, status]),
-						color: status === 'Received' ? 'success' : 'warning',
+						color: status === 'Completed' ? 'success' : status === 'Seen' ? 'primary' : 'warning',
 					});
 				}
 				confirmDialogOpen.value = false;
@@ -685,6 +715,7 @@ export default {
 			goToPage,
 			formatDisplayDate,
 			statusColor,
+			confirmColorForStatus,
 			displayStatus,
 			rowActions,
 			handleRowAction,

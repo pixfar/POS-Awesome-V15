@@ -16,7 +16,10 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 )
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
-ALLOWED_STATUS_TRANSITIONS = {'Sent': {'Received', 'Rejected'}}
+ALLOWED_STATUS_TRANSITIONS = {
+	'Sent': {'Seen', 'Rejected'},
+	'Seen': {'Completed', 'Rejected'},
+}
 
 
 def _parse_json(value):
@@ -82,7 +85,10 @@ def create_requisition(data):
 
 
 def _enrich_list_row(row):
-	row['can_manage_status'] = bool(is_system_manager()) and row.get('transfer_status') == 'Sent'
+	row['can_manage_status'] = bool(is_system_manager()) and row.get('transfer_status') in (
+		'Sent',
+		'Seen',
+	)
 	return row
 
 
@@ -220,13 +226,15 @@ def get_requisition_detail(requisition):
 		'total_weight': flt(total_weight),
 		'item_count': len(doc.items),
 		'items': items,
-		'can_manage_status': bool(is_system_manager()) and doc.transfer_status == 'Sent',
+		'can_manage_status': bool(is_system_manager())
+		and doc.transfer_status in ('Sent', 'Seen'),
 	}
 
 
 @frappe.whitelist()
 def set_requisition_status(requisition, status):
-	"""Transition a submitted Requisition from Sent to Received/Rejected."""
+	"""Transition a submitted Requisition through Sent -> Seen -> Completed,
+	or Reject it from either Sent or Seen (see ALLOWED_STATUS_TRANSITIONS)."""
 	if not is_system_manager():
 		frappe.throw(
 			_('Only a System Manager can update the Requisition status.'),
@@ -234,7 +242,7 @@ def set_requisition_status(requisition, status):
 			exc=frappe.PermissionError,
 		)
 
-	if status not in ('Received', 'Rejected'):
+	if status not in ('Seen', 'Completed', 'Rejected'):
 		frappe.throw(_('Invalid status {0}.').format(status))
 
 	doc = frappe.get_doc('Requisition', requisition)

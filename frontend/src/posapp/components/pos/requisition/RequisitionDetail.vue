@@ -21,7 +21,7 @@
 			:title="confirmDialogTitle"
 			:message="confirmDialogMessage"
 			:confirm-label="__(pendingAction || 'Confirm')"
-			:confirm-color="pendingAction === 'Received' ? 'success' : 'error'"
+			:confirm-color="confirmColorForStatus(pendingAction)"
 			:loading="actionLoading"
 			@confirm="performUpdateStatus"
 		/>
@@ -37,8 +37,15 @@ import DocumentDetailView from '../shared/DocumentDetailView.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 
 const STATUS_CONFIRM_MESSAGES = {
-	Received: __('Mark this requisition as Received? This confirms the stock transfer is complete.'),
+	Seen: __('Mark this requisition as Seen? This lets the requester know it is being processed.'),
+	Completed: __('Mark this requisition as Completed? This confirms the stock transfer is complete.'),
 	Rejected: __('Reject this requisition? This cannot be undone.'),
+};
+
+const CONFIRM_COLOR_BY_STATUS = {
+	Seen: 'primary',
+	Completed: 'success',
+	Rejected: 'error',
 };
 
 export default {
@@ -116,9 +123,11 @@ export default {
 		});
 
 		const statusColor = (status) => {
-			const map = { Sent: 'orange', Received: 'green', Rejected: 'red' };
+			const map = { Sent: 'orange', Seen: 'blue', Completed: 'green', Rejected: 'red' };
 			return map[status] || 'grey';
 		};
+
+		const confirmColorForStatus = (status) => CONFIRM_COLOR_BY_STATUS[status] || 'error';
 
 		const confirmDialogOpen = ref(false);
 		const pendingAction = ref(null);
@@ -141,17 +150,21 @@ export default {
 			if (!pendingAction.value) return;
 			const status = pendingAction.value;
 			actionLoading.value = true;
+			const freezeMessages = {
+				Seen: __('Marking as seen...'),
+				Completed: __('Marking as completed...'),
+				Rejected: __('Marking as rejected...'),
+			};
 			try {
 				await frappe.call({
 					method: 'posawesome.posawesome.api.requisitions.set_requisition_status',
 					args: { requisition: name, status },
 					freeze: true,
-					freeze_message:
-						status === 'Received' ? __('Marking as received...') : __('Marking as rejected...'),
+					freeze_message: freezeMessages[status] || __('Updating status...'),
 				});
 				toastStore.show({
 					title: __('Requisition {0} marked {1}', [name, status]),
-					color: status === 'Received' ? 'success' : 'warning',
+					color: status === 'Completed' ? 'success' : status === 'Seen' ? 'primary' : 'warning',
 				});
 				confirmDialogOpen.value = false;
 				pendingAction.value = null;
@@ -168,20 +181,27 @@ export default {
 		const actions = computed(() => {
 			const list = [];
 			if (detail.value.can_manage_status) {
-				list.push(
-					{
-						label: __('Received'),
+				if (detail.value.transfer_status === 'Sent') {
+					list.push({
+						label: __('Mark as Seen'),
+						color: 'primary',
+						loading: actionLoading.value,
+						onClick: () => requestUpdateStatus('Seen'),
+					});
+				} else if (detail.value.transfer_status === 'Seen') {
+					list.push({
+						label: __('Completed'),
 						color: 'success',
 						loading: actionLoading.value,
-						onClick: () => requestUpdateStatus('Received'),
-					},
-					{
-						label: __('Rejected'),
-						color: 'error',
-						loading: actionLoading.value,
-						onClick: () => requestUpdateStatus('Rejected'),
-					},
-				);
+						onClick: () => requestUpdateStatus('Completed'),
+					});
+				}
+				list.push({
+					label: __('Rejected'),
+					color: 'error',
+					loading: actionLoading.value,
+					onClick: () => requestUpdateStatus('Rejected'),
+				});
 			}
 			list.push({ label: __('Print'), color: 'primary', onClick: printDocument });
 			return list;
@@ -224,6 +244,7 @@ export default {
 			totals,
 			actions,
 			statusColor,
+			confirmColorForStatus,
 			confirmDialogOpen,
 			pendingAction,
 			confirmDialogTitle,

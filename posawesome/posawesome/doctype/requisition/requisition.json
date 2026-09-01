@@ -57,7 +57,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Sent\nReceived\nRejected",
+   "options": "Sent\nSeen\nCompleted\nRejected",
    "read_only": 1
   },
   {
