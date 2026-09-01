@@ -37,16 +37,20 @@ def _get_report_functions():
 		get_deposits,
 		get_expense_claims,
 		get_fund_transfers,
+		get_gl_balance,
 		get_opening_balances,
+		get_purchase_invoices,
 		get_sales_invoices,
 	)
 
 	return (
 		get_sales_invoices,
+		get_purchase_invoices,
 		get_expense_claims,
 		get_deposits,
 		get_fund_transfers,
 		get_opening_balances,
+		get_gl_balance,
 	)
 
 
@@ -94,17 +98,21 @@ def _build_context(warehouse, date):
 
 	(
 		get_sales_invoices,
+		get_purchase_invoices,
 		get_expense_claims,
 		get_deposits,
 		get_fund_transfers,
 		get_opening_balances,
+		get_gl_balance,
 	) = _get_report_functions()
 
 	invoices = get_sales_invoices(company, warehouse, report_date, report_date)
+	purchases = get_purchase_invoices(company, warehouse, report_date, report_date)
 	expenses = get_expense_claims(company, warehouse, report_date, report_date)
 	deposits = get_deposits(company, warehouse, report_date, report_date)
 	fund_transfers = get_fund_transfers(company, warehouse, report_date, report_date)
 	opening_balance = flt(get_opening_balances(company, warehouse, report_date).get(warehouse))
+	purchase_paid = sum(flt(row.grand_total) - flt(row.outstanding_amount) for row in purchases)
 
 	currency = frappe.get_cached_value("Company", company, "default_currency")
 
@@ -197,8 +205,21 @@ def _build_context(warehouse, date):
 			}
 		)
 
-	income = sales_total["received"] + fund_transfer_total - expense_total
-	closing_balance = opening_balance + income - deposit_total
+	income = sales_total["received"] + fund_transfer_total - expense_total - purchase_paid
+	formula_closing_balance = opening_balance + income - deposit_total
+
+	# GL-mapped warehouse (Warehouse.custom_cash_accounts): use the *real*
+	# ledger balance for its accounts as of report_date -- the same figure
+	# Trial Balance shows -- rather than the arithmetic derivation above,
+	# which is blind to anything posted to the account outside the
+	# transaction types tracked here (see daily_cash_summary_report.py's
+	# get_gl_balance/get_opening_balances docstrings for why this matters).
+	from bsp_engineering.utils.warehouse_accounts import get_accounts_for_warehouse
+
+	wh_accounts = get_accounts_for_warehouse(warehouse)
+	closing_balance = (
+		get_gl_balance(wh_accounts, company, report_date) if wh_accounts else formula_closing_balance
+	)
 
 	return {
 		"branding": _warehouse_branding(warehouse),
