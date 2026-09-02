@@ -11,7 +11,37 @@
 										<h3 class="invoice-section-heading__title">{{ __("From Employee") }}</h3>
 									</div>
 									<div class="sale-options-body">
+										<v-autocomplete
+											v-if="canSelectEmployee"
+											v-model="selectedEmployee"
+											v-model:search="employeeSearchQuery"
+											:items="employeeOptions"
+											item-title="employee_name"
+											item-value="name"
+											:label="__('Employee')"
+											density="compact"
+											variant="outlined"
+											color="primary"
+											hide-details
+											:loading="employeeLoading || employeeSearchLoading"
+											:no-data-text="
+												employeeSearchQuery && employeeSearchQuery.length < 2
+													? __('Type at least 2 characters')
+													: __('No employees found')
+											"
+											prepend-inner-icon="mdi-account-outline"
+											class="pos-themed-input mb-2"
+											@update:search="handleEmployeeSearchUpdate"
+										>
+											<template #item="{ props: itemProps, item }">
+												<v-list-item v-bind="itemProps" :title="undefined">
+													<v-list-item-title>{{ item.raw.employee_name }}</v-list-item-title>
+													<v-list-item-subtitle>{{ item.raw.name }}</v-list-item-subtitle>
+												</v-list-item>
+											</template>
+										</v-autocomplete>
 										<v-text-field
+											v-else
 											:model-value="employeeDisplay"
 											:label="__('Employee')"
 											density="compact"
@@ -68,7 +98,9 @@
 
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
 									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Date") }}</h3>
+										<h3 class="invoice-section-heading__title">
+											{{ canEditPaymentAccount ? __("Date & Accounts") : __("Date") }}
+										</h3>
 									</div>
 									<div class="sale-options-body">
 										<DateFilterField
@@ -77,6 +109,20 @@
 											:clearable="false"
 											:disabled="!canEditPostingDate"
 											field-class="pos-themed-input"
+										/>
+										<v-autocomplete
+											v-if="canEditPaymentAccount"
+											v-model="paymentAccountOverride"
+											:items="cashAccountOptions"
+											item-title="name"
+											item-value="name"
+											:label="__('Accounts')"
+											density="compact"
+											variant="outlined"
+											hide-details
+											clearable
+											:loading="cashAccountsLoading"
+											class="pos-themed-input mt-2"
 										/>
 									</div>
 								</v-card>
@@ -209,7 +255,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
@@ -241,6 +287,16 @@ export default {
 
 		const employee = ref(null);
 		const employeeLoading = ref(false);
+		// "From Employee" override -- System Manager / BSP Admin only, so an
+		// admin can create this expense on behalf of a different employee
+		// instead of only their own; re-verified server-side, this flag is
+		// UX-only. Defaults to the admin's own employee (if they have one).
+		const canSelectEmployee = computed(() => isFundTransferManager());
+		const selectedEmployee = ref(null);
+		const employeeOptions = ref([]);
+		const employeeSearchQuery = ref('');
+		const employeeSearchLoading = ref(false);
+		let employeeSearchTimeout = null;
 
 		// Warehouse follows the same rule used across Sales/Purchase/Material
 		// Transfer/Requisition/Deposit: only System Manager can pick a
@@ -250,6 +306,15 @@ export default {
 		// Same gate as the DO Number card on Sales/Purchase/Material Transfer --
 		// only BSP Admin/System Manager can back- or post-date an expense.
 		const canEditPostingDate = computed(() => isFundTransferManager());
+		// "Accounts" override -- System Manager / BSP Admin only, same feature
+		// as the Purchase Invoice screen's "Accounts" card. Defaults to the
+		// active POS Profile's own account_for_change_amount, but an admin can
+		// route this expense's payout through a different showroom's cash
+		// account instead; re-verified server-side, this flag is UX-only.
+		const canEditPaymentAccount = computed(() => isFundTransferManager());
+		const cashAccountOptions = ref([]);
+		const cashAccountsLoading = ref(false);
+		const paymentAccountOverride = ref(null);
 		const warehouseOptions = ref([]);
 		const warehouseLabel = ref('');
 		const warehouseLoading = ref(false);
@@ -291,11 +356,42 @@ export default {
 					method: 'posawesome.posawesome.api.expense_claims.get_current_employee',
 				});
 				employee.value = message || null;
+				if (canSelectEmployee.value && employee.value) {
+					// Default the picker to the admin's own employee -- they can
+					// still search and pick someone else.
+					selectedEmployee.value = employee.value.name;
+					employeeOptions.value = [employee.value];
+				}
 			} catch (e) {
-				errorMessage.value = e?.message || __('Failed to load your Employee record');
+				// An admin with no Employee record of their own can still create
+				// an expense for someone else via the picker below -- only treat
+				// this as a page error for a regular POS user, who has no such
+				// fallback.
+				if (!canSelectEmployee.value) {
+					errorMessage.value = e?.message || __('Failed to load your Employee record');
+				}
 			} finally {
 				employeeLoading.value = false;
 			}
+		};
+
+		const handleEmployeeSearchUpdate = (term) => {
+			if (employeeSearchTimeout) clearTimeout(employeeSearchTimeout);
+			if (!term || term.trim().length < 2) return;
+			employeeSearchTimeout = setTimeout(async () => {
+				employeeSearchLoading.value = true;
+				try {
+					const { message } = await frappe.call({
+						method: 'posawesome.posawesome.api.expense_claims.search_employees',
+						args: { search_text: term.trim(), limit: 20 },
+					});
+					employeeOptions.value = message || [];
+				} catch (e) {
+					console.error('Failed to search employees', e);
+				} finally {
+					employeeSearchLoading.value = false;
+				}
+			}, 300);
 		};
 
 		const loadExpenseTypes = async () => {
@@ -377,6 +473,24 @@ export default {
 			warehouseLoading.value = false;
 		};
 
+		const loadCashInHandAccounts = async () => {
+			const company = pos_profile.value?.company;
+			if (!canEditPaymentAccount.value || !company) return;
+			cashAccountsLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.payment_processing.utils.get_cash_in_hand_accounts',
+					args: { company },
+				});
+				cashAccountOptions.value = message || [];
+			} catch (e) {
+				console.error('Failed to load Cash In Hand accounts', e);
+				cashAccountOptions.value = [];
+			} finally {
+				cashAccountsLoading.value = false;
+			}
+		};
+
 		const resetForm = () => {
 			expenseDate.value = getTodayDate();
 			remark.value = '';
@@ -395,6 +509,10 @@ export default {
 				errorMessage.value = __('Select an Expense Claim Type for every expense row.');
 				return;
 			}
+			if (canSelectEmployee.value && !selectedEmployee.value) {
+				errorMessage.value = __('Select an Employee.');
+				return;
+			}
 
 			submitLoading.value = true;
 			try {
@@ -405,6 +523,12 @@ export default {
 							expense_date: expenseDate.value,
 							warehouse: warehouse.value,
 							remark: remark.value,
+							// Both overrides are re-verified server-side (System Manager /
+							// BSP Admin) -- see expense_claims.create_expense_claim.
+							employee: canSelectEmployee.value ? (selectedEmployee.value || null) : null,
+							payment_account: canEditPaymentAccount.value
+								? (paymentAccountOverride.value || null)
+								: null,
 							expenses: validRows.map((row) => ({
 								expense_type: row.expense_type,
 								description: row.description,
@@ -430,6 +554,29 @@ export default {
 		};
 
 		onMounted(async () => {
+			// pos_profile started as a one-time snapshot of uiStore.posProfile,
+			// which can still be empty at that exact moment (e.g. a fresh page
+			// load lands here before the store finishes hydrating) -- without
+			// this, pos_profile.value.company silently stays blank forever and
+			// the Accounts dropdown below has nothing to fetch. Same pattern
+			// Purchase Invoice's own "Accounts" card uses.
+			watch(
+				() => uiStore.posProfile,
+				(p) => {
+					if (p) pos_profile.value = p;
+				},
+				{ immediate: true },
+			);
+			watch(
+				() => pos_profile.value?.company,
+				() => {
+					// Default to this POS Profile's own change account -- the
+					// user can still pick a different one from the dropdown.
+					paymentAccountOverride.value = pos_profile.value?.account_for_change_amount || null;
+					loadCashInHandAccounts();
+				},
+				{ immediate: true },
+			);
 			await Promise.all([loadEmployee(), loadExpenseTypes(), loadWarehouse()]);
 		});
 
@@ -437,8 +584,18 @@ export default {
 			employee,
 			employeeLoading,
 			employeeDisplay,
+			canSelectEmployee,
+			selectedEmployee,
+			employeeOptions,
+			employeeSearchQuery,
+			employeeSearchLoading,
+			handleEmployeeSearchUpdate,
 			canChangeWarehouse,
 			canEditPostingDate,
+			canEditPaymentAccount,
+			cashAccountOptions,
+			cashAccountsLoading,
+			paymentAccountOverride,
 			warehouseOptions,
 			warehouseLabel,
 			warehouseLoading,

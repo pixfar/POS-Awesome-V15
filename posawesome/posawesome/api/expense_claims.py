@@ -8,7 +8,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today
 
-from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager, ensure_can_create
+from posawesome.posawesome.utils.warehouse_doc_permissions import (
+	is_system_manager,
+	is_privileged_invoice_viewer,
+	ensure_can_create,
+)
 from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
 
 DEFAULT_MODE_OF_PAYMENT = 'Cash'
@@ -21,12 +25,15 @@ def _parse_json(value):
 	return value
 
 
+_EMPLOYEE_FIELDS = ['name', 'employee_name', 'company', 'department', 'expense_approver']
+
+
 def _get_employee_for_user(user=None):
 	user = user or frappe.session.user
 	employee = frappe.db.get_value(
 		'Employee',
 		{'user_id': user, 'status': 'Active'},
-		['name', 'employee_name', 'company', 'department', 'expense_approver'],
+		_EMPLOYEE_FIELDS,
 		as_dict=True,
 	)
 	if not employee:
@@ -37,10 +44,53 @@ def _get_employee_for_user(user=None):
 	return employee
 
 
+def _get_employee_by_id(employee_id):
+	employee = frappe.db.get_value(
+		'Employee',
+		{'name': employee_id, 'status': 'Active'},
+		_EMPLOYEE_FIELDS,
+		as_dict=True,
+	)
+	if not employee:
+		frappe.throw(
+			_('Employee {0} not found or is not active.').format(employee_id),
+			title=_('Employee Not Found'),
+		)
+	return employee
+
+
 @frappe.whitelist()
 def get_current_employee():
 	"""Employee record linked to the logged-in POS user, used to prefill the Expense form."""
 	return _get_employee_for_user()
+
+
+@frappe.whitelist()
+def search_employees(search_text=None, limit=20):
+	"""Employee search for the Expense form's admin-only "From Employee"
+	override (System Manager / BSP Admin) -- lets them create an Expense
+	Claim on behalf of a different employee instead of only their own.
+	Gated the same way as the "Accounts" override (get_cash_in_hand_accounts)
+	since this is meant to be admin-only functionality."""
+	if not is_privileged_invoice_viewer():
+		frappe.throw(_('Not permitted'), exc=frappe.PermissionError)
+
+	limit = max(1, min(int(limit or 20), 50))
+	filters = {'status': 'Active'}
+	or_filters = None
+	if search_text and len(search_text.strip()) >= 2:
+		like = f'%{search_text.strip()}%'
+		or_filters = {'name': ['like', like], 'employee_name': ['like', like]}
+
+	return frappe.get_all(
+		'Employee',
+		filters=filters,
+		or_filters=or_filters,
+		fields=_EMPLOYEE_FIELDS,
+		order_by='employee_name asc',
+		limit_page_length=limit,
+		ignore_permissions=True,
+	)
 
 
 @frappe.whitelist()
@@ -65,7 +115,14 @@ def create_expense_claim(data):
 	if not rows:
 		frappe.throw(_('Add at least one expense.'), title=_('Expenses Required'))
 
-	employee = _get_employee_for_user()
+	# "From Employee" override -- System Manager / BSP Admin only, same trust
+	# model as the "Accounts" override below: re-verified server-side, never
+	# trusted from the client alone.
+	employee_override = data.get('employee')
+	if employee_override and is_privileged_invoice_viewer():
+		employee = _get_employee_by_id(employee_override)
+	else:
+		employee = _get_employee_for_user()
 	expense_date = data.get('expense_date') or today()
 
 	doc = frappe.new_doc('Expense Claim')
@@ -115,7 +172,14 @@ def create_expense_claim(data):
 	doc.insert(ignore_permissions=True)
 	doc.submit()
 
-	payment_entry = _pay_expense_claim(doc)
+	# Server re-verifies System Manager / BSP Admin before honoring this --
+	# never trust the client alone, same gate as Purchase Invoice's own
+	# "Accounts" override (see purchase_orders.create_purchase_invoice).
+	payment_account_override = data.get('payment_account')
+	if payment_account_override and not is_privileged_invoice_viewer():
+		payment_account_override = None
+
+	payment_entry = _pay_expense_claim(doc, override_account=payment_account_override)
 	doc.reload()  # payment_entry's on_submit hook updates status to Paid
 
 	return {
@@ -126,7 +190,7 @@ def create_expense_claim(data):
 	}
 
 
-def _pay_expense_claim(doc):
+def _pay_expense_claim(doc, override_account=None):
 	"""Pay out a just-submitted Expense Claim immediately, via the exact same
 	whitelisted call HRMS's own 'Make Payment Entry' button uses
 	(hrms.overrides.employee_payment_entry.get_payment_entry_for_employee) --
@@ -135,18 +199,21 @@ def _pay_expense_claim(doc):
 	amounts computed by HRMS itself) so we don't have to re-derive those
 	amounts by hand.
 
-	The only thing overridden here is paid_from: the showroom's POS Profile
-	account_for_change_amount for the logged-in user instead of a generic
-	mode-of-payment account, so accounting can be tracked per showroom --
-	same convention as the Sales/Purchase Invoice and standalone Customer/
-	Supplier payment flows. Falls back to HRMS's own default bank/cash
-	account if the POS Profile has none configured.
+	paid_from is the showroom's POS Profile account_for_change_amount for
+	the logged-in user instead of a generic mode-of-payment account, so
+	accounting can be tracked per showroom -- same convention as the Sales/
+	Purchase Invoice and standalone Customer/Supplier payment flows.
+	`override_account` (System Manager / BSP Admin only -- re-verified by
+	the caller, never trusted from the client alone) takes priority when
+	set, so an admin can route this specific expense through a different
+	showroom's cash account. Falls back to HRMS's own default bank/cash
+	account if neither is available.
 	"""
 	from hrms.overrides.employee_payment_entry import get_payment_entry_for_employee
 
 	pe = get_payment_entry_for_employee('Expense Claim', doc.name)
 
-	change_account = get_pos_change_account()
+	change_account = override_account or get_pos_change_account()
 	if change_account:
 		pe.paid_from = change_account
 
