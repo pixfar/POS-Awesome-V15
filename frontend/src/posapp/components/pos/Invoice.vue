@@ -1198,7 +1198,12 @@ export default {
 			// canEditPaymentAccount / get_invoice_doc's payment_account wiring).
 			this.paymentAccountOverride = data.pos_profile?.account_for_change_amount || null;
 			if (this.canEditPaymentAccount) {
-				this.loadCashInHandAccounts(this.company);
+				// this.company (set above from data.company, i.e.
+				// uiStore.companyDoc) is a whole Company *document*, not its
+				// name -- get_cash_in_hand_accounts expects the company name
+				// string, which only the POS Profile itself reliably carries
+				// here; passing the document silently matched zero accounts.
+				this.loadCashInHandAccounts(data.pos_profile?.company);
 			}
 		},
 		async loadCashInHandAccounts(company) {

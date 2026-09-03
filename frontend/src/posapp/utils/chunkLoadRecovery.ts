@@ -50,9 +50,18 @@ export function clearChunkRecoveryState() {
 	window.sessionStorage.removeItem(CHUNK_RECOVERY_IN_PROGRESS_KEY);
 }
 
+// Called ~3s after a route has rendered without a chunk-load failure -- a
+// stable boot is the right signal to give the recovery budget a full reset
+// (reload-once, cache-clear-once, AND the terminal give-up flag), not just
+// the in-progress guard clearChunkRecoveryState() clears at mount time.
+// Before this, once a tab burned through both automatic-recovery attempts
+// once (e.g. an earlier stale-chunk incident right after a deploy), every
+// later chunk failure in that same tab -- even an unrelated, one-off one --
+// silently hit the terminal guard and no-op'ed with no reload and no
+// visible error, leaving the page blank until a manual hard refresh.
 export function scheduleChunkRecoveryStateReset() {
 	scheduleAfterStableBoot(() => {
-		clearChunkRecoveryState();
+		resetRecoveryState();
 	});
 }
 

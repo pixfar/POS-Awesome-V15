@@ -8,9 +8,7 @@
 	</template>
 	<router-view v-else v-slot="{ Component, route }">
 		<component :is="layoutComponent" :key="layoutName">
-			<transition name="fade-page" mode="out-in">
-				<component :is="Component" class="app-route-view" />
-			</transition>
+			<component :is="Component" :key="route.fullPath" class="app-route-view" />
 		</component>
 	</router-view>
 </template>
