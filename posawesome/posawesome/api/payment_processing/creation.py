@@ -29,6 +29,7 @@ def create_payment_entry(
     cost_center=None,
     submit=0,
     client_request_id=None,
+    override_account=None,
 ):
     date = nowdate() if not posting_date else posting_date
     party = party or customer
@@ -79,9 +80,14 @@ def create_payment_entry(
     # Company-side account (paid_to for Receive/customer, paid_from for
     # Pay/supplier) is the submitting cashier's POS Profile
     # account_for_change_amount rather than the mode of payment's own
-    # account, so accounting can be tracked per showroom. Falls back to the
-    # mode of payment's account if the POS Profile has none configured.
-    company_account = get_pos_change_account() or bank.account
+    # account, so accounting can be tracked per showroom. `override_account`
+    # (System Manager / BSP Admin only -- re-verified by the caller, never
+    # trusted from the client alone) takes priority when set, same "Accounts"
+    # override convention as the Sales/Purchase Invoice and Expense Claim
+    # screens, letting an admin route this payment through a different
+    # showroom's cash account. Falls back to the mode of payment's account
+    # if neither is available.
+    company_account = override_account or get_pos_change_account() or bank.account
     pe.paid_from = party_account if payment_type == "Receive" else company_account
     pe.paid_to = party_account if payment_type == "Pay" else company_account
     pe.paid_from_account_currency = (

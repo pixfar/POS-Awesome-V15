@@ -72,8 +72,11 @@
 									</div>
 								</v-card>
 
-								<!-- Date + auto-allocate -->
+								<!-- Date + auto-allocate + accounts override -->
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
+									<div v-if="canEditPaymentAccount" class="invoice-section-heading">
+										<h3 class="invoice-section-heading__title">{{ __("Date & Accounts") }}</h3>
+									</div>
 									<div class="sale-options-body">
 										<VueDatePicker
 											v-model="postingDateDisplay"
@@ -91,6 +94,20 @@
 											color="primary"
 											:label="__('Auto Allocate')"
 											class="sale-opt-switch"
+										/>
+										<v-autocomplete
+											v-if="canEditPaymentAccount"
+											v-model="paymentAccountOverride"
+											:items="cashAccountOptions"
+											item-title="name"
+											item-value="name"
+											:label="__('Accounts')"
+											density="compact"
+											variant="outlined"
+											hide-details
+											clearable
+											:loading="cashAccountsLoading"
+											class="pos-themed-input mt-2"
 										/>
 									</div>
 								</v-card>
@@ -577,6 +594,16 @@ export default {
 		const partyLoading = ref(false);
 		const postingDate = ref(getTodayDate());
 		const autoAllocate = ref(true);
+		// "Accounts" override -- System Manager / BSP Admin only, same feature
+		// as the Sales/Purchase Invoice and Expense Claim screens' "Accounts"
+		// card. Defaults to the active POS Profile's own
+		// account_for_change_amount, but an admin can route this payment
+		// through a different showroom's cash account instead; re-verified
+		// server-side (make_payment_direct), this flag is UX-only.
+		const canEditPaymentAccount = computed(() => isFundTransferManager());
+		const cashAccountOptions = ref([]);
+		const cashAccountsLoading = ref(false);
+		const paymentAccountOverride = ref(null);
 		const paymentHistory = ref([]);
 		const historyLoading = ref(false);
 		const PAGE_SIZE = 10;
@@ -750,6 +777,28 @@ export default {
 		};
 
 		const get_pos_profiles = async () => {};
+
+		// Every non-group Cash account under the company's "Cash In Hand"
+		// parent group -- backs the Accounts override dropdown above. Same
+		// endpoint/gate the Sales/Purchase Invoice and Expense Claim screens
+		// use (see get_cash_in_hand_accounts's own docstring).
+		const loadCashInHandAccounts = async () => {
+			const companyName = resolvedCompany();
+			if (!canEditPaymentAccount.value || !companyName) return;
+			cashAccountsLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: "posawesome.posawesome.api.payment_processing.utils.get_cash_in_hand_accounts",
+					args: { company: companyName },
+				});
+				cashAccountOptions.value = message || [];
+			} catch (e) {
+				console.error("Failed to load Cash In Hand accounts", e);
+				cashAccountOptions.value = [];
+			} finally {
+				cashAccountsLoading.value = false;
+			}
+		};
 
 		// ── Selection composable ─────────────────────────────────────
 		const currency_filter = ref("ALL");
@@ -1113,6 +1162,11 @@ export default {
 						selected_invoices: selected_invoices.value,
 						auto_allocate: autoAllocate.value ? 1 : 0,
 						posting_date: postingDate.value || null,
+						// Re-verified server-side (make_payment_direct) -- see
+						// canEditPaymentAccount above.
+						payment_account: canEditPaymentAccount.value
+							? (paymentAccountOverride.value || null)
+							: null,
 					},
 					freeze: true,
 					freeze_message: __("Processing Payment..."),
@@ -1147,6 +1201,19 @@ export default {
 		};
 
 		// ── Watchers ─────────────────────────────────────────────────
+		watch(
+			() => pos_profile.value?.company,
+			() => {
+				// Default to this POS Profile's own change account -- the
+				// user can still pick a different one from the dropdown.
+				// Same pattern as the Sales/Purchase Invoice and Expense
+				// Claim screens' own "Accounts" card.
+				paymentAccountOverride.value = pos_profile.value?.account_for_change_amount || null;
+				loadCashInHandAccounts();
+			},
+			{ immediate: true },
+		);
+
 		watch(selectedCustomer, (val) => {
 			if (props.partyType !== "Customer") return;
 			partyName.value = val || "";
@@ -1279,6 +1346,10 @@ export default {
 			partyLoading,
 			postingDateDisplay,
 			autoAllocate,
+			canEditPaymentAccount,
+			cashAccountOptions,
+			cashAccountsLoading,
+			paymentAccountOverride,
 			outstanding_invoices,
 			invoices_loading,
 			invoicesTotal,

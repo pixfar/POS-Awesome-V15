@@ -658,9 +658,18 @@ def make_payment_direct(
     reference_no=None,
     reference_date=None,
     auto_allocate=False,
+    payment_account=None,
 ):
     """Create Payment Entry(ies) with ERPNext-style invoice allocation."""
     ensure_can_create(_("create a Payment"))
+
+    # "Accounts" override -- System Manager / BSP Admin only, same feature as
+    # the Sales/Purchase Invoice and Expense Claim screens' "Accounts" card.
+    # Re-verified here rather than trusted from the client alone; silently
+    # dropped (not thrown) for anyone else so a stale/tampered value never
+    # blocks an otherwise-valid payment.
+    if payment_account and not is_privileged_invoice_viewer():
+        payment_account = None
 
     # Same gate as Fund Transfer creation (see fund_transfer.py's
     # _require_fund_transfer_manager) -- Supplier Payment is a money-out
@@ -727,6 +736,7 @@ def make_payment_direct(
             reference_no=reference_no or None,
             reference_date=reference_date or None,
             posting_date=posting_date,
+            override_account=payment_account or None,
         )
 
         if invoices_to_allocate:
