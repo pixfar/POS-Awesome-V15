@@ -208,10 +208,16 @@ def _pay_expense_claim(doc, override_account=None):
 	set, so an admin can route this specific expense through a different
 	showroom's cash account. Falls back to HRMS's own default bank/cash
 	account if neither is available.
+
+	posting_date is overridden to the claim's own expense date -- HRMS's
+	get_payment_entry_for_employee defaults it to nowdate(), which would
+	otherwise leave the payment dated today even when the expense itself
+	was back- or post-dated (see ExpenseNew.vue's canEditPostingDate).
 	"""
 	from hrms.overrides.employee_payment_entry import get_payment_entry_for_employee
 
 	pe = get_payment_entry_for_employee('Expense Claim', doc.name)
+	pe.posting_date = doc.posting_date
 
 	change_account = override_account or get_pos_change_account()
 	if change_account:
