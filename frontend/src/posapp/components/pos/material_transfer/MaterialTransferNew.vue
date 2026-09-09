@@ -692,6 +692,44 @@ export default {
 			await refreshCatalogForWarehouse(nextFrom);
 		});
 
+		// itemsStore.loadItems() silently no-ops (console.warn + returns [])
+		// whenever itemsStore.posProfile is still null -- and that ref is
+		// ONLY ever set by itemsStore.initialize(), which normally runs as
+		// part of Pos.vue's (the Sales Invoice shell's) own boot. Reported
+		// live: landing here directly -- e.g. a deep link hit while logged
+		// out, redirected back here straight after login -- skips that
+		// boot entirely, so the item catalog never loads even though
+		// refreshCatalogForWarehouse() below runs and warehouse resolution
+		// itself succeeds. Reusing the same itemsStore.initialize() entry
+		// point Pos.vue already calls makes this screen self-sufficient
+		// regardless of whether Sales Invoice was ever opened this session.
+		const ensureItemsStoreInitialized = async (profile) => {
+			// itemsStore is a Pinia store -- its top-level posProfile ref is
+			// auto-unwrapped on the store instance, so this reads the plain
+			// object (or null), not a ref needing .value.
+			if (itemsStore.posProfile?.name) {
+				return;
+			}
+			let resolvedProfile = profile;
+			if (!resolvedProfile?.name) {
+				try {
+					const { message } = await frappe.call({
+						method: 'bsp_engineering.posawesome.profile.get_active_pos_profile',
+					});
+					if (message?.name) resolvedProfile = message;
+				} catch (error) {
+					console.error('Failed to resolve active POS Profile:', error);
+				}
+			}
+			if (!resolvedProfile?.name) return;
+			pos_profile.value = resolvedProfile;
+			try {
+				await itemsStore.initialize(resolvedProfile);
+			} catch (error) {
+				console.error('Failed to initialize items store:', error);
+			}
+		};
+
 		onMounted(async () => {
 			const opening = getOpeningStorage();
 			if (opening?.pos_profile) {
@@ -699,6 +737,7 @@ export default {
 			} else if (uiStore.posProfile?.name) {
 				pos_profile.value = uiStore.posProfile;
 			}
+			await ensureItemsStoreInitialized(pos_profile.value);
 			initWarehousesFromProfile();
 			await loadWarehouses();
 		});
