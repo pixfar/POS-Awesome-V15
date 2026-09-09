@@ -111,6 +111,18 @@
 										@update:search="handleItemSearchUpdate"
 										@update:model-value="handleSearchItemPicked"
 									>
+										<template v-if="pos_profile.posa_enable_camera_scanning" #append-inner>
+											<v-btn
+												icon="mdi-camera"
+												size="small"
+												color="primary"
+												variant="text"
+												:disabled="hasReachedItemLimit"
+												@click.stop="startCameraScan"
+												:title="__('Scan with Camera')"
+												:aria-label="__('Scan with Camera')"
+											/>
+										</template>
 										<template #item="{ props: itemProps, item }">
 											<v-list-item v-bind="itemProps" :title="undefined">
 												<v-list-item-title class="purchase-item-option__title">
@@ -181,6 +193,13 @@
 						</div>
 					</v-card-text>
 
+					<CameraScanner
+						v-if="pos_profile.posa_enable_camera_scanning"
+						ref="cameraScanner"
+						:scan-type="pos_profile.posa_camera_scan_type || 'Both'"
+						@barcode-scanned="onBarcodeScanned"
+					/>
+
 					<div class="purchase-bottom-bar">
 						<div class="purchase-bottom-bar__summary">
 							<span class="purchase-bottom-bar__label">{{ __("Total Qty") }}</span>
@@ -216,6 +235,7 @@ import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import ProductionPlanItemsTable from './ProductionPlanItemsTable.vue';
+import CameraScanner from '../items/CameraScanner.vue';
 import { normalizeDateForBackend } from '../../../format';
 
 const getTodayDate = () =>
@@ -227,6 +247,7 @@ export default {
 	components: {
 		ProductionPlanItemsTable,
 		VueDatePicker,
+		CameraScanner,
 	},
 	setup() {
 		const router = useRouter();
@@ -373,6 +394,39 @@ export default {
 			itemSearchResults.value = defaultItemResults.value;
 		};
 
+		const cameraScanner = ref(null);
+
+		const startCameraScan = () => {
+			cameraScanner.value?.startScanning();
+		};
+
+		// Resolves through Item Barcode (falling back to an exact item_code match)
+		// server-side, then re-runs the same "manufacturable" check the search box
+		// uses -- see resolve_scanned_item's docstring for why a plain
+		// search_manufacturable_items() call isn't reused directly here.
+		const onBarcodeScanned = async (code) => {
+			if (!code) return;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.production_plans.resolve_scanned_item',
+					args: { barcode: code },
+				});
+				if (!message || message.error) {
+					toastStore.show({
+						title: message?.error || __('No item found for barcode {0}', [code]),
+						color: 'warning',
+					});
+					return;
+				}
+				onAddItem(message);
+			} catch (e) {
+				toastStore.show({
+					title: e?.message || __('Failed to look up scanned barcode'),
+					color: 'error',
+				});
+			}
+		};
+
 		const updateItemQty = (item, value) => {
 			if (!item) return;
 			item.qty = Math.max(0, Number(value) || 0);
@@ -501,6 +555,7 @@ export default {
 		});
 
 		return {
+			pos_profile,
 			sourceWarehouse,
 			targetWarehouse,
 			warehouseOptions,
@@ -522,6 +577,9 @@ export default {
 			aggregatedRawMaterials,
 			rawMaterialsLoading,
 			hasReachedItemLimit,
+			cameraScanner,
+			startCameraScan,
+			onBarcodeScanned,
 		};
 	},
 };

@@ -85,6 +85,72 @@ def search_manufacturable_items(search_text=None, limit=20):
 
 
 @frappe.whitelist()
+def resolve_scanned_item(barcode):
+	"""Resolve a camera-scanned barcode to a manufacturable item for the
+	Production Plan item picker -- same universe as search_manufacturable_items
+	(item.disabled=0 with an active default BOM).
+
+	Looks up Item Barcode first (the barcode(s) explicitly recorded against an
+	item -- an auto-generated one is just the item_code itself, see
+	bsp_engineering's ensure_auto_barcode), falling back to an exact item_code
+	match for anything scanned that has no Item Barcode row of its own.
+
+	Returns the same shape as one of search_manufacturable_items's rows on
+	success, or {"error": <reason>} the frontend can show directly --
+	distinguishing "no such item" from "found, but not manufacturable" rather
+	than one generic failure message.
+	"""
+	if not is_system_manager():
+		frappe.throw(
+			_('Only a System Manager can view Production Plans.'),
+			exc=frappe.PermissionError,
+		)
+
+	code = (barcode or '').strip()
+	if not code:
+		return {'error': _('Empty barcode.')}
+
+	item_code = frappe.db.get_value('Item Barcode', {'barcode': code}, 'parent')
+	if not item_code and frappe.db.exists('Item', code):
+		item_code = code
+
+	if not item_code:
+		return {'error': _('No item found for barcode {0}.').format(code)}
+
+	row = frappe.db.sql(
+		"""
+		SELECT
+			item.name AS item_code,
+			item.item_name AS item_name,
+			item.item_group AS item_group,
+			item.stock_uom AS stock_uom,
+			item.custom_default_weigt_of_measure AS custom_default_weigt_of_measure,
+			bom.name AS bom_no
+		FROM `tabItem` item
+		INNER JOIN `tabBOM` bom ON bom.item = item.name
+		WHERE item.name = %(item_code)s
+			AND item.disabled = 0
+			AND bom.is_active = 1
+			AND bom.is_default = 1
+			AND bom.docstatus = 1
+		LIMIT 1
+		""",
+		{'item_code': item_code},
+		as_dict=True,
+	)
+	if row:
+		return row[0]
+
+	if frappe.db.get_value('Item', item_code, 'disabled'):
+		return {'error': _('Item {0} is disabled.').format(item_code)}
+	return {
+		'error': _('Item {0} has no active default BOM, so it cannot be planned for production.').format(
+			item_code
+		),
+	}
+
+
+@frappe.whitelist()
 def get_bom_raw_materials(bom_no, qty=1):
 	"""Raw materials (BOM Item rows) for a BOM, scaled to the given quantity, so the
 	Production Plan item picker can preview what will be consumed before creating the
