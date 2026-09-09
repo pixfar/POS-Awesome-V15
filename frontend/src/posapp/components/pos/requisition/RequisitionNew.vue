@@ -577,6 +577,40 @@ export default {
 			await refreshCatalogForWarehouse(nextSource);
 		});
 
+		// itemsStore.loadItems() silently no-ops (console.warn + returns [])
+		// whenever itemsStore.posProfile is still null -- and that ref is
+		// ONLY ever set by itemsStore.initialize(), which normally runs as
+		// part of Pos.vue's (the Sales Invoice shell's) own boot. Same fix
+		// as MaterialTransferNew.vue's own ensureItemsStoreInitialized -
+		// see that file for the fuller writeup and the live report this
+		// traces back to.
+		const ensureItemsStoreInitialized = async (profile) => {
+			// itemsStore is a Pinia store -- its top-level posProfile ref is
+			// auto-unwrapped on the store instance, so this reads the plain
+			// object (or null), not a ref needing .value.
+			if (itemsStore.posProfile?.name) {
+				return;
+			}
+			let resolvedProfile = profile;
+			if (!resolvedProfile?.name) {
+				try {
+					const { message } = await frappe.call({
+						method: 'bsp_engineering.posawesome.profile.get_active_pos_profile',
+					});
+					if (message?.name) resolvedProfile = message;
+				} catch (error) {
+					console.error('Failed to resolve active POS Profile:', error);
+				}
+			}
+			if (!resolvedProfile?.name) return;
+			pos_profile.value = resolvedProfile;
+			try {
+				await itemsStore.initialize(resolvedProfile);
+			} catch (error) {
+				console.error('Failed to initialize items store:', error);
+			}
+		};
+
 		onMounted(async () => {
 			const opening = getOpeningStorage();
 			if (opening?.pos_profile) {
@@ -584,6 +618,7 @@ export default {
 			} else if (uiStore.posProfile?.name) {
 				pos_profile.value = uiStore.posProfile;
 			}
+			await ensureItemsStoreInitialized(pos_profile.value);
 			initWarehousesFromProfile();
 			await loadWarehouses();
 		});
