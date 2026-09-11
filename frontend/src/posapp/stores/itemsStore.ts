@@ -449,7 +449,28 @@ export const useItemsStore = defineStore("items", () => {
 		cust: string | null = null,
 		priceList: string | null = null,
 	) => {
-		posProfile.value = profile;
+		// `profile` is the POS Profile's own raw document (e.g. from
+		// uiStore.posProfile), carrying its static default warehouse --
+		// initialize() can get called again after the cashier has already
+		// switched warehouses (its caller's own reactive re-triggering, not
+		// this store's doing; see the deep watcher on uiStore.posProfile in
+		// Invoice.vue), and blindly overwriting posProfile.value with it
+		// would silently revert every posProfile.value.warehouse reader back
+		// to the profile default -- including the 30-second background sync
+		// (refreshModifiedItems -> get_delta_items), which is what actually
+		// produced the "correct right after switching, wrong again a few
+		// seconds/the next sync cycle later" flash: the catalog looked right
+		// immediately after the switch, then this reset the warehouse this
+		// store still had cached and the next background sync silently
+		// re-applied the *previous* warehouse's numbers on top of it.
+		// ItemsSelector.vue's add_item already works around the same race
+		// for brand-new cart items by reading activeSaleWarehouse directly
+		// instead of trusting posProfile.value.warehouse -- preserving it
+		// here closes it at the source instead, so every other consumer of
+		// posProfile.value.warehouse doesn't need its own workaround too.
+		posProfile.value = activeSaleWarehouse.value
+			? { ...profile, warehouse: activeSaleWarehouse.value }
+			: profile;
 		customer.value = cust;
 		customerPriceList.value = priceList;
 
@@ -1311,6 +1332,10 @@ export const useItemsStore = defineStore("items", () => {
 			getStorageScope(),
 			(updates) => updateItemsInPlace(updates),
 			itemsMap.value,
+			// Not getActiveWarehouse() -- that falls back to the "no_warehouse"
+			// sentinel used internally for cache-scoping keys, never meant to
+			// be sent to the server as an actual warehouse value.
+			activeSaleWarehouse.value || posProfile.value?.warehouse || null,
 		);
 	};
 

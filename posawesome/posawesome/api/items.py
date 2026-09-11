@@ -91,9 +91,25 @@ def get_delta_items(
     price_list=None,
     customer=None,
     limit=500,
+    warehouse=None,
 ):
     """Return only items changed since ``modified_after`` for price/stock updates."""
     profile, profile_json = _ensure_pos_profile(pos_profile)
+
+    # `pos_profile` (as sent by the client) can lag behind the cashier's
+    # actual warehouse selection -- see itemsStore.initialize() on the
+    # frontend for why. An explicit `warehouse` here is the same "Accounts"-
+    # style override convention used elsewhere (get_items, get_items_details)
+    # and, when given, wins over whatever the profile payload itself carries,
+    # so this background sync can never silently apply the *previous*
+    # warehouse's actual_qty on top of an already-correct catalog.
+    if warehouse:
+        profile = dict(profile)
+        profile["warehouse"] = warehouse
+        # as_json, not json.dumps -- profile carries Frappe-native values
+        # (datetime fields such as `creation`) that plain json.dumps can't
+        # serialize; as_json is what _ensure_pos_profile itself uses.
+        profile_json = as_json(profile)
 
     if not modified_after:
         return []

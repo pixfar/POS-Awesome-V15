@@ -153,6 +153,7 @@ export function useItemsSync() {
 		scope: string,
 		updateItemsInPlace: (_items: Item[]) => void,
 		itemsMap: Map<string, Item>,
+		warehouse: string | null = null,
 	) => {
 		const lastSync = getItemsLastSync();
 		if (!lastSync) return { size: 0, count: 0, items: [] };
@@ -165,6 +166,10 @@ export function useItemsSync() {
 					pos_profile: JSON.stringify(posProfile),
 					price_list: activePriceList,
 					customer,
+					// Explicit override, same convention as get_items/get_items_details
+					// -- defense in depth against posProfile itself lagging behind the
+					// cashier's actual warehouse selection (see itemsStore.initialize()).
+					warehouse: warehouse || posProfile?.warehouse || undefined,
 					modified_after: lastSync,
 					limit: 500,
 				},
