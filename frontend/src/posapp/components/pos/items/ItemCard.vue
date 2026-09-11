@@ -302,8 +302,8 @@ const onDragEnd = (event) => {
 	color: var(--pos-text-primary);
 	overflow: hidden;
 	display: -webkit-box;
-	-webkit-line-clamp: 2;
-	line-clamp: 2;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
 	-webkit-box-orient: vertical;
 }
 
@@ -386,8 +386,8 @@ const onDragEnd = (event) => {
 
 	.card-item-name {
 		font-size: 0.8rem;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
 	}
 
 	.card-item-code {
@@ -423,8 +423,8 @@ const onDragEnd = (event) => {
 
 	.card-item-name {
 		font-size: 0.72rem;
-		-webkit-line-clamp: 1;
-		line-clamp: 1;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 	}
 
 	.card-item-code {

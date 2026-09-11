@@ -64,12 +64,18 @@ export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 	const cardPadding = computed(() => getCardPadding(windowWidth.value));
 
 	// Row heights = image + text content + padding, with a small equal buffer top/bottom.
+	// Padded by one extra line's worth of height per tier to match ItemCard.vue's
+	// -webkit-line-clamp bump (compact 1->2, medium/wide 2->3 lines) -- these two
+	// have to move together, since the virtual scroller (RecycleScroller) uses
+	// this as a *fixed* per-row size, not an auto-growing one: raising the clamp
+	// alone without raising this would just let the card's own overflow:hidden
+	// clip the extra line instead of the ellipsis doing it.
 	const cardRowHeight = computed(() => {
 		const cols = cardColumns.value;
-		if (cols >= 5) return 158;
-		if (cols === 4) return 178;
-		if (cols === 3) return 210;
-		return 225;
+		if (cols >= 5) return 174;
+		if (cols === 4) return 196;
+		if (cols === 3) return 230;
+		return 245;
 	});
 
 	const cardSlotHeight = computed(() => cardRowHeight.value + cardGap.value);
