@@ -73,6 +73,8 @@ def create_daily_deposit(data):
 	doc.bank_name = data.get('bank_name')
 	doc.amount = flt(data.get('amount'))
 	doc.acknowledgment_receipt = data.get('acknowledgment_receipt')
+	if frappe.get_meta(DOCTYPE).has_field('remarks'):
+		doc.remarks = data.get('remarks')
 
 	doc.insert(ignore_permissions=True)
 	doc.submit()
@@ -123,6 +125,8 @@ def _create_deposit_payment_entry(doc):
 	pe.reference_no = doc.name
 	pe.reference_date = doc.posting_date
 	pe.custom_bsp_daily_deposit = doc.name
+	if doc.get('remarks'):
+		pe.remarks = doc.remarks
 
 	# Attribute the Payment Entry to the logged-in user's POS Profile warehouse
 	# (fall back to the deposit warehouse if the profile has none).

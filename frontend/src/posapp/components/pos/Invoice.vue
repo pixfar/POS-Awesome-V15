@@ -161,10 +161,7 @@
 						</v-card>
 					</div>
 
-					<div
-						v-if="canEditDoNumber || canEditPaymentAccount"
-						class="invoice-meta-grid"
-					>
+					<div class="invoice-meta-grid">
 						<v-card
 							v-if="canEditDoNumber"
 							flat
@@ -208,6 +205,23 @@
 									hide-details
 									clearable
 									:loading="cashAccountsLoading"
+									class="pos-themed-input"
+								/>
+							</div>
+						</v-card>
+
+						<v-card flat class="invoice-section-card pos-themed-card remarks-section-card">
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title">{{ __("Remarks") }}</h3>
+							</div>
+							<div class="pa-3">
+								<v-text-field
+									v-model="remarks"
+									:label="__('Remarks')"
+									density="compact"
+									variant="outlined"
+									hide-details
+									clearable
 									class="pos-themed-input"
 								/>
 							</div>
@@ -549,6 +563,7 @@ export default {
 			cashAccountOptions: [],
 			cashAccountsLoading: false,
 			paymentAccountOverride: null,
+			remarks: "",
 		};
 	},
 
@@ -1330,9 +1345,11 @@ export default {
 		},
 		handleClearInvoice() {
 			this.clear_invoice();
+			this.remarks = "";
 			this.uiStore.triggerItemSearchFocus();
 		},
 		handleLoadInvoice(data) {
+			this.remarks = data?.remarks || "";
 			this.load_invoice(data, { preserveStickies: true });
 		},
 		handleLoadOrder(data) {
@@ -1968,6 +1985,13 @@ export default {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: var(--dynamic-sm);
 	flex: 0 0 auto;
+}
+
+/* Remarks sits alone in whatever row it lands in within the 2-column
+   invoice-meta-grid -- span both columns instead of leaving half the row
+   empty next to it. */
+.remarks-section-card {
+	grid-column: 1 / -1;
 }
 
 .invoice-section-card {

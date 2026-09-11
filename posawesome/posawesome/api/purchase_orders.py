@@ -831,6 +831,10 @@ def _create_purchase_invoice_from_pos(payload):
     if do_number and frappe.db.has_column("Purchase Invoice", "custom_do_number"):
         invoice.custom_do_number = do_number
 
+    remarks = payload.get("remarks")
+    if remarks:
+        invoice.remarks = remarks
+
     item_codes = [row.get("item_code") for row in items if row.get("item_code")]
     item_map = {}
     if item_codes:

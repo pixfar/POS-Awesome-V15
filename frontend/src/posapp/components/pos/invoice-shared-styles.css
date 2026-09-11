@@ -158,6 +158,13 @@
 	flex: 0 0 auto;
 }
 
+/* Remarks sits alone in whatever row it lands in within the 2-column
+   invoice-meta-grid -- span both columns instead of leaving half the row
+   empty next to it. */
+.remarks-section-card {
+	grid-column: 1 / -1;
+}
+
 .invoice-section-card {
 	background: var(--pos-card-bg) !important;
 	border: 1px solid rgba(var(--v-theme-on-surface), 0.08);

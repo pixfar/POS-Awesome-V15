@@ -128,10 +128,7 @@
 								</v-card>
 							</div>
 
-							<div
-								v-if="canEditDoNumber || canEditPaymentAccount"
-								class="invoice-meta-grid"
-							>
+							<div class="invoice-meta-grid">
 								<v-card
 									v-if="canEditDoNumber"
 									flat
@@ -172,6 +169,23 @@
 											hide-details
 											clearable
 											:loading="cashAccountsLoading"
+											class="pos-themed-input"
+										/>
+									</div>
+								</v-card>
+
+								<v-card flat class="invoice-section-card pos-themed-card remarks-section-card">
+									<div class="invoice-section-heading">
+										<h3 class="invoice-section-heading__title">{{ __("Remarks") }}</h3>
+									</div>
+									<div class="pa-3">
+										<v-text-field
+											v-model="remarks"
+											:label="__('Remarks')"
+											density="compact"
+											variant="outlined"
+											hide-details
+											clearable
 											class="pos-themed-input"
 										/>
 									</div>
@@ -428,6 +442,7 @@ export default {
 		} = useCompactTransactionPanel("invoice");
 
 		const pos_profile = ref({});
+		const remarks = ref("");
 		const receiveNow = ref(false);
 
 		const {
@@ -833,6 +848,7 @@ export default {
 					update_stock: updateStock.value ? 1 : 0,
 					custom_is_paid: customIsPaid.value ? 1 : 0,
 					custom_do_number: doNumber.value || null,
+					remarks: remarks.value || null,
 					// Server re-verifies System Manager / BSP Admin before honoring
 					// this -- see purchase_orders._create_purchase_invoice_from_pos.
 					payment_account: canEditPaymentAccount.value ? (paymentAccountOverride.value || null) : null,
@@ -986,6 +1002,7 @@ export default {
 			cashAccountOptions,
 			cashAccountsLoading,
 			paymentAccountOverride,
+			remarks,
 			doNumber,
 			responsiveStyles,
 			isCompact,

@@ -88,7 +88,7 @@ export default {
 				fields.push({ label: __('Amended From'), value: detail.value.amended_from });
 			}
 			if (detail.value.notes) {
-				fields.push({ label: __('Notes'), value: detail.value.notes });
+				fields.push({ label: __('Remarks'), value: detail.value.notes });
 			}
 			return fields;
 		});

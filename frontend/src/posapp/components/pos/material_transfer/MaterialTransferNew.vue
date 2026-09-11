@@ -151,12 +151,12 @@
 
 							<v-card flat class="invoice-section-card pos-themed-card notes-section-card">
 								<div class="invoice-section-heading">
-									<h3 class="invoice-section-heading__title">{{ __("Notes") }}</h3>
+									<h3 class="invoice-section-heading__title">{{ __("Remarks") }}</h3>
 								</div>
 								<div class="sale-options-body">
 									<v-textarea
 										v-model="notes"
-										:label="__('Notes')"
+										:label="__('Remarks')"
 										variant="outlined"
 										density="compact"
 										hide-details

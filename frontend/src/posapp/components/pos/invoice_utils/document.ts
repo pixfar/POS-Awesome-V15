@@ -177,6 +177,9 @@ export function get_invoice_doc(context: any) {
 	// so carry it through explicitly -- admin-only field set directly on
 	// invoice_doc by the DO Number input in Invoice.vue.
 	doc.custom_do_number = context.invoice_doc?.custom_do_number ?? doc.custom_do_number ?? null;
+	// Sales Invoice's own standard `remarks` field, same pattern as DO
+	// Number -- carried through explicitly for a brand-new draft.
+	doc.remarks = context.remarks ?? doc.remarks ?? null;
 	// Admin-only "Accounts" override (System Manager / BSP Admin) -- routes
 	// this invoice's payment(s) through a different showroom's Cash In Hand
 	// account than the cashier's own active POS Profile default. Re-verified

@@ -117,6 +117,15 @@
 										hide-details
 										class="pos-themed-input"
 									/>
+									<v-text-field
+										v-model="remarks"
+										:label="__('Remarks')"
+										density="compact"
+										variant="outlined"
+										color="primary"
+										hide-details
+										class="pos-themed-input"
+									/>
 								</div>
 							</v-card>
 
@@ -222,6 +231,7 @@ export default {
 
 		const postingDate = ref(getTodayDate());
 		const amount = ref(null);
+		const remarks = ref('');
 
 		const receiptFile = ref(null);
 		const receiptUrl = ref('');
@@ -365,6 +375,7 @@ export default {
 			depositType.value = 'Bank Deposit';
 			bankName.value = null;
 			amount.value = null;
+			remarks.value = '';
 			receiptFile.value = null;
 			receiptUrl.value = '';
 		};
@@ -401,6 +412,7 @@ export default {
 							bank_name: bankName.value,
 							amount: amount.value,
 							acknowledgment_receipt: receiptUrl.value,
+							remarks: remarks.value || null,
 						},
 					},
 					freeze: true,
@@ -439,6 +451,7 @@ export default {
 			bankName,
 			postingDate,
 			amount,
+			remarks,
 			receiptFile,
 			receiptUrl,
 			receiptUploading,
