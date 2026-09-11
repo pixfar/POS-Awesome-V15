@@ -12,9 +12,19 @@ export function useItemCreation() {
 		new_item._detailInFlight = false;
 		new_item._needs_update = false; // Will be set to true if added fresh
 
-		if (!new_item.warehouse) {
-			new_item.warehouse =
-				context.sale_warehouse || context.pos_profile?.warehouse;
+		// context.sale_warehouse (the actual warehouse selected for this sale)
+		// must always win when known, not just when the item happens to lack
+		// its own warehouse. Catalog item objects carry whatever warehouse
+		// they were originally fetched under (e.g. the POS Profile's default,
+		// from before a System Manager switched to a different one) and keep
+		// that value across warehouse switches -- gating the override on
+		// `!new_item.warehouse` meant that stale value silently survived
+		// into every new cart line, producing a false "Insufficient stock"
+		// against a warehouse that was never actually selected.
+		if (context.sale_warehouse) {
+			new_item.warehouse = context.sale_warehouse;
+		} else if (!new_item.warehouse) {
+			new_item.warehouse = context.pos_profile?.warehouse;
 		}
 		if (!item.qty) {
 			item.qty = 1;

@@ -183,6 +183,21 @@ export const useUIStore = defineStore("ui", () => {
     lastInvoiceId.value = id;
   }
 
+  // Admin-only "Accounts" override, shared across every screen that offers it
+  // (Invoice, standalone Payment collection, Expense Claim, Purchase Order).
+  // Each of those screens used to keep its own local copy that reset back to
+  // the POS Profile's default cash account (account_for_change_amount) every
+  // time that screen mounted -- so picking a showroom's account on the cart
+  // screen, then opening the payment-collection screen for the same session,
+  // silently reverted to the profile default there instead of following the
+  // cashier's actual selection. A single shared value here is what every
+  // screen now reads its default from and writes its own changes back to, so
+  // the choice actually follows the session instead of resetting per screen.
+  const activeSaleAccount = ref<string | null>(null);
+  function setActiveSaleAccount(account: string | null) {
+    activeSaleAccount.value = account && String(account).trim().length > 0 ? account : null;
+  }
+
   const lastStockAdjustment = ref<any>(null);
   function setLastStockAdjustment(doc: any) {
     lastStockAdjustment.value = doc;
@@ -319,6 +334,8 @@ export const useUIStore = defineStore("ui", () => {
     companyDoc,
     posOpeningShift,
     lastInvoiceId,
+    activeSaleAccount,
+    setActiveSaleAccount,
     offers,
     applicableOffers,
     currency,

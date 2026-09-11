@@ -770,9 +770,30 @@ const add_item = async (item, optionsOrQty: any = {}) => {
 			requestedQty === "" || requestedQty == null ? 1 : Math.abs(parseFloat(requestedQty) || 1);
 
 		item = { ...item };
+		// pos_profile.value.warehouse gets mutated to the active sale
+		// warehouse by setActiveSaleWarehouse, but it can also be silently
+		// stomped back to the POS Profile's own raw default warehouse by
+		// itemsStore.initialize()'s one-time full replace of posProfile.value
+		// if that happens to resolve after the warehouse switch -- a race,
+		// not a reliable ordering. activeSaleWarehouse is a dedicated field
+		// only ever written by setActiveSaleWarehouse, so it's immune to
+		// that race; read it explicitly here rather than trusting
+		// pos_profile.warehouse to still hold the right value by the time a
+		// new cart line is created (see useItemCreation's getNewItem, which
+		// prioritizes context.sale_warehouse over context.pos_profile.warehouse
+		// for exactly this reason). Without this, a new item added under a
+		// System Manager's manually-selected warehouse could still be
+		// stamped with the POS Profile's default warehouse instead,
+		// producing a false "Insufficient stock" at Pay against a warehouse
+		// nobody selected.
+		const activeSaleWarehouse =
+			itemsIntegration.itemsStore?.activeSaleWarehouse ||
+			pos_profile.value?.warehouse ||
+			null;
 		if (item.has_variants) {
 			await useItemAddition().handleVariantItem(item, {
 				pos_profile: pos_profile.value,
+				sale_warehouse: activeSaleWarehouse,
 				itemDetailFetcher,
 				add_item,
 				items: items.value,
@@ -788,6 +809,7 @@ const add_item = async (item, optionsOrQty: any = {}) => {
 
 		const context = {
 			pos_profile: pos_profile.value,
+			sale_warehouse: activeSaleWarehouse,
 			stock_settings: stock_settings.value,
 			customer: selectedCustomer.value,
 			selected_currency: selected_currency.value,
@@ -923,6 +945,19 @@ onMounted(async () => {
 	itemDetailFetcher.registerContext({
 		get pos_profile() {
 			return pos_profile.value;
+		},
+		// Same resolution order used everywhere else in this file (see the
+		// sale_warehouse fallback below) -- activeSaleWarehouse is the
+		// cashier's explicit pick, itemsStore keeps pos_profile.warehouse in
+		// sync with it too, but this is read directly rather than through
+		// that indirection so a detail/stock refresh always resolves the
+		// warehouse the same way regardless of profile-sync timing.
+		get warehouse() {
+			return (
+				itemsIntegration.itemsStore?.activeSaleWarehouse ||
+				pos_profile.value?.warehouse ||
+				null
+			);
 		},
 		get active_price_list() {
 			return active_price_list.value;

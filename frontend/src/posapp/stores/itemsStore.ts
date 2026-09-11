@@ -21,6 +21,7 @@ import {
 } from "./items/loadItemsRequest";
 import { sortItemsForSearchTerm } from "../utils/itemSearchSort.js";
 import { isPosWarehouseSwitcher } from "../utils/posWarehouseAccess";
+import stockCoordinator from "../utils/stockCoordinator.js";
 
 export const useItemsStore = defineStore("items", () => {
 	type OfflineModule = Record<string, any>;
@@ -249,12 +250,69 @@ export const useItemsStore = defineStore("items", () => {
 			typeof warehouse === "string" && warehouse.trim().length > 0
 				? warehouse.trim()
 				: null;
+		const changed = resolved !== activeSaleWarehouse.value;
 		activeSaleWarehouse.value = resolved;
 		if (posProfile.value && resolved) {
 			posProfile.value = {
 				...posProfile.value,
 				warehouse: resolved,
 			};
+		}
+		if (changed && resolved) {
+			// Two separate offline caches sit in front of every stock/detail
+			// refresh, and *neither* has a warehouse dimension -- both are
+			// keyed only by item_code (item_details_cache also by POS profile
+			// + price list, but never warehouse), so a cache hit from before
+			// this switch looks exactly as "fresh" as one from after it:
+			//
+			// 1. item_details_cache (offline/cache.ts, 15-minute TTL) is the
+			//    *first* thing update_items_details() checks, before it even
+			//    looks at local_stock_cache below -- a hit here short-circuits
+			//    straight to Object.assign(item, {actual_qty: ...}) with
+			//    whichever warehouse's number was cached, then returns without
+			//    ever reaching the network. This is what produced the
+			//    old-warehouse number flashing for a moment right after
+			//    add-to-cart: adding an item flags it for a detail refresh,
+			//    that refresh hit this cache, and the stale figure it returned
+			//    briefly overwrote the correct one already showing -- self-
+			//    correcting only once something else *bypassed* this cache
+			//    (see itemsStore.refreshActualQtyForItemCodes).
+			// 2. local_stock_cache (offline/stock.ts) is the *second* check,
+			//    for whatever item_details_cache didn't already resolve.
+			//
+			// Without clearing both here, they keep silently replaying the
+			// *previous* warehouse's actual_qty for the rest of the session,
+			// no matter how many times the catalog or cart tries to refresh.
+			// This is the one place every screen already calls when switching
+			// warehouses, so clear both here and let them self-repopulate
+			// (correctly, for the new warehouse) as items get touched again.
+			getOfflineFn("clearLocalStockCache").then((fn) => {
+				if (typeof fn === "function") fn();
+			});
+			getOfflineFn("clearItemDetailsCache").then((fn) => {
+				if (typeof fn === "function") fn();
+			});
+
+			// stockCoordinator (utils/stockCoordinator.ts) is a THIRD cache --
+			// and the one actually responsible for the wrong number appearing
+			// synchronously, not just briefly surviving a refresh. It's a
+			// module-level singleton (baseQuantities/reservedQuantities Maps)
+			// that lives for the whole tab's session, entirely independent of
+			// the two above: useItemAvailability's captureBaseAvailability
+			// feeds every item-detail refresh into it, keyed only by
+			// item_code, and useInvoiceStock's applyAvailabilityToItem then
+			// writes stockCoordinator's number straight onto cart items --
+			// including a *brand new* line the instant it's added, since
+			// add-to-cart calls emitCartQuantities/primeInvoiceStockState
+			// right away. If baseQuantities still held this item's actual_qty
+			// from *before* the switch (e.g. seeded during initial catalog
+			// load under the POS Profile's own default warehouse), that old
+			// figure gets stamped onto the new cart line synchronously,
+			// overwriting whatever correct value the catalog item itself
+			// already carried -- only self-correcting once some later detail
+			// refresh feeds stockCoordinator a fresh number. Clearing it here
+			// removes that stale figure before it can ever be applied.
+			stockCoordinator.clearAll();
 		}
 	};
 
@@ -620,6 +678,23 @@ export const useItemsStore = defineStore("items", () => {
 				return;
 			}
 
+			// The server's get_items response never carries a warehouse field
+			// on each row (only the actual_qty computed *for* whichever
+			// warehouse this request asked about) -- tag every row here, at
+			// the one place that knows for certain which warehouse that was,
+			// so any consumer (add-to-cart in particular -- see
+			// getNewItem/addItem) can tell whether an item's stock figures
+			// still belong to the warehouse the cashier is currently working
+			// in, or to one they've since switched away from. Catalog items
+			// sitting in items.value keep their *old* tag (and old actual_qty)
+			// until this exact assignment replaces them -- there's no instant
+			// where an item both looks fresh and carries stale data.
+			const stockWarehouse =
+				(args as any)?.warehouse || resolveLoadItemsWarehouse(options) || null;
+			fetchedItems.forEach((it: any) => {
+				if (it) it._stockWarehouse = stockWarehouse;
+			});
+
 			cachedPagination.value.enabled = false;
 			cachedPagination.value.offset = fetchedItems.length;
 			cachedPagination.value.total = fetchedItems.length;
@@ -928,12 +1003,27 @@ export const useItemsStore = defineStore("items", () => {
 				return [];
 			}
 
+			// The cashier may have switched warehouses while this scroll page
+			// was in flight -- these rows were queried against the warehouse
+			// captured above (activeWarehouse), not necessarily whatever is
+			// active now. Drop them rather than append stock figures for a
+			// warehouse nobody is looking at anymore; the next scroll trigger
+			// (or the warehouse-switch refresh itself) will re-request this
+			// page against the new warehouse.
+			if (resolveLoadItemsWarehouse() !== activeWarehouse) {
+				return [];
+			}
+
 			const nextItemCode = safePage[safePage.length - 1]?.item_code || null;
 			if (!nextItemCode || nextItemCode === lastItemCode) {
 				// Cursor didn't advance — nothing new to reveal.
 				scrollPaginationExhausted.value = true;
 				return [];
 			}
+
+			safePage.forEach((it: any) => {
+				if (it) it._stockWarehouse = activeWarehouse;
+			});
 
 			setItems(safePage, { append: true });
 			totalItemCount.value = Math.max(
@@ -952,6 +1042,93 @@ export const useItemsStore = defineStore("items", () => {
 		} finally {
 			cachedPagination.value.loading = false;
 		}
+	};
+
+	// Re-fetches actual_qty for a specific set of item codes against an
+	// explicit warehouse, bypassing the normal item-list/detail caching
+	// entirely. Needed because switching the active sale warehouse only ever
+	// refreshes stock for items the catalog list happens to be showing right
+	// now (via setActiveSaleWarehouse -> refreshItems) -- items that are
+	// already sitting in the cart, but scrolled out of the catalog view or
+	// added from a different screen (e.g. DO Number lookup), never get
+	// touched by that refresh, so their actual_qty (and the cart's "Stock
+	// Qty" column, which reads it) silently keeps showing the *previous*
+	// warehouse's number. Callers should merge the returned map onto their
+	// own item objects; this also pushes the fresh numbers into
+	// local_stock_cache so any other consumer reading via getLocalStock
+	// (e.g. ItemsSelector's own detail fetcher) self-heals too.
+	const refreshActualQtyForItemCodes = async (
+		targetItems: Array<{ item_code?: string; has_variants?: boolean }>,
+		warehouse?: string | null,
+	): Promise<Map<string, number>> => {
+		const qtyMap = new Map<string, number>();
+		if (!posProfile.value?.name || !Array.isArray(targetItems)) {
+			return qtyMap;
+		}
+		const resolvedWarehouse = warehouse || getActiveWarehouse();
+		if (!resolvedWarehouse || resolvedWarehouse === "no_warehouse") {
+			return qtyMap;
+		}
+		const itemsData = Array.from(
+			new Set(
+				targetItems
+					.filter((it) => it && it.item_code && !it.has_variants)
+					.map((it) => it.item_code as string),
+			),
+		).map((item_code) => ({ item_code }));
+		if (!itemsData.length) {
+			return qtyMap;
+		}
+
+		try {
+			const requestProfile = JSON.parse(JSON.stringify(posProfile.value));
+			requestProfile.warehouse = resolvedWarehouse;
+
+			// @ts-ignore
+			const response = await frappe.call({
+				method: "posawesome.posawesome.api.items.get_items_details",
+				args: {
+					pos_profile: JSON.stringify(requestProfile),
+					items_data: JSON.stringify(itemsData),
+					price_list: activePriceList.value,
+					warehouse: resolvedWarehouse,
+				},
+				freeze: false,
+			});
+
+			// The cashier may have switched warehouses again while this
+			// request was in flight -- a response fetched for the warehouse
+			// this call started with is worthless (worse, actively wrong) if
+			// a *different* warehouse is active by the time it lands, so
+			// discard it entirely rather than let a caller apply stale
+			// numbers over whatever a newer refresh already put on screen.
+			if (getActiveWarehouse() !== resolvedWarehouse) {
+				return qtyMap;
+			}
+
+			const details = Array.isArray(response?.message) ? response.message : [];
+			details.forEach((det: any) => {
+				if (det && det.item_code && det.actual_qty !== undefined && det.actual_qty !== null) {
+					qtyMap.set(det.item_code, det.actual_qty);
+				}
+			});
+
+			if (qtyMap.size) {
+				const updateLocalStockCacheFn = await getOfflineFn("updateLocalStockCache");
+				if (typeof updateLocalStockCacheFn === "function") {
+					updateLocalStockCacheFn(
+						Array.from(qtyMap.entries()).map(([item_code, actual_qty]) => ({
+							item_code,
+							actual_qty,
+						})),
+					);
+				}
+			}
+		} catch (error) {
+			console.warn("Failed to refresh actual qty for item codes:", error);
+		}
+
+		return qtyMap;
 	};
 
 	const resetCachedItemsForGroup = async (group: string) => {
@@ -1259,6 +1436,7 @@ export const useItemsStore = defineStore("items", () => {
 		updatePriceList,
 		refreshItems,
 		appendCachedItemsPage,
+		refreshActualQtyForItemCodes,
 		resetCachedItemsForGroup,
 		backgroundSyncItems: triggerBackgroundSync, // mapped
 		getItemByCode,

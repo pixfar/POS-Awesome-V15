@@ -922,13 +922,24 @@ export default {
 			watch(
 				() => pos_profile.value?.company,
 				(company) => {
-					// Default to this POS Profile's own change account -- the
-					// user can still pick a different one from the dropdown.
-					paymentAccountOverride.value = pos_profile.value?.account_for_change_amount || null;
+					// Default to whatever the cashier already picked elsewhere
+					// this session (uiStore.activeSaleAccount, shared with the
+					// Sales Invoice, standalone Payment, and Expense Claim
+					// screens' own "Accounts" card), falling back to this POS
+					// Profile's own change account only when nothing has been
+					// picked yet -- the user can still pick a different one
+					// from the dropdown.
+					paymentAccountOverride.value =
+						uiStore.activeSaleAccount || pos_profile.value?.account_for_change_amount || null;
 					loadCashInHandAccounts(company);
 				},
 				{ immediate: true },
 			);
+			// Keep every other "Accounts" picker in sync with whatever gets
+			// picked here.
+			watch(paymentAccountOverride, (val) => {
+				uiStore.setActiveSaleAccount(val);
+			});
 			watch(supplier, async (val) => {
 				if (val) {
 					const info = await fetchSupplierInfo(val);

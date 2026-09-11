@@ -93,9 +93,9 @@ export function useItemDetailFetcher() {
 	async function fetchItemDetails(
 		items: any[],
 		priceListOverride: string | null = null,
-		options: { bypassRequestCache?: boolean } = {},
+		options: { bypassRequestCache?: boolean; warehouse?: string | null } = {},
 	) {
-		const { bypassRequestCache = false } = options;
+		const { bypassRequestCache = false, warehouse = ctx.warehouse } = options;
 		if (!items || items.length === 0) {
 			return [];
 		}
@@ -109,6 +109,7 @@ export function useItemDetailFetcher() {
 			posProfileName: ctx.pos_profile?.name,
 			activePriceList: ctx.active_price_list,
 			priceListOverride,
+			warehouse,
 			items,
 		});
 
@@ -140,12 +141,18 @@ export function useItemDetailFetcher() {
 			);
 		});
 
+		// warehouse is also sent explicitly (get_items_details already accepts
+		// it) rather than relying solely on ctx.pos_profile.warehouse being
+		// in sync -- that happens to be kept correct today by
+		// itemsStore.setActiveSaleWarehouse, but this call has no business
+		// depending on that indirection to get the right warehouse.
 		const requestPromise = frappe.call({
 			method: "posawesome.posawesome.api.items.get_items_details",
 			args: {
 				pos_profile: JSON.stringify(ctx.pos_profile),
 				items_data: JSON.stringify(items),
 				price_list: effectivePriceList,
+				warehouse: warehouse || undefined,
 			},
 			freeze: false,
 			signal: abortController.value.signal,
@@ -323,10 +330,22 @@ export function useItemDetailFetcher() {
 		const { forceRefresh = false, priceListOverride = null } = options;
 		if (!items || !items.length) return;
 
+		// Captured up front and re-checked once fetchItemDetails's network
+		// round-trip resolves below (see the "stale warehouse" guard) -- if
+		// the active sale warehouse has moved on by the time this response
+		// arrives, its actual_qty belongs to a warehouse the cashier isn't
+		// even looking at anymore and must never overwrite the item. This is
+		// what actually stops an older in-flight request from clobbering a
+		// newer warehouse's numbers; clearing the caches on switch (see
+		// itemsStore.setActiveSaleWarehouse) only stops the *next* request
+		// from reading stale data, it does nothing for one already in flight.
+		const requestWarehouse = ctx.warehouse;
+
 		const { effectivePriceList } = buildItemDetailsRequestIdentity({
 			posProfileName: ctx.pos_profile?.name,
 			activePriceList: ctx.active_price_list,
 			priceListOverride,
+			warehouse: requestWarehouse,
 			items,
 		});
 
@@ -360,6 +379,7 @@ export function useItemDetailFetcher() {
 			if (item) {
 				Object.assign(item, {
 					actual_qty: det.actual_qty,
+					_stockWarehouse: requestWarehouse,
 					has_batch_no: det.has_batch_no,
 					has_serial_no: det.has_serial_no,
 				});
@@ -411,6 +431,7 @@ export function useItemDetailFetcher() {
 			const localQty = getLocalStock(item.item_code);
 			if (localQty !== null) {
 				item.actual_qty = localQty;
+				item._stockWarehouse = requestWarehouse;
 				if (ctx.itemAvailability)
 					ctx.itemAvailability.captureBaseAvailability(
 						item,
@@ -478,8 +499,19 @@ export function useItemDetailFetcher() {
 			const details = await fetchItemDetails(
 				itemsToFetch,
 				effectivePriceList,
-				{ bypassRequestCache: forceRefresh },
+				{ bypassRequestCache: forceRefresh, warehouse: requestWarehouse },
 			);
+			// The cashier may have switched warehouses while this request was
+			// in flight -- applying a response fetched for the *old* warehouse
+			// now would silently overwrite whatever the new warehouse's
+			// refresh already (or is about to) put on these items. Drop it;
+			// whatever triggered this call will naturally re-fire for the new
+			// warehouse (setActiveSaleWarehouse's own refresh, or the next
+			// visibility/add-to-cart touch).
+			if (ctx.warehouse !== requestWarehouse) {
+				itemDetailsRetryCount.value = 0;
+				return;
+			}
 			if (details && details.length) {
 				itemDetailsRetryCount.value = 0;
 				let qtyChanged = false;
@@ -497,6 +529,13 @@ export function useItemDetailFetcher() {
 							item: item,
 							updates: {
 								actual_qty: updated_item.actual_qty,
+								// Tags this item's stock figures with the
+								// warehouse they were actually fetched for --
+								// see itemsStore.loadItems for the other place
+								// this same tag gets applied, and getNewItem
+								// for where it gets checked before trusting
+								// actual_qty at add-to-cart time.
+								_stockWarehouse: requestWarehouse,
 								has_batch_no: updated_item.has_batch_no,
 								has_serial_no: updated_item.has_serial_no,
 								batch_no_data: Array.isArray(

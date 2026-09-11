@@ -304,6 +304,40 @@ export function useItemAddition() {
 	const addItem = withPerf(
 		"pos:add-item",
 		async function addItemMeasured(item, context) {
+			// This item's actual_qty (and the stock-gating checks just below
+			// that read it) may belong to a warehouse the cashier has since
+			// switched away from -- the catalog's own post-switch refresh is
+			// async and this click can land before it does. item._stockWarehouse
+			// is stamped by itemsStore.loadItems / update_items_details with
+			// whichever warehouse the figure was actually fetched for (see
+			// those for the other half of this), so a mismatch here means
+			// "don't trust this number yet". Refetch just this item before
+			// any validation or cart-line creation runs, rather than let a
+			// wrong figure through and correct it later -- this is a real,
+			// bounded request tied to data actually arriving (and deduped
+			// against whatever the catalog's own refresh already kicked off,
+			// see fetchItemDetails's request cache), not a fixed delay.
+			const activeSaleWarehouse =
+				context.sale_warehouse || context.pos_profile?.warehouse || null;
+			if (
+				item?.is_stock_item &&
+				activeSaleWarehouse &&
+				item._stockWarehouse &&
+				item._stockWarehouse !== activeSaleWarehouse &&
+				context.itemDetailFetcher?.update_items_details
+			) {
+				try {
+					await context.itemDetailFetcher.update_items_details([item], {
+						forceRefresh: true,
+					});
+				} catch (error) {
+					console.error(
+						"Failed to refresh stale-warehouse item before add",
+						error,
+					);
+				}
+			}
+
 			const currentInvoiceType =
 				typeof context?.invoiceType === "string"
 					? context.invoiceType

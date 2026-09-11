@@ -680,19 +680,67 @@ def _resolve_territory_for_warehouse(warehouse):
 def _set_territory_from_warehouse(invoice_doc, pos_profile=None):
     """Populate territory from the warehouse used in this invoice.
 
-    Priority: POS profile warehouse → invoice set_warehouse → first item warehouse.
+    Priority: invoice set_warehouse (the cashier's actual selection for this
+    sale -- see _enforce_set_warehouse_on_items) → first item's own warehouse
+    → the POS Profile's static default, only as a last resort when the
+    invoice itself carries no warehouse at all. This used to check the POS
+    Profile *first*, which meant a System Manager / BSP Admin routing this
+    specific sale through a different warehouse than their own profile's
+    default still got a territory computed from their profile's warehouse
+    instead of the one actually used.
     """
-    warehouse = None
-    if pos_profile:
-        warehouse = frappe.get_cached_value("POS Profile", pos_profile, "warehouse")
-    if not warehouse:
-        warehouse = invoice_doc.get("set_warehouse")
+    warehouse = invoice_doc.get("set_warehouse")
     if not warehouse and invoice_doc.items:
         first = invoice_doc.items[0]
         warehouse = first.get("warehouse") if isinstance(first, dict) else getattr(first, "warehouse", None)
+    if not warehouse and pos_profile:
+        warehouse = frappe.get_cached_value("POS Profile", pos_profile, "warehouse")
     territory = _resolve_territory_for_warehouse(warehouse)
     if territory:
         invoice_doc.territory = territory
+
+
+def _enforce_set_warehouse_on_items(invoice_doc):
+    """Make invoice_doc.set_warehouse -- the warehouse actually selected for
+    this sale (see resolvePosWarehouse on the frontend, which sets both
+    set_warehouse and every stock item's own .warehouse from the *same*
+    resolved value in one pass) -- authoritative over every stock item's own
+    .warehouse, as the very last step before this document is saved.
+
+    This exists as a server-side backstop, independent of whatever timing or
+    caching quirk on the client produced a payload where they disagree (e.g.
+    an item added under one warehouse, with the cart's own cached submission
+    snapshot not rebuilt before a later warehouse switch): if the invoice
+    says a warehouse was chosen, every item must actually use it, full stop
+    -- the persisted document can never end up posting stock against a
+    warehouse the cashier wasn't even looking at by the time they paid.
+
+    A no-op when set_warehouse isn't set (falls through to whatever each
+    item already carries, same as today for any caller that hasn't adopted
+    the "Accounts"-style per-sale override screens yet).
+    """
+    warehouse = (invoice_doc.get("set_warehouse") or "").strip()
+    if not warehouse:
+        return
+
+    for row in invoice_doc.items or []:
+        is_stock_item = row.get("is_stock_item") if isinstance(row, dict) else getattr(row, "is_stock_item", None)
+        if not is_stock_item:
+            continue
+        current = row.get("warehouse") if isinstance(row, dict) else getattr(row, "warehouse", None)
+        if current != warehouse:
+            if isinstance(row, dict):
+                row["warehouse"] = warehouse
+            else:
+                row.warehouse = warehouse
+
+    for row in invoice_doc.get("packed_items") or []:
+        current = row.get("warehouse") if isinstance(row, dict) else getattr(row, "warehouse", None)
+        if current != warehouse:
+            if isinstance(row, dict):
+                row["warehouse"] = warehouse
+            else:
+                row.warehouse = warehouse
 
 
 def _save_draft_with_latest_timestamp(invoice_doc, retries=2):
@@ -775,14 +823,32 @@ def _apply_payment_account_override(invoice_doc, payment_account_override):
     BSP Admin only, re-verified here rather than trusted from the client --
     a different Cash In Hand account picked from the "Accounts" dropdown.
 
+    ROOT CAUSE THIS GUARDS AGAINST: this function runs more than once per
+    submission (once while the draft is first saved, again at final
+    submit), and in between, POS Awesome's own payment screen reloads the
+    invoice straight from the database (frappe.client.get) to refresh
+    totals -- a reload that, until payment_account existed as a real field
+    below, silently dropped the override, because it had only ever existed
+    as an in-memory key on the request payload, never actually persisted.
+    The *second* call then received payment_account_override=None and
+    unconditionally overwrote every row's account back to the default,
+    even though the first call had already set it correctly. Persisting it
+    onto invoice_doc.payment_account (a real Custom Field, exactly the way
+    set_warehouse already works) and falling back to that saved value here
+    closes that gap: a later call with nothing new to say keeps whatever
+    was already decided instead of resetting it.
+
     Left as a strict no-op (existing ERPNext Mode of Payment default
-    accounts untouched) when neither applies, so sites that never configured
-    account_for_change_amount see no behaviour change at all.
+    accounts untouched) when nothing applies, so sites that never
+    configured account_for_change_amount see no behaviour change at all.
     """
     if payment_account_override and not is_privileged_invoice_viewer():
         payment_account_override = None
 
-    account = payment_account_override or get_pos_change_account()
+    if payment_account_override:
+        invoice_doc.payment_account = payment_account_override
+
+    account = payment_account_override or invoice_doc.get("payment_account") or get_pos_change_account()
     if not account:
         return
 
@@ -1024,6 +1090,7 @@ def update_invoice(data):
                 tax.included_in_print_rate = 1 if inclusive else 0
 
     _normalize_return_payment_rows(invoice_doc, conversion_rate)
+    _enforce_set_warehouse_on_items(invoice_doc)
 
     invoice_doc.flags.ignore_permissions = True
     frappe.flags.ignore_account_permission = True
@@ -1118,6 +1185,7 @@ def submit_invoice(invoice, data, submit_in_background=False):
             del invoice["modified"]
         invoice_doc = frappe.get_doc(doctype, invoice_name)
         invoice_doc.update(invoice)
+        _enforce_set_warehouse_on_items(invoice_doc)
 
     set_invoice_client_request_id(invoice_doc, client_request_id)
     if ledger_doc:
@@ -1313,6 +1381,7 @@ def submit_invoice(invoice, data, submit_in_background=False):
             },
         )
     else:
+        _enforce_set_warehouse_on_items(invoice_doc)
         invoice_doc.submit()
         if ledger_doc:
             _update_submission_ledger(
@@ -1406,6 +1475,7 @@ def submit_in_background_job(kwargs):
 
         invoice_doc = _save_draft_with_latest_timestamp(invoice_doc)
         _normalize_return_payment_rows(invoice_doc, invoice_doc.get("conversion_rate") or 1)
+        _enforce_set_warehouse_on_items(invoice_doc)
 
         invoice_doc.submit()
         if ledger_doc:

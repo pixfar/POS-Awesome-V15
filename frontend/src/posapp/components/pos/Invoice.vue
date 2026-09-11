@@ -808,6 +808,19 @@ export default {
 			this.handleSaleWarehouseChange(val);
 		},
 		syncCartWarehouse(warehouse) {
+			// IMPORTANT: this.pos_profile is the *exact same object reference*
+			// as this.uiStore.posProfile (handleRegisterPosProfile does
+			// `this.pos_profile = data.pos_profile`, no clone) -- and
+			// mounted() has a `{ deep: true }` $watch on uiStore.posProfile
+			// that calls handleRegisterPosProfile again on any change to it.
+			// Mutating this.pos_profile.warehouse here (an earlier attempt at
+			// this fix) therefore re-triggered that deep watcher, which
+			// re-ran registration, which called back into this same method,
+			// which mutated it again -- an infinite loop that manifested as
+			// the whole POS screen re-fetching everything every ~1s with an
+			// empty cart. Do NOT reintroduce a write to this.pos_profile
+			// here; see the ItemsSelector.vue add_item fix (activeSaleWarehouse)
+			// for how new items get the correct warehouse without this.
 			if (!warehouse || !Array.isArray(this.items)) {
 				return;
 			}
@@ -820,6 +833,34 @@ export default {
 			});
 			if (changed) {
 				this.invoiceStore.setItems([...this.items]);
+			}
+
+			// invoiceStore.invoiceDoc is a *separate*, cached snapshot from
+			// invoiceStore.items -- it's what actually gets submitted (see
+			// usePaymentSubmission's invoiceDoc prop), built once via
+			// get_invoice_doc() and otherwise only refreshed by further item
+			// edits (see invoice_utils/server.ts's debounced sync). Updating
+			// this.items above was never enough on its own: switching
+			// warehouse with no further cart edit before hitting PAY left
+			// this cached doc's items -- and the stock/GL entries created
+			// from them -- pointing at the *previous* warehouse, even though
+			// set_warehouse and everything else in the UI already showed the
+			// new one. Same class of bug, and same fix, as
+			// paymentAccountOverride's watcher below.
+			const doc = this.invoiceStore.invoiceDoc;
+			if (doc) {
+				const updatedItems = Array.isArray(doc.items)
+					? doc.items.map((item) =>
+							item && item.is_stock_item && item.warehouse !== warehouse
+								? { ...item, warehouse }
+								: item,
+						)
+					: doc.items;
+				this.invoiceStore.setInvoiceDoc({
+					...doc,
+					set_warehouse: warehouse,
+					items: updatedItems,
+				});
 			}
 		},
 		async handleSaleWarehouseChange(warehouse) {
@@ -834,6 +875,45 @@ export default {
 				typeof this.itemsStore?.refreshItems === "function"
 			) {
 				await this.itemsStore.refreshItems({ warehouse });
+			}
+			await this.refreshCartStockForWarehouse(warehouse);
+		},
+		// setActiveSaleWarehouse/refreshItems above only refetches actual_qty
+		// for whatever page the *catalog* is currently showing -- an item
+		// already sitting in the cart (scrolled out of the catalog view, or
+		// added via DO Number lookup) is never part of that page, so its
+		// actual_qty -- and the cart's "Stock Qty" column, which reads it
+		// directly -- kept silently showing the *previous* warehouse's number
+		// after a switch. Explicitly re-fetch actual_qty for exactly the item
+		// codes already in the cart, against the new warehouse.
+		async refreshCartStockForWarehouse(warehouse) {
+			if (!warehouse || !Array.isArray(this.items) || !this.items.length) {
+				return;
+			}
+			if (typeof this.itemsStore?.refreshActualQtyForItemCodes !== "function") {
+				return;
+			}
+			const qtyMap = await this.itemsStore.refreshActualQtyForItemCodes(
+				this.items,
+				warehouse,
+			);
+			if (!qtyMap || !qtyMap.size) {
+				return;
+			}
+			let changed = false;
+			this.items.forEach((item) => {
+				if (!item || !qtyMap.has(item.item_code)) {
+					return;
+				}
+				const freshQty = qtyMap.get(item.item_code);
+				if (item.actual_qty !== freshQty || item._stockWarehouse !== warehouse) {
+					item.actual_qty = freshQty;
+					item._stockWarehouse = warehouse;
+					changed = true;
+				}
+			});
+			if (changed) {
+				this.invoiceStore.setItems([...this.items]);
 			}
 		},
 		formatDateForDisplay(date) {
@@ -1192,11 +1272,18 @@ export default {
 			this.fetch_available_currencies();
 			this.refresh_parked_orders();
 
-			// Admin-only "Accounts" override -- default to this POS Profile's own
-			// change account, then let a System Manager / BSP Admin pick a
-			// different showroom's Cash In Hand account from the dropdown (see
+			// Admin-only "Accounts" override -- default to whatever the cashier
+			// already picked elsewhere this session (uiStore.activeSaleAccount,
+			// shared with the standalone Payment screen, Expense Claim, and
+			// Purchase Order screens), falling back to this POS Profile's own
+			// change account only when nothing has been picked yet. Without the
+			// shared value, this screen re-mounting (e.g. after collecting a
+			// payment on a different screen) silently reverted the cashier's
+			// chosen showroom account back to the profile default (see
 			// canEditPaymentAccount / get_invoice_doc's payment_account wiring).
-			this.paymentAccountOverride = data.pos_profile?.account_for_change_amount || null;
+			this.paymentAccountOverride =
+				this.uiStore.activeSaleAccount || data.pos_profile?.account_for_change_amount || null;
+			this.uiStore.setActiveSaleAccount(this.paymentAccountOverride);
 			if (this.canEditPaymentAccount) {
 				// this.company (set above from data.company, i.e.
 				// uiStore.companyDoc) is a whole Company *document*, not its
@@ -1640,6 +1727,32 @@ export default {
 					setTimeout(() => {
 						this.$refs.paymentConfirmationDialog?.focus?.();
 					}, 100);
+				});
+			}
+		},
+		// Keep every other "Accounts" picker (standalone Payment screen, Expense
+		// Claim, Purchase Order) in sync with whatever a System Manager / BSP
+		// Admin picks here -- see handleRegisterPosProfile for the read side.
+		paymentAccountOverride(val) {
+			this.uiStore.setActiveSaleAccount(val);
+
+			// invoiceStore.invoiceDoc is a *cached* snapshot -- built once via
+			// get_invoice_doc() when the cart first gets an item, then only
+			// re-synced on further item changes (see invoice_utils/server.ts's
+			// debounced sync). It's also what the PAY dialog (Payments.vue,
+			// via usePaymentSubmission's invoiceDoc prop) actually submits --
+			// not a fresh get_invoice_doc() call. Picking a different Accounts
+			// override *after* the cart already has items, with no further
+			// item edits before hitting PAY, left that cached snapshot's
+			// payment_account pointing at whatever was selected (or nothing)
+			// when the doc was last synced -- the dropdown looked right, but
+			// the submitted payment still went to the old account. Push the
+			// new value into the cached doc directly so it can never lag
+			// behind what the dropdown shows.
+			if (this.invoiceStore.invoiceDoc) {
+				this.invoiceStore.setInvoiceDoc({
+					...this.invoiceStore.invoiceDoc,
+					payment_account: this.canEditPaymentAccount && val ? val : null,
 				});
 			}
 		},

@@ -4,7 +4,12 @@ import type { POSProfile } from "../../../../types/models";
 import { getStoredItemsCount } from "../../../../../offline/index";
 
 const DEFAULT_PAGE_SIZE = 200;
-const INITIAL_BOOTSTRAP_PAGE_SIZE = 80;
+// The very first paint only needs to fill the visible catalog grid (roughly
+// a 4-column x 5-row screen, ~20 cards) -- everything else keeps loading in
+// the background (see itemsStore.triggerBackgroundSync) regardless of this
+// number, so shrinking it only speeds up time-to-first-paint and doesn't
+// affect how much ends up cached for offline search.
+const INITIAL_BOOTSTRAP_PAGE_SIZE = 20;
 const LARGE_CATALOG_THRESHOLD = 800;
 const LIMIT_SEARCH_FALLBACK = 500;
 
