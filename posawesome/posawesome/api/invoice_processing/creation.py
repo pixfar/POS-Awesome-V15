@@ -743,6 +743,27 @@ def _enforce_set_warehouse_on_items(invoice_doc):
                 row.warehouse = warehouse
 
 
+def _clear_auto_generated_remarks(invoice_doc, remarks_provided):
+    """Undo ERPNext core's own Sales Invoice.before_submit() -> add_remarks(),
+    which unconditionally fills a blank `remarks` with "No Remarks" (or
+    "Against Customer Order {po_no}") right before submit -- standard
+    controller behavior, not a POS Awesome feature. The cashier's own
+    "Remarks" card is meant to stay blank when they didn't type anything,
+    not silently grow placeholder text.
+
+    `remarks_provided` must be captured by the caller *before* the submit
+    call that can trigger add_remarks() -- by the time this runs, blank vs.
+    "No Remarks" can no longer be told apart from invoice_doc.remarks alone.
+    A no-op if the cashier actually typed something, so genuine remarks are
+    never touched.
+    """
+    if remarks_provided:
+        return
+    if not (invoice_doc.get("remarks") or "").strip():
+        return
+    invoice_doc.db_set("remarks", "", update_modified=False)
+
+
 def _save_draft_with_latest_timestamp(invoice_doc, retries=2):
     attempts = 0
 
@@ -1110,6 +1131,13 @@ def submit_invoice(invoice, data, submit_in_background=False):
     ensure_can_create(_("submit an invoice"))
     data = json.loads(data)
     invoice = json.loads(invoice)
+    # ERPNext's own Sales Invoice.before_submit() unconditionally fills
+    # remarks with "No Remarks" (or "Against Customer Order {po_no}") when
+    # it's blank at submit time -- core controller behavior, not something
+    # POS Awesome added. Capture the cashier's actual input now, before that
+    # runs, so _clear_auto_generated_remarks() can undo it afterward when
+    # they genuinely left the field empty.
+    remarks_provided = bool(str(invoice.get("remarks") or "").strip())
     client_request_id = extract_invoice_client_request_id(invoice, data)
     _sanitize_delivery_dates(invoice)
     _apply_manual_posting_controls(invoice)
@@ -1235,7 +1263,15 @@ def submit_invoice(invoice, data, submit_in_background=False):
     else:
         cash_account = {"account": frappe.get_value("Company", invoice_doc.company, "default_cash_account")}
 
-    invoice_doc.remarks = _build_invoice_remarks(invoice_doc)
+    # Remarks is whatever the cashier actually typed on the POS Awesome
+    # "Remarks" card (or blank) -- it must never be silently replaced with
+    # an itemized rate/qty/total dump here. This used to unconditionally
+    # call _build_invoice_remarks() (an itemized rate/qty/total dump),
+    # overwriting even genuine user input; see _clear_auto_generated_remarks()
+    # below for the separate, narrower cleanup this function still needs --
+    # ERPNext's own before_submit hook (Sales Invoice.add_remarks()) fills a
+    # blank remarks with "No Remarks" right before submit, which has to be
+    # cleared back out afterward when the cashier genuinely left it blank.
 
     # calculating cash
     total_cash = 0
@@ -1383,6 +1419,7 @@ def submit_invoice(invoice, data, submit_in_background=False):
     else:
         _enforce_set_warehouse_on_items(invoice_doc)
         invoice_doc.submit()
+        _clear_auto_generated_remarks(invoice_doc, remarks_provided)
         if ledger_doc:
             _update_submission_ledger(
                 ledger_doc,
@@ -1452,7 +1489,15 @@ def submit_in_background_job(kwargs):
         if hasattr(invoice_doc, "validate_credit_limit"):
             invoice_doc.validate_credit_limit()
 
-        invoice_doc.remarks = _build_invoice_remarks(invoice_doc)
+        # invoice_doc.remarks here is whatever the cashier actually typed
+        # (already saved on the draft by update_invoice) -- captured before
+        # ERPNext's own before_submit hook can fill a blank one with "No
+        # Remarks" below, so that can be told apart from genuine input and
+        # cleared back out afterward. Deliberately NOT reassigned to
+        # _build_invoice_remarks() (an itemized rate/qty/total dump) --
+        # that used to run here unconditionally, overwriting even genuine
+        # user input.
+        remarks_provided = bool(str(invoice_doc.remarks or "").strip())
 
         _apply_write_off_settings(invoice_doc, data)
 
@@ -1478,6 +1523,7 @@ def submit_in_background_job(kwargs):
         _enforce_set_warehouse_on_items(invoice_doc)
 
         invoice_doc.submit()
+        _clear_auto_generated_remarks(invoice_doc, remarks_provided)
         if ledger_doc:
             _update_submission_ledger(
                 ledger_doc,

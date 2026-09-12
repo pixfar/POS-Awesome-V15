@@ -41,10 +41,16 @@ export default {
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 		};
 
-		const metaFields = computed(() => [
-			{ label: __('Date'), value: formatDisplayDate(detail.value.posting_date) },
-			{ label: __('User'), value: detail.value.user_name || detail.value.user },
-		]);
+		const metaFields = computed(() => {
+			const fields = [
+				{ label: __('Date'), value: formatDisplayDate(detail.value.posting_date) },
+				{ label: __('User'), value: detail.value.user_name || detail.value.user },
+			];
+			if (detail.value.remarks) {
+				fields.push({ label: __('Remarks'), value: detail.value.remarks });
+			}
+			return fields;
+		});
 
 		const itemColumns = [
 			{ key: 'warehouse', label: __('Warehouse') },

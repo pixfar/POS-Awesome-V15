@@ -75,16 +75,32 @@ def user_has_warehouse_restrictions(user=None):
 	Employee-based, no User Permission row involved) -- exactly the setup this
 	app actually uses. Those users came back "unrestricted" by accident and
 	could see every warehouse's Material Transfers/Requisitions. True for
-	anyone who isn't privileged (System Manager/BSP Admin/Administrator),
-	matching is_privileged_invoice_viewer's bypass used everywhere else in
-	this module -- get_expanded_permitted_warehouses() below is the actual
-	source of truth for *which* warehouse(s) that then permits."""
-	return not is_privileged_invoice_viewer(user)
+	anyone who isn't privileged (System Manager/BSP Admin/Administrator) or
+	a read-only BSP Viewer, matching the same bypass used everywhere else
+	in this module -- get_expanded_permitted_warehouses() below is the
+	actual source of truth for *which* warehouse(s) that then permits."""
+	return not (is_privileged_invoice_viewer(user) or is_read_only_viewer(user))
 
 
 def get_expanded_permitted_warehouses(user=None):
+	"""None means unrestricted (every warehouse); an empty/populated list
+	means scoped to exactly those.
+
+	Bypasses for the same set of roles as is_privileged_invoice_viewer
+	(System Manager / BSP Admin / Administrator) *plus* BSP Viewer -- BSP
+	Viewer is a deliberately read-only role (see is_read_only_viewer /
+	ensure_can_create) meant for management oversight across every
+	showroom, not scoped to whichever single warehouse their own POS
+	Profile happens to carry. Previously only System Manager bypassed here,
+	so BSP Admin and BSP Viewer users -- both meant to see everything --
+	were silently narrowed to their POS Profile's own warehouse everywhere
+	this function (or anything built on it: get_permission_scoped_names,
+	build_warehouse_or_condition, user_can_read_warehouse_doc) is used,
+	which is most of POS Awesome's warehouse-scoped reports and doc
+	permissions.
+	"""
 	user = user or frappe.session.user
-	if user == 'Administrator' or is_system_manager(user):
+	if is_privileged_invoice_viewer(user) or is_read_only_viewer(user):
 		return None
 
 	try:
@@ -116,11 +132,12 @@ def get_permission_scoped_names(doctype, warehouse_field, owner_field='owner', u
 	"""For doctypes with a single warehouse field (Sales/Purchase Invoice, BSP
 	Daily Deposit): returns the list of doc names this user may see -- their
 	own records OR records touching their permitted warehouse(s) -- or None if
-	the user is unrestricted (System Manager or BSP Admin) and should see
-	everything. Everyone else is scoped to their own records at minimum, even
-	if they have no warehouse User Permission set up at all."""
+	the user is unrestricted (System Manager, BSP Admin, or a read-only BSP
+	Viewer) and should see everything. Everyone else is scoped to their own
+	records at minimum, even if they have no warehouse User Permission set
+	up at all."""
 	user = user or frappe.session.user
-	if is_privileged_invoice_viewer(user):
+	if is_privileged_invoice_viewer(user) or is_read_only_viewer(user):
 		return None
 
 	permitted = get_expanded_permitted_warehouses(user) or []

@@ -183,8 +183,11 @@ def _check_target_warehouse_permission(doc):
 			title=_('Not Allowed'),
 		)
 
-	warehouses = get_expanded_permitted_warehouses() or []
-	if doc.to_warehouse and doc.to_warehouse in warehouses:
+	# None means unrestricted (BSP Admin / BSP Viewer, same as System
+	# Manager above) -- `or []` would collapse that into "no warehouse
+	# allowed", the opposite of what it means.
+	warehouses = get_expanded_permitted_warehouses()
+	if warehouses is None or (doc.to_warehouse and doc.to_warehouse in warehouses):
 		return
 
 	frappe.throw(
@@ -203,8 +206,9 @@ def can_confirm_receipt(doc):
 		return True
 	if doc.requested_by == frappe.session.user:
 		return False
-	warehouses = get_expanded_permitted_warehouses() or []
-	return doc.to_warehouse in warehouses
+	# None means unrestricted -- see _check_target_warehouse_permission above.
+	warehouses = get_expanded_permitted_warehouses()
+	return warehouses is None or doc.to_warehouse in warehouses
 
 
 @frappe.whitelist()

@@ -134,6 +134,11 @@ const reportGroups = [
 				icon: 'mdi-clipboard-list-outline',
 			},
 			{
+				title: 'Production Requirement Report for KS',
+				name: 'Production Requirement Report for KS',
+				icon: 'mdi-clipboard-list-outline',
+			},
+			{
 				title: 'Showroom Wise Low Stock Summary Report',
 				name: 'Low Stock and Stock Summary Report',
 				icon: 'mdi-clipboard-list-outline',

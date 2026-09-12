@@ -16,16 +16,22 @@ from frappe.utils.pdf import get_pdf
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_expanded_permitted_warehouses,
-	is_system_manager,
 )
 
 TEMPLATE_PATH = "posawesome/posawesome/templates/daily_cash_summary_pdf.html"
 
 
 def _ensure_warehouse_access(warehouse):
-	if is_system_manager():
+	# None means unrestricted (System Manager / BSP Admin / BSP Viewer --
+	# get_expanded_permitted_warehouses already covers all three); `or []`
+	# used to collapse that into "no warehouse allowed", which is why a BSP
+	# Viewer picking any warehouse other than their own POS Profile default
+	# got "You do not have permission to view this warehouse" here even
+	# though the warehouse *switcher* itself had already correctly opened up
+	# for them.
+	permitted = get_expanded_permitted_warehouses()
+	if permitted is None:
 		return
-	permitted = get_expanded_permitted_warehouses() or []
 	if warehouse not in permitted:
 		frappe.throw(
 			_("You do not have permission to view this warehouse."), exc=frappe.PermissionError

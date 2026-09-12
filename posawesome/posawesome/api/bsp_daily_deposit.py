@@ -228,6 +228,7 @@ def get_daily_deposit_detail(name):
 		'docstatus': doc.docstatus,
 		'status': doc.status,
 		'payment_entry': doc.payment_entry,
+		'remarks': doc.get('remarks'),
 	}
 
 
