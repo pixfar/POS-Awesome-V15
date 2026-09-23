@@ -60,8 +60,21 @@ def search_manufacturable_items(search_text=None, limit=20):
 	conditions = ['item.disabled = 0', 'bom.is_active = 1', 'bom.is_default = 1', 'bom.docstatus = 1']
 	values = {}
 	if search_text and len(search_text.strip()) >= 2:
-		conditions.append('(item.name LIKE %(search)s OR item.item_name LIKE %(search)s)')
-		values['search'] = f'%{search_text.strip()}%'
+		eng_text = search_text.strip()
+		ben_text = eng_text
+		for e, b in zip(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯']):
+			ben_text = ben_text.replace(e, b)
+		
+		like_eng = f'%{eng_text}%'
+		like_ben = f'%{ben_text}%'
+		
+		if like_eng != like_ben:
+			conditions.append('(item.name LIKE %(search_eng)s OR item.item_name LIKE %(search_eng)s OR item.name LIKE %(search_ben)s OR item.item_name LIKE %(search_ben)s)')
+			values['search_eng'] = like_eng
+			values['search_ben'] = like_ben
+		else:
+			conditions.append('(item.name LIKE %(search)s OR item.item_name LIKE %(search)s)')
+			values['search'] = like_eng
 
 	where_clause = ' AND '.join(conditions)
 	return frappe.db.sql(

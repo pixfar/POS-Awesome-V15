@@ -70,7 +70,7 @@
 					v-model:search="itemSearchQuery"
 					:items="itemSearchResults"
 					:loading="itemSearchLoading"
-					item-title="item_name"
+					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
 					item-value="item_code"
 					:label="__('Item')"
 					density="compact"
@@ -266,6 +266,7 @@ import { useRouter } from 'vue-router';
 import { useToastStore } from '../../../stores/toastStore';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 
 export default {
 	name: 'BomList',
@@ -486,9 +487,10 @@ export default {
 			itemSearchTimeout = setTimeout(async () => {
 				itemSearchLoading.value = true;
 				try {
+					const normalizedTerm = normalizeBengaliNumbers(term.trim());
 					const { message } = await frappe.call({
 						method: 'posawesome.posawesome.api.boms.search_bom_items',
-						args: { search_text: term.trim(), limit: 20 },
+						args: { search_text: normalizedTerm, limit: 20 },
 					});
 					itemSearchResults.value = message || [];
 				} catch {

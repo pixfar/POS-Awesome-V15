@@ -24,6 +24,26 @@
 				</template>
 			</v-autocomplete>
 
+			<v-autocomplete
+				class="item-toolbar__field"
+				:items="uomsList"
+				:label="frappe._('UOM')"
+				:placeholder="__('Search UOM')"
+				density="compact"
+				variant="outlined"
+				hide-details
+				clearable
+				auto-select-first
+				:model-value="uomFilter"
+				@update:model-value="onUomUpdate"
+			>
+				<template #prepend-inner>
+					<v-icon size="18" class="item-toolbar__field-icon">
+						mdi-scale-balance
+					</v-icon>
+				</template>
+			</v-autocomplete>
+
 			<v-text-field
 				v-if="posProfile.posa_enable_price_list_dropdown !== false"
 				class="item-toolbar__field"
@@ -71,8 +91,12 @@
 const __ = window.__;
 const frappe = window.frappe;
 
+import { ref, onMounted } from "vue";
+import itemService from "../../../services/itemService";
+
 defineProps({
 	modelValue: { type: String, default: "ALL" },
+	uomFilter: { type: String, default: "ALL" },
 	itemsGroup: { type: Array, default: () => [] },
 	itemsView: { type: String, default: "card" },
 	posProfile: { type: Object, required: true },
@@ -84,6 +108,7 @@ defineProps({
 
 const emit = defineEmits([
 	"update:modelValue",
+	"update:uomFilter",
 	"update:itemsView",
 	"open-offers",
 	"open-coupons",
@@ -92,6 +117,23 @@ const emit = defineEmits([
 const onItemGroupUpdate = (value) => {
 	emit("update:modelValue", value || "ALL");
 };
+
+const onUomUpdate = (value) => {
+	emit("update:uomFilter", value || "ALL");
+};
+
+const uomsList = ref(["ALL"]);
+
+onMounted(async () => {
+	try {
+		const uoms = await itemService.getUOMsData();
+		if (uoms && Array.isArray(uoms)) {
+			uomsList.value = ["ALL", ...uoms.map(u => u.name)];
+		}
+	} catch (e) {
+		console.error("Failed to load UOMs:", e);
+	}
+});
 </script>
 
 <style scoped>

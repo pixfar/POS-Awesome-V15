@@ -1539,9 +1539,9 @@ export default {
 		},
 	},
 
-	mounted() {
+	async mounted() {
 		this.setUpdateItemDetail(this.update_item_detail);
-		this.loadColumnPreferences();
+		await this.loadColumnPreferences();
 		this.loadInvoiceHeight();
 		this.fetchWarehouses();
 

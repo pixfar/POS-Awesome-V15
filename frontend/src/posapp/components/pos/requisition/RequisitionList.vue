@@ -111,7 +111,7 @@
 					v-model:search="itemSearchQuery"
 					:items="itemSearchResults"
 					:loading="itemSearchLoading"
-					item-title="item_name"
+					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
 					item-value="item_code"
 					:label="__('Item')"
 					density="compact"
@@ -302,6 +302,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
+import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 
 const STATUS_CONFIRM_MESSAGES = {
 	Seen: __('Mark this requisition as Seen? This lets the requester know it is being processed.'),
@@ -455,9 +456,10 @@ export default {
 			itemSearchTimeout = setTimeout(async () => {
 				itemSearchLoading.value = true;
 				try {
+					const normalizedTerm = normalizeBengaliNumbers(term.trim());
 					const { message } = await frappe.call({
 						method: 'posawesome.posawesome.api.requisitions.search_items',
-						args: { search_text: term.trim(), limit: 20 },
+						args: { search_text: normalizedTerm, limit: 20 },
 					});
 					itemSearchResults.value = message || [];
 				} catch {

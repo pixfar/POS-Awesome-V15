@@ -194,6 +194,7 @@
 		</v-card>
 		<ItemActionToolbar
 			v-model="item_group"
+			v-model:uom-filter="uom_filter"
 			:items-group="items_group"
 			v-model:items-view="items_view"
 			:pos-profile="pos_profile"
@@ -380,6 +381,7 @@ const {
 // 2. Local State & Settings
 const search_input = ref("");
 const first_search = ref("");
+const uom_filter = ref("ALL");
 const items_view = ref("card");
 const itemsPerPage = ref(20);
 const clearingSearch = ref(false);
@@ -401,8 +403,8 @@ const localStorageAvailable = ref(true);
 // Settings Refs
 const hide_qty_decimals = ref(false);
 const hide_zero_rate_items = ref(false);
-const show_last_invoice_rate = ref(true);
-const enable_background_sync = ref(true);
+const show_last_invoice_rate = ref(false);
+const enable_background_sync = ref(false);
 const background_sync_interval = ref(30);
 const enable_custom_items_per_page = ref(false);
 const items_per_page = ref(50);
@@ -415,8 +417,8 @@ const temp_hide_zero_rate_items = ref(false);
 const temp_enable_custom_items_per_page = ref(false);
 const temp_items_per_page = ref(50);
 const temp_force_server_items = ref(false);
-const temp_show_last_invoice_rate = ref(true);
-const temp_enable_background_sync = ref(true);
+const temp_show_last_invoice_rate = ref(false);
+const temp_enable_background_sync = ref(false);
 const temp_background_sync_interval = ref(30);
 
 const {
@@ -573,7 +575,7 @@ const advancePage = async () => {
 	}
 };
 
-watch([search_input, item_group, () => hide_zero_rate_items.value, () => showOnlyBarcodeItemsRef.value], () => {
+watch([search_input, item_group, uom_filter, () => hide_zero_rate_items.value, () => showOnlyBarcodeItemsRef.value], () => {
 	currentPage.value = 1;
 });
 
@@ -583,6 +585,7 @@ const displayedItems = computed(() => {
 	const term = (typeof rawTerm === "string" ? rawTerm : "").trim().toLowerCase();
 	const upToCurrentPage = filterAndPaginate(baseItems, {
 		searchTerm: term,
+		uomFilter: uom_filter.value,
 		hideZeroRate: hide_zero_rate_items.value,
 		hideVariants: pos_profile.value?.posa_hide_variants_items,
 		onlyBarcode: showOnlyBarcodeItemsRef.value,

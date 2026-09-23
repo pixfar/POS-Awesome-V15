@@ -153,18 +153,20 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 		);
 	});
 
-	const loadColumnPreferences = () => {
+	const loadColumnPreferences = async () => {
 		try {
-			const saved = localStorage.getItem("posawesome_selected_columns");
-			if (saved) {
-				const parsed: string[] = JSON.parse(saved);
-				// Migrate old "discount_value" key (renamed to "discount_percentage")
-				selected_columns.value = parsed.map((key) =>
+			const result = await frappe.call({
+				method: "posawesome.posawesome.api.utilities.get_user_column_preferences",
+				args: {
+					report_name: "POS Cart Table"
+				}
+			});
+			if (result.message && Array.isArray(result.message) && result.message.length > 0) {
+				const parsed = result.message;
+				selected_columns.value = parsed.map((key: string) =>
 					key === "discount_value" ? "discount_percentage" : key,
 				);
 			} else {
-				// No saved preference yet: show only required columns until the
-				// user opts in to optional ones via the column selector.
 				selected_columns.value = [];
 			}
 		} catch (e) {
@@ -174,10 +176,13 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 
 	const saveColumnPreferences = () => {
 		try {
-			localStorage.setItem(
-				"posawesome_selected_columns",
-				JSON.stringify(selected_columns.value),
-			);
+			frappe.call({
+				method: "posawesome.posawesome.api.utilities.save_user_column_preferences",
+				args: {
+					report_name: "POS Cart Table",
+					selected_columns: JSON.stringify(selected_columns.value)
+				}
+			});
 		} catch (e) {
 			console.error("Failed to save column preferences:", e);
 		}

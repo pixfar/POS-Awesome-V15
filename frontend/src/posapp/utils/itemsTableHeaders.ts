@@ -60,10 +60,5 @@ export function getItemsTableHeaders(context: "pos" | "purchase" | string, posPr
         { title: __("UOM"), key: "stock_uom", align: "start" },
     ];
 
-    // Remove item code column if configured
-    if (posProfile && !posProfile.posa_display_item_code) {
-        headers.splice(1, 1);
-    }
-
     return headers;
 }

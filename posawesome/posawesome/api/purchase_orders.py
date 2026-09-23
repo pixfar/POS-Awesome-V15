@@ -1418,11 +1418,23 @@ def search_items(search_text=None, limit=20):
     filters = {"disabled": 0}
     or_filters = None
     if search_text:
-        like_value = f"%{search_text}%"
-        or_filters = {
-            "name": ["like", like_value],
-            "item_name": ["like", like_value],
-        }
+        eng_text = search_text.strip()
+        ben_text = eng_text
+        for e, b in zip(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯']):
+            ben_text = ben_text.replace(e, b)
+            
+        like_eng = f"%{eng_text}%"
+        like_ben = f"%{ben_text}%"
+        
+        or_filters = [
+            ["Item", "name", "like", like_eng],
+            ["Item", "item_name", "like", like_eng],
+        ]
+        if like_eng != like_ben:
+            or_filters.extend([
+                ["Item", "name", "like", like_ben],
+                ["Item", "item_name", "like", like_ben],
+            ])
 
     items = frappe.get_all(
         "Item",

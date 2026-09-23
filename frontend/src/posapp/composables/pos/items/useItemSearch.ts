@@ -220,6 +220,7 @@ export function useItemSearch() {
 			hideZeroRate = false,
 			hideVariants = false,
 			onlyBarcode = false,
+			uomFilter = "ALL",
 			limit = 50,
 		} = {},
 	) => {
@@ -232,7 +233,8 @@ export function useItemSearch() {
 			!needsLocalSearch &&
 			!hideZeroRate &&
 			!hideVariants &&
-			!onlyBarcode
+			!onlyBarcode &&
+			(!uomFilter || uomFilter === "ALL")
 		) {
 			return sortItemsByCodeAsc(items).slice(0, limit);
 		}
@@ -305,6 +307,11 @@ export function useItemSearch() {
 						item.item_barcode.length > 0);
 
 				if (!hasBarcode) continue;
+			}
+
+			// 5. UOM Filter
+			if (uomFilter && uomFilter !== "ALL") {
+				if (item.stock_uom !== uomFilter) continue;
 			}
 
 			matches.push(item);

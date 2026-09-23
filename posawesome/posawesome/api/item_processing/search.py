@@ -666,7 +666,7 @@ def get_items(
 def get_items_groups():
     return frappe.db.sql(
         """select name from `tabItem Group`
-		where is_group = 0 order by name limit 500""",
+		where is_group = 0 order by name""",
         as_dict=1,
     )
 

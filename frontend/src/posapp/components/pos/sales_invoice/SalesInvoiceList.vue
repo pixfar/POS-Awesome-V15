@@ -107,7 +107,7 @@
 					v-model:search="itemSearchQuery"
 					:items="itemSearchResults"
 					:loading="itemSearchLoading"
-					item-title="item_name"
+					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
 					item-value="item_code"
 					:label="__('Item')"
 					density="compact"
@@ -449,6 +449,7 @@ import ReturnItemsDialog from '../shared/ReturnItemsDialog.vue';
 import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
 import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
+import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 
 const UNPAID_STATUSES = [
 	'Unpaid',
@@ -784,9 +785,10 @@ export default {
 			itemSearchTimeout = setTimeout(async () => {
 				itemSearchLoading.value = true;
 				try {
+					const normalizedTerm = normalizeBengaliNumbers(term.trim());
 					const { message } = await frappe.call({
 						method: 'posawesome.posawesome.api.invoices.search_items',
-						args: { search_text: term.trim(), limit: 20 },
+						args: { search_text: normalizedTerm, limit: 20 },
 					});
 					itemSearchResults.value = message || [];
 				} catch {

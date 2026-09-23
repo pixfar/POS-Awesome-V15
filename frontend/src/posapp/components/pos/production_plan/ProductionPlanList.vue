@@ -99,7 +99,7 @@
 					v-model:search="itemSearchQuery"
 					:items="itemSearchResults"
 					:loading="itemSearchLoading"
-					item-title="item_name"
+					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
 					item-value="item_code"
 					:label="__('Item')"
 					density="compact"
@@ -288,6 +288,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
+import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 
 const ACTION_CONFIRM_MESSAGES = {
 	'Start Production': __('Start production for this plan? This will submit it and lock in the planned quantities.'),
@@ -432,9 +433,10 @@ export default {
 			itemSearchTimeout = setTimeout(async () => {
 				itemSearchLoading.value = true;
 				try {
+					const normalizedTerm = normalizeBengaliNumbers(term.trim());
 					const { message } = await frappe.call({
 						method: 'posawesome.posawesome.api.production_plans.search_manufacturable_items',
-						args: { search_text: term.trim(), limit: 20 },
+						args: { search_text: normalizedTerm, limit: 20 },
 					});
 					itemSearchResults.value = message || [];
 				} catch {
