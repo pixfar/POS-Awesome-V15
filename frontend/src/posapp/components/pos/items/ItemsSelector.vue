@@ -253,7 +253,7 @@ import { useRtl } from "../../../composables/core/useRtl";
 import { useFlyAnimation } from "../../../composables/core/useFlyAnimation";
 import { useCartValidation } from "../../../composables/pos/items/useCartValidation";
 import { useItemsIntegration } from "../../../composables/pos/items/useItemsIntegration";
-import { useItemSearch } from "../../../composables/pos/items/useItemSearch";
+import { useItemSearch, normalizeBengaliNumbers } from "../../../composables/pos/items/useItemSearch";
 import { useScannerInput } from "../../../composables/pos/items/useScannerInput";
 import { useItemAvailability } from "../../../composables/pos/items/useItemAvailability";
 import { useItemDetailFetcher } from "../../../composables/pos/items/useItemDetailFetcher";
@@ -1309,10 +1309,10 @@ const onEnter = (e) => itemsSelectorSearch.onEnter(e);
 const handleSearchKeydown = (e) => itemsSelectorFocus.handleSearchKeydown(e);
 const handleSearchPaste = (e) => itemsSelectorFocus.handleSearchPaste(e);
 
-const normalizeSearchTerm = (value: unknown) => String(value ?? "").trim();
+const normalizeSearchTerm = (value: unknown) => normalizeBengaliNumbers(String(value ?? "").trim());
 
 const findCatalogSearchMatch = (term: string) => {
-	const normalized = term.toLowerCase();
+	const normalized = normalizeBengaliNumbers(term).toLowerCase();
 	const visibleItems = Array.isArray(displayedItems.value)
 		? displayedItems.value
 		: [];
@@ -1321,19 +1321,19 @@ const findCatalogSearchMatch = (term: string) => {
 	}
 
 	const exact = visibleItems.find((item) => {
-		const itemCode = String(item?.item_code || "").toLowerCase();
-		const barcode = String(item?.barcode || "").toLowerCase();
+		const itemCode = normalizeBengaliNumbers(String(item?.item_code || "")).toLowerCase();
+		const barcode = normalizeBengaliNumbers(String(item?.barcode || "")).toLowerCase();
 		if (itemCode === normalized || barcode === normalized) {
 			return true;
 		}
 		if (Array.isArray(item?.item_barcode)) {
 			return item.item_barcode.some(
-				(row) => String(row?.barcode || "").toLowerCase() === normalized,
+				(row) => normalizeBengaliNumbers(String(row?.barcode || "")).toLowerCase() === normalized,
 			);
 		}
 		if (Array.isArray(item?.barcodes)) {
 			return item.barcodes.some(
-				(bc) => String(bc || "").toLowerCase() === normalized,
+				(bc) => normalizeBengaliNumbers(String(bc || "")).toLowerCase() === normalized,
 			);
 		}
 		return false;

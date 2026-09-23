@@ -5,6 +5,15 @@ import {
 } from "../../../utils/itemSearchSort.js";
 import { perfMarkStart, perfMarkEnd } from "../../../utils/perf.js";
 
+export const normalizeBengaliNumbers = (str: string | unknown): string => {
+	if (!str) return "";
+	const map: Record<string, string> = {
+		'০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+		'৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+	};
+	return String(str).replace(/[০-৯]/g, (match: string) => map[match] as string);
+};
+
 declare const frappe: any;
 
 type SearchItem = {
@@ -116,7 +125,7 @@ export function useItemSearch() {
 		}
 
 		// Filter by search term
-		const rawSearch = (searchTerm || "").trim();
+		const rawSearch = normalizeBengaliNumbers((searchTerm || "").trim());
 		if (rawSearch && rawSearch.length >= 2) {
 			const term = rawSearch.toLowerCase();
 			const searchWords = term.split(/\s+/).filter(Boolean);
@@ -127,7 +136,7 @@ export function useItemSearch() {
 				// Collect all searchable values into a single string or array for checking
 				const searchable: string[] = [];
 				const pushValue = (v: unknown) => {
-					if (v) searchable.push(String(v).toLowerCase());
+					if (v) searchable.push(normalizeBengaliNumbers(String(v)).toLowerCase());
 				};
 
 				pushValue(item.item_code);
@@ -216,7 +225,7 @@ export function useItemSearch() {
 	) => {
 		if (!items || !items.length) return [];
 
-		const term = (searchTerm || "").trim().toLowerCase();
+		const term = normalizeBengaliNumbers((searchTerm || "").trim()).toLowerCase();
 		const needsLocalSearch = term && term.length >= 2;
 
 		if (
@@ -260,12 +269,11 @@ export function useItemSearch() {
 			if (needsLocalSearch) {
 				let matches = false;
 				if (item._search_index) {
-					matches = activeTerms.every((t) =>
-						item._search_index!.includes(t),
-					);
+					const index = normalizeBengaliNumbers(item._search_index);
+					matches = activeTerms.every((t) => index.includes(t));
 				} else {
 					// Fallback
-					const rawIndex = (
+					const rawIndex = normalizeBengaliNumbers(
 						(item.item_code || "") +
 						" " +
 						(item.item_name || "") +

@@ -64,6 +64,7 @@ def _sum_invoice_doctype(doctype, company, start_date, end_date, warehouse, is_a
         fields=[
             "sum(grand_total) as total",
             "sum(outstanding_amount) as due",
+            "sum(discount_amount) as discount",
             "count(name) as count",
         ],
         ignore_permissions=True,
@@ -71,6 +72,7 @@ def _sum_invoice_doctype(doctype, company, start_date, end_date, warehouse, is_a
     row = rows[0] if rows else {}
     total = flt(row.get("total"))
     due = flt(row.get("due"))
+    discount = flt(row.get("discount"))
     # Collection = total - due, not sum(paid_amount). paid_amount is only ever
     # populated for immediate/POS-style payment (is_pos/is_paid = 1 at submit
     # time) -- an invoice settled later via a separate Payment Entry leaves
@@ -83,6 +85,7 @@ def _sum_invoice_doctype(doctype, company, start_date, end_date, warehouse, is_a
         "total": total,
         "collection": total - due,
         "due": due,
+        "discount": discount,
         "count": cint(row.get("count")),
     }
 
@@ -98,6 +101,7 @@ def _collect_sales(company, start_date, end_date, warehouse, is_admin):
         "total": sales_invoice["total"] + pos_invoice["total"],
         "collection": sales_invoice["collection"] + pos_invoice["collection"],
         "due": sales_invoice["due"] + pos_invoice["due"],
+        "discount": sales_invoice["discount"] + pos_invoice["discount"],
         "count": sales_invoice["count"] + pos_invoice["count"],
     }
 
@@ -199,9 +203,29 @@ def _collect_stock_qty(company, warehouse, is_admin):
     rows = frappe.get_all(
         "Bin",
         filters={"warehouse": ["in", warehouses]},
-        fields=["sum(actual_qty) as total_qty"],
+        fields=[
+            "sum(actual_qty) as total_qty",
+            "sum(stock_value) as stock_purchase_value"
+        ],
     )
-    return flt(rows[0].total_qty) if rows else 0.0
+    
+    # For Stock Sells Value, we need Item's standard rate
+    sells_value = 0.0
+    if warehouses:
+        res = frappe.db.sql("""
+            SELECT SUM(bin.actual_qty * IFNULL(item.standard_rate, 0)) as sells_value
+            FROM `tabBin` bin
+            INNER JOIN `tabItem` item ON bin.item_code = item.name
+            WHERE bin.warehouse IN %s
+        """, (tuple(warehouses),), as_dict=1)
+        if res and res[0].sells_value:
+            sells_value = flt(res[0].sells_value)
+
+    return {
+        "qty": flt(rows[0].total_qty) if rows else 0.0,
+        "purchase_value": flt(rows[0].stock_purchase_value) if rows else 0.0,
+        "sells_value": sells_value
+    }
 
 
 def _collect_material_transfers(start_date, end_date, warehouse):
@@ -505,7 +529,7 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
         "purchase_return": _collect_purchase_return(company, start_date, end_date, warehouse, is_admin),
         "sales_weight": _collect_sales_weight(company, start_date, end_date, warehouse, is_admin),
         "purchase_weight": _collect_purchase_weight(company, start_date, end_date, warehouse, is_admin),
-        "stock_qty": _collect_stock_qty(company, warehouse, is_admin),
+        "stock": _collect_stock_qty(company, warehouse, is_admin),
         "material_transfers": _collect_material_transfers(start_date, end_date, warehouse),
         "requisitions": _collect_requisitions(start_date, end_date, warehouse),
         "production_plans": (
