@@ -41,9 +41,17 @@ export default {
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 		};
 
+		const formatDisplayDateTime = (value) => {
+			if (!value) return '—';
+			const [datePart, timePart] = String(value).split(' ');
+			const date = formatDisplayDate(datePart);
+			return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
+		};
+
 		const metaFields = computed(() => {
 			const fields = [
-				{ label: __('Date'), value: formatDisplayDate(detail.value.posting_date) },
+				{ label: __('Posting Date'), value: formatDisplayDate(detail.value.posting_date) },
+				{ label: __('Created On'), value: formatDisplayDateTime(detail.value.creation) },
 				{ label: __('User'), value: detail.value.user_name || detail.value.user },
 			];
 			if (detail.value.remarks) {

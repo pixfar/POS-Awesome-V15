@@ -199,6 +199,7 @@ const dashboard = reactive({
 	deposits: { total: 0, count: 0 },
 	fund_transfers: { total: 0, count: 0 },
 	top_items: [],
+	top_items_by_qty: [],
 	top_warehouses: [],
 });
 
@@ -490,7 +491,7 @@ const cardSections = computed(() => {
 				{
 					key: 'top_items',
 					type: 'list',
-					label: __('Top 5 Best Selling Items'),
+					label: __('Top 5 Best Selling Items (Amount)'),
 					icon: 'mdi-star-circle-outline',
 					color: 'pink',
 					emptyLabel: __('No sales in this range'),
@@ -500,6 +501,21 @@ const cardSections = computed(() => {
 						subtitle: row.item_code,
 						value: formatAmount(row.amount),
 						hint: __('{0} qty sold', [formatNumber(row.qty)]),
+					})),
+				},
+				{
+					key: 'top_items_by_qty',
+					type: 'list',
+					label: __('Top 5 Best Selling Items (Qty)'),
+					icon: 'mdi-counter',
+					color: 'deep-purple',
+					emptyLabel: __('No sales in this range'),
+					rows: (dashboard.top_items_by_qty || []).map((row, index) => ({
+						rank: index + 1,
+						title: row.item_name || row.item_code,
+						subtitle: row.item_code,
+						value: `${formatNumber(row.qty)} ${row.uom || ''}`.trim(),
+						hint: __('{0} sales amount', [formatAmount(row.amount)]),
 					})),
 				},
 				{

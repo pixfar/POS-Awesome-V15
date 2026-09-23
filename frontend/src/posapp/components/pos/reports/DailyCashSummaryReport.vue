@@ -1,6 +1,6 @@
 <template>
 	<div class="pa-0 h-100 invoice-shell pos-list-page">
-		<v-card flat class="invoice-section-card pos-themed-card pos-list-card">
+		<v-card flat class="invoice-section-card pos-themed-card pos-list-card dcs-card">
 			<div class="pos-list-header">
 				<div class="pos-list-header__main">
 					<p class="pos-list-header__eyebrow">{{ __("Accounts") }}</p>
@@ -84,11 +84,19 @@
 					</div>
 					<div class="pos-list-stat pos-list-stat--success">
 						<span class="pos-list-stat__label">{{ __("Total Collection") }}</span>
-						<strong class="pos-list-stat__value">{{ report.sales_total?.received }}</strong>
+						<strong class="pos-list-stat__value">{{ report.total_collection }}</strong>
 					</div>
 					<div class="pos-list-stat pos-list-stat--success">
 						<span class="pos-list-stat__label">{{ __("Fund Transfer") }}</span>
 						<strong class="pos-list-stat__value">{{ report.fund_transfer_total }}</strong>
+					</div>
+					<div class="pos-list-stat">
+						<span class="pos-list-stat__label">{{ __("Journal Entries") }}</span>
+						<strong class="pos-list-stat__value">{{ report.journal_total }}</strong>
+					</div>
+					<div class="pos-list-stat pos-list-stat--danger">
+						<span class="pos-list-stat__label">{{ __("Purchase Paid") }}</span>
+						<strong class="pos-list-stat__value">{{ report.total_purchase_paid }}</strong>
 					</div>
 					<div class="pos-list-stat pos-list-stat--danger">
 						<span class="pos-list-stat__label">{{ __("Total Expense") }}</span>
@@ -103,6 +111,9 @@
 						<strong class="pos-list-stat__value">{{ report.closing_balance }}</strong>
 					</div>
 				</div>
+				<v-alert v-if="report.other_activity" type="warning" density="compact" variant="tonal" class="dcs-section">
+					{{ __("Other Ledger Activity (not itemised below)") }}: <strong>{{ report.other_activity }}</strong>
+				</v-alert>
 
 				<div class="dcs-section">
 					<h4 class="dcs-section__title">{{ __("Sales Collection Summary") }}</h4>
@@ -112,16 +123,86 @@
 						hide-default-footer
 						:items-per-page="-1"
 						density="comfortable"
-						class="pos-list-table"
+						class="pos-list-table dcs-table"
 						no-data-text="No sales invoices for this date."
 					>
 						<template #item.invoice_no="{ item }">
 							<span>{{ item.invoice_no }}</span>
+							<span v-if="item.supplier" class="dcs-row-note">{{ item.supplier }}</span>
 							<span v-if="item.description" class="dcs-row-note">{{ item.description }}</span>
 						</template>
 					</v-data-table>
+					<div v-if="report.sales_rows?.length" class="dcs-total">
+						<span>{{ __("Total Received") }}</span>
+						<strong>{{ report.sales_total?.received }}</strong>
+					</div>
 				</div>
-
+				<div class="dcs-section">
+					<h4 class="dcs-section__title">{{ __("Customer Payments") }}</h4>
+					<v-data-table
+						:headers="paymentHeaders"
+						:items="report.customer_payment_rows"
+						hide-default-footer
+						:items-per-page="-1"
+						density="comfortable"
+						class="pos-list-table dcs-table"
+						no-data-text="No other customer payments for this date."
+					>
+						<template #item.party="{ item }">
+							<span>{{ item.party }}</span>
+							<span class="dcs-row-note">{{ item.payment_type }} · {{ item.mode_of_payment }}</span>
+							<span v-if="item.cheque" class="dcs-row-note">{{ __("Cheque") }}: {{ item.cheque }}</span>
+						</template>
+					</v-data-table>
+					<div v-if="report.customer_payment_rows?.length" class="dcs-total">
+						<span>{{ __("Total Customer Payments") }}</span>
+						<strong>{{ report.customer_payment_total }}</strong>
+					</div>
+				</div>
+				<div class="dcs-section">
+					<h4 class="dcs-section__title">{{ __("Purchase Summary") }}</h4>
+					<v-data-table
+						:headers="purchaseHeaders"
+						:items="report.purchase_rows"
+						hide-default-footer
+						:items-per-page="-1"
+						density="comfortable"
+						class="pos-list-table dcs-table"
+						no-data-text="No purchase invoices for this date."
+					>
+						<template #item.invoice_no="{ item }">
+							<span>{{ item.invoice_no }}</span>
+							<span v-if="item.supplier" class="dcs-row-note">{{ item.supplier }}</span>
+							<span v-if="item.description" class="dcs-row-note">{{ item.description }}</span>
+						</template>
+					</v-data-table>
+					<div v-if="report.purchase_rows?.length" class="dcs-total">
+						<span>{{ __("Total Paid") }}</span>
+						<strong>{{ report.purchase_total?.paid }}</strong>
+					</div>
+				</div>
+				<div class="dcs-section">
+					<h4 class="dcs-section__title">{{ __("Supplier Payments") }}</h4>
+					<v-data-table
+						:headers="paymentHeaders"
+						:items="report.supplier_payment_rows"
+						hide-default-footer
+						:items-per-page="-1"
+						density="comfortable"
+						class="pos-list-table dcs-table"
+						no-data-text="No other supplier payments for this date."
+					>
+						<template #item.party="{ item }">
+							<span>{{ item.party }}</span>
+							<span class="dcs-row-note">{{ item.payment_type }} · {{ item.mode_of_payment }}</span>
+							<span v-if="item.cheque" class="dcs-row-note">{{ __("Cheque") }}: {{ item.cheque }}</span>
+						</template>
+					</v-data-table>
+					<div v-if="report.supplier_payment_rows?.length" class="dcs-total">
+						<span>{{ __("Total Supplier Payments") }}</span>
+						<strong>{{ report.supplier_payment_total }}</strong>
+					</div>
+				</div>
 				<div class="dcs-section">
 					<h4 class="dcs-section__title">{{ __("Fund Transfer") }}</h4>
 					<v-data-table
@@ -130,11 +211,30 @@
 						hide-default-footer
 						:items-per-page="-1"
 						density="comfortable"
-						class="pos-list-table"
+						class="pos-list-table dcs-table"
 						no-data-text="No fund transfers for this date."
-					/>
+					></v-data-table>
+					<div v-if="report.fund_transfer_rows?.length" class="dcs-total">
+						<span>{{ __("Total Fund Transfer") }}</span>
+						<strong>{{ report.fund_transfer_total }}</strong>
+					</div>
 				</div>
-
+				<div class="dcs-section">
+					<h4 class="dcs-section__title">{{ __("Journal Entries") }}</h4>
+					<v-data-table
+						:headers="journalHeaders"
+						:items="report.journal_rows"
+						hide-default-footer
+						:items-per-page="-1"
+						density="comfortable"
+						class="pos-list-table dcs-table"
+						no-data-text="No journal entries for this date."
+					></v-data-table>
+					<div v-if="report.journal_rows?.length" class="dcs-total">
+						<span>{{ __("Total Journal Entries") }}</span>
+						<strong>{{ report.journal_total }}</strong>
+					</div>
+				</div>
 				<div class="dcs-section">
 					<h4 class="dcs-section__title">{{ __("Cash Out Outflow") }}</h4>
 					<v-data-table
@@ -143,11 +243,14 @@
 						hide-default-footer
 						:items-per-page="-1"
 						density="comfortable"
-						class="pos-list-table"
+						class="pos-list-table dcs-table"
 						no-data-text="No cash outflow for this date."
-					/>
+					></v-data-table>
+					<div v-if="report.expense_rows?.length" class="dcs-total">
+						<span>{{ __("Total Expense") }}</span>
+						<strong>{{ report.expense_total }}</strong>
+					</div>
 				</div>
-
 				<div class="dcs-section">
 					<h4 class="dcs-section__title">{{ __("BSP Deposit") }}</h4>
 					<v-data-table
@@ -156,9 +259,13 @@
 						hide-default-footer
 						:items-per-page="-1"
 						density="comfortable"
-						class="pos-list-table"
+						class="pos-list-table dcs-table"
 						no-data-text="No deposits for this date."
-					/>
+					></v-data-table>
+					<div v-if="report.deposit_rows?.length" class="dcs-total">
+						<span>{{ __("Total Deposited") }}</span>
+						<strong>{{ report.deposit_total }}</strong>
+					</div>
 				</div>
 			</template>
 		</v-card>
@@ -203,6 +310,34 @@ export default {
 			{ title: __('Discount'), key: 'discount', sortable: false, align: 'end' },
 			{ title: __('Due'), key: 'due', sortable: false, align: 'end' },
 			{ title: __('Received'), key: 'received', sortable: false, align: 'end' },
+		];
+
+		const purchaseHeaders = [
+			{ title: __('S.L'), key: 'sl', sortable: false, width: 60 },
+			{ title: __('Invoice No.'), key: 'invoice_no', sortable: false },
+			{ title: __('Purchase'), key: 'purchase', sortable: false, align: 'end' },
+			{ title: __('Discount'), key: 'discount', sortable: false, align: 'end' },
+			{ title: __('Due'), key: 'due', sortable: false, align: 'end' },
+			{ title: __('Paid'), key: 'paid', sortable: false, align: 'end' },
+		];
+
+		// Customer / Supplier payments that aren't for the day's own invoices
+		// (due collection, advances, bills from earlier days).
+		const paymentHeaders = [
+			{ title: __('S.L'), key: 'sl', sortable: false, width: 60 },
+			{ title: __('Party'), key: 'party', sortable: false },
+			{ title: __('Against'), key: 'against', sortable: false },
+			{ title: __('Reference No.'), key: 'reference_no', sortable: false },
+			{ title: __('Amount'), key: 'amount', sortable: false, align: 'end' },
+		];
+
+		const journalHeaders = [
+			{ title: __('S.L'), key: 'sl', sortable: false, width: 60 },
+			{ title: __('Party'), key: 'party', sortable: false },
+			{ title: __('Description'), key: 'description', sortable: false },
+			{ title: __('Reference No.'), key: 'reference_no', sortable: false },
+			{ title: __('In / Out'), key: 'direction', sortable: false },
+			{ title: __('Amount'), key: 'amount', sortable: false, align: 'end' },
 		];
 
 		const fundTransferHeaders = [
@@ -354,6 +489,9 @@ export default {
 			errorMessage,
 			report,
 			salesHeaders,
+			purchaseHeaders,
+			paymentHeaders,
+			journalHeaders,
 			fundTransferHeaders,
 			expenseHeaders,
 			depositHeaders,
@@ -424,6 +562,44 @@ export default {
 	letter-spacing: 0.02em;
 	color: var(--pos-text-secondary, #666);
 	margin-bottom: 6px;
+}
+
+/* The page is taller than the screen: let the card scroll so every section
+   (and the last rows) can be reached, instead of being clipped. */
+.dcs-card {
+	overflow-y: auto;
+	overflow-x: hidden;
+	-webkit-overflow-scrolling: touch;
+}
+
+.dcs-card > * {
+	flex-shrink: 0;
+}
+
+/* Wide tables scroll sideways inside their own box on small screens. */
+.dcs-table :deep(.v-table__wrapper) {
+	overflow-x: auto;
+}
+
+.dcs-table :deep(table) {
+	min-width: 560px;
+}
+
+.dcs-total {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 16px;
+	font-size: 0.9rem;
+	border-top: 1px solid var(--pos-border, rgba(0, 0, 0, 0.12));
+	background: color-mix(in srgb, var(--pos-primary) 4%, transparent);
+	border-radius: 0 0 8px 8px;
+}
+
+@media (max-width: 600px) {
+	.dcs-section {
+		margin: 0 10px 14px;
+	}
 }
 
 .dcs-row-note {

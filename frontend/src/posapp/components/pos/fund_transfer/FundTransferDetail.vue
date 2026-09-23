@@ -43,10 +43,25 @@ export default {
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 		};
 
+		const formatDisplayDateTime = (value) => {
+			if (!value) return '—';
+			const [datePart, timePart] = String(value).split(' ');
+			const date = formatDisplayDate(datePart);
+			return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
+		};
+
+		const money = (value) => (value === null || value === undefined ? '—' : formatCurrency(value));
+
+		// Same information as the "Fund Receive Voucher" (BSP Fundtransfer print).
 		const metaFields = computed(() => [
-			{ label: __('Date'), value: formatDisplayDate(detail.value.posting_date) },
-			{ label: __('Mode of Payment'), value: detail.value.mode_of_payment },
-			{ label: __('Remarks'), value: detail.value.remarks },
+			{ label: __('Posting Date'), value: formatDisplayDate(detail.value.posting_date) },
+			{ label: __('Created On'), value: formatDisplayDateTime(detail.value.creation) },
+			{ label: __('Received Warehouse'), value: detail.value.paid_to },
+			{ label: __('Received From'), value: detail.value.received_from },
+			{ label: __('Payment Method'), value: detail.value.mode_of_payment },
+			{ label: __('Reference No.'), value: detail.value.reference_no },
+			{ label: __('Description'), value: detail.value.description },
+			{ label: __('Amount in Word'), value: detail.value.amount_in_words },
 		]);
 
 		const itemColumns = [
@@ -67,7 +82,9 @@ export default {
 		});
 
 		const totals = computed(() => [
-			{ label: __('Amount'), value: formatCurrency(detail.value.amount) },
+			{ label: __('Previous Balance'), value: money(detail.value.previous_balance) },
+			{ label: __('Received Amount'), value: money(detail.value.amount) },
+			{ label: __('Current Balance'), value: money(detail.value.current_balance) },
 		]);
 
 		const statusLabel = (docstatus) => {

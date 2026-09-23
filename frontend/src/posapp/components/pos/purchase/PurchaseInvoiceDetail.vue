@@ -44,9 +44,10 @@ export default {
 		metaFields() {
 			const fields = [
 				{
-					label: this.__('Date'),
+					label: this.__('Posting Date'),
 					value: `${this.formatDisplayDate(this.detail.posting_date)} ${this.detail.posting_time || ''}`.trim(),
 				},
+				{ label: this.__('Created On'), value: this.formatDisplayDateTime(this.detail.creation) },
 				{ label: this.__('Supplier'), value: this.detail.supplier_name || this.detail.supplier },
 				{ label: this.__('Mobile No'), value: this.detail.supplier_mobile || '—' },
 				{ label: this.__('Currency'), value: this.detail.currency },
@@ -121,6 +122,12 @@ export default {
 			if (!value) return '—';
 			const parts = String(value).split('-');
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
+		},
+		formatDisplayDateTime(value) {
+			if (!value) return '—';
+			const [datePart, timePart] = String(value).split(' ');
+			const date = this.formatDisplayDate(datePart);
+			return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
 		},
 		statusColor(status) {
 			const map = {

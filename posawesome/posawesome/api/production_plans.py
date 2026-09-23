@@ -55,28 +55,33 @@ def get_default_fg_warehouse():
 def search_manufacturable_items(search_text=None, limit=20):
 	"""Item search restricted to items with an active default BOM, for the Production
 	Plan item picker. Each result carries its default bom_no so the caller doesn't need
-	a second lookup."""
+	a second lookup.
+
+	The text also matches a BOM ID (e.g. "BOM-00000135-002"). A match on a
+	BOM ID returns that exact BOM -- even when it isn't the item's default,
+	as long as it is active and submitted -- so a specific BOM can be planned.
+	"""
 	limit = max(1, min(int(limit or 20), 50))
-	conditions = ['item.disabled = 0', 'bom.is_active = 1', 'bom.is_default = 1', 'bom.docstatus = 1']
+	bom_ok = 'item.disabled = 0 AND bom.is_active = 1 AND bom.docstatus = 1'
 	values = {}
+	where_clause = f'{bom_ok} AND bom.is_default = 1'
 	if search_text and len(search_text.strip()) >= 2:
 		eng_text = search_text.strip()
 		ben_text = eng_text
 		for e, b in zip(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯']):
 			ben_text = ben_text.replace(e, b)
-		
-		like_eng = f'%{eng_text}%'
-		like_ben = f'%{ben_text}%'
-		
-		if like_eng != like_ben:
-			conditions.append('(item.name LIKE %(search_eng)s OR item.item_name LIKE %(search_eng)s OR item.name LIKE %(search_ben)s OR item.item_name LIKE %(search_ben)s)')
-			values['search_eng'] = like_eng
-			values['search_ben'] = like_ben
-		else:
-			conditions.append('(item.name LIKE %(search)s OR item.item_name LIKE %(search)s)')
-			values['search'] = like_eng
 
-	where_clause = ' AND '.join(conditions)
+		values['search_eng'] = f'%{eng_text}%'
+		values['search_ben'] = f'%{ben_text}%'
+		item_match = (
+			'(item.name LIKE %(search_eng)s OR item.item_name LIKE %(search_eng)s'
+			' OR item.name LIKE %(search_ben)s OR item.item_name LIKE %(search_ben)s)'
+		)
+		bom_match = 'bom.name LIKE %(search_eng)s'
+		where_clause = (
+			f'{bom_ok} AND ((bom.is_default = 1 AND ({item_match} OR {bom_match})) OR {bom_match})'
+		)
+
 	return frappe.db.sql(
 		f"""
 		SELECT
@@ -85,11 +90,12 @@ def search_manufacturable_items(search_text=None, limit=20):
 			item.item_group AS item_group,
 			item.stock_uom AS stock_uom,
 			item.custom_default_weigt_of_measure AS custom_default_weigt_of_measure,
-			bom.name AS bom_no
+			bom.name AS bom_no,
+			bom.is_default AS bom_is_default
 		FROM `tabItem` item
 		INNER JOIN `tabBOM` bom ON bom.item = item.name
 		WHERE {where_clause}
-		ORDER BY item.item_name ASC
+		ORDER BY item.item_name ASC, bom.is_default DESC, bom.name ASC
 		LIMIT %(limit)s
 		""",
 		{**values, 'limit': limit},

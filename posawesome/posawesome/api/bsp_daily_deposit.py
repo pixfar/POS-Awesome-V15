@@ -167,7 +167,9 @@ def _create_deposit_payment_entry(doc, override_account=None):
 
 
 @frappe.whitelist()
-def get_daily_deposits_list(page_start=0, page_length=20, from_date=None, to_date=None, search=None):
+def get_daily_deposits_list(
+	page_start=0, page_length=20, from_date=None, to_date=None, search=None, warehouse=None
+):
 	"""Paginated list of Daily Deposits -- all of them for System Manager,
 	otherwise the logged-in user's own plus any into their permitted
 	warehouse(s)."""
@@ -178,6 +180,9 @@ def get_daily_deposits_list(page_start=0, page_length=20, from_date=None, to_dat
 	if not is_system_manager():
 		scoped_names = get_permission_scoped_names(DOCTYPE, 'warehouse', owner_field='user')
 		filters['name'] = ['in', scoped_names or []]
+
+	if warehouse:
+		filters['warehouse'] = warehouse
 
 	if from_date and to_date:
 		filters['posting_date'] = ['between', [from_date, to_date]]
@@ -242,6 +247,7 @@ def get_daily_deposit_detail(name):
 		'name': doc.name,
 		'warehouse': doc.warehouse,
 		'posting_date': doc.posting_date,
+		'creation': doc.creation,
 		'user': doc.user,
 		'user_name': doc.user_name,
 		'deposit_type': doc.deposit_type,

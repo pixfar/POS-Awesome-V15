@@ -51,7 +51,7 @@ export default {
 
 		const metaFields = computed(() => {
 			const fields = [
-				{ label: __('Date'), value: formatDisplayDate(detail.value.posting_date) },
+				{ label: __('Posting Date'), value: formatDisplayDate(detail.value.posting_date) },
 				{ label: __('Party Type'), value: detail.value.party_type },
 				{ label: __('Party'), value: detail.value.party_name || detail.value.party },
 				{ label: __('Mode of Payment'), value: detail.value.mode_of_payment },
@@ -59,8 +59,25 @@ export default {
 				{ label: __('Created By'), value: detail.value.created_by },
 				{ label: __('Created On'), value: formatDisplayDateTime(detail.value.creation) },
 			];
+			if (detail.value.cheque_bank) {
+				fields.push({ label: __('Bank'), value: detail.value.cheque_bank });
+			}
 			if (detail.value.reference_no) {
-				fields.push({ label: __('Reference No'), value: detail.value.reference_no });
+				// Cheque payments store the check number in Reference No.
+				fields.push({
+					label: detail.value.cheque_bank ? __('Check Number') : __('Reference No'),
+					value: detail.value.reference_no,
+				});
+			}
+			if (detail.value.payee) {
+				fields.push({ label: __('Payee'), value: detail.value.payee_name || detail.value.payee });
+			}
+			if (detail.value.cheque_image) {
+				fields.push({
+					label: __('Check Document'),
+					value: __('View document'),
+					href: detail.value.cheque_image,
+				});
 			}
 			if (detail.value.reference_date) {
 				fields.push({ label: __('Reference Date'), value: formatDisplayDate(detail.value.reference_date) });

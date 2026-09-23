@@ -381,6 +381,82 @@
 							</div>
 						</v-card>
 
+						<!-- Bank / cheque details (Supplier only). No amount of its own:
+						     the amounts are the Payment Methods above; these details are
+						     stored on the Payment Entry (cheque no = Reference No). -->
+						<v-card
+							v-if="partyType === 'Supplier'"
+							flat
+							class="invoice-section-card pos-themed-card"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title">{{ __("Bank / Cheque Details") }}</h3>
+							</div>
+							<div class="cheque-details-grid">
+								<v-autocomplete
+									v-model="cheque.bank_name"
+									:items="bankOptions"
+									item-title="name"
+									item-value="name"
+									:label="__('Bank')"
+									:loading="bankLoading"
+									density="compact"
+									variant="outlined"
+									hide-details
+									clearable
+									prepend-inner-icon="mdi-bank-outline"
+									class="pos-themed-input"
+								/>
+								<v-text-field
+									v-model="cheque.cheque_no"
+									:label="__('Check Number')"
+									density="compact"
+									variant="outlined"
+									hide-details
+									clearable
+									prepend-inner-icon="mdi-checkbook"
+									class="pos-themed-input"
+								/>
+								<v-autocomplete
+									v-model="cheque.payee"
+									:items="payeeOptions"
+									item-title="full_name"
+									item-value="name"
+									:label="__('Payee')"
+									:loading="payeeLoading"
+									no-filter
+									density="compact"
+									variant="outlined"
+									hide-details
+									clearable
+									prepend-inner-icon="mdi-account-outline"
+									class="pos-themed-input"
+									@update:search="onPayeeSearch"
+								>
+									<template #item="{ props: itemProps, item }">
+										<v-list-item v-bind="itemProps" :subtitle="item.raw.name" />
+									</template>
+								</v-autocomplete>
+								<v-file-input
+									v-model="chequeFile"
+									:label="__('Upload Check (Optional)')"
+									accept="image/*,.pdf"
+									density="compact"
+									variant="outlined"
+									hide-details
+									prepend-icon=""
+									prepend-inner-icon="mdi-paperclip"
+									:loading="chequeUploading"
+									class="pos-themed-input"
+									@update:model-value="onChequeFileSelected"
+								/>
+							</div>
+							<p v-if="cheque.cheque_image" class="text-caption text-success mt-2 mb-0">
+								<v-icon size="16" color="success">mdi-check-circle-outline</v-icon>
+								{{ __("Check image uploaded") }}
+							</p>
+						</v-card>
+
 						</div>
 					</v-card-text>
 
@@ -536,6 +612,7 @@ import { useCompactTransactionPanel } from "../../../composables/core/useCompact
 import { ONLINE_ONLY_MODE } from "../../../config/runtime";
 import { useRouter } from "vue-router";
 import { isFundTransferManager } from "../../../utils/posWarehouseAccess";
+import { uploadFile } from "../../../utils/uploadFile";
 
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
@@ -1133,6 +1210,98 @@ export default {
 			}
 		};
 
+		// ── Bank / cheque details (Supplier payment only) ────────────
+		const emptyCheque = () => ({
+			bank_name: null,
+			cheque_no: "",
+			payee: frappe.session?.user || null,
+			cheque_image: "",
+		});
+		const cheque = ref(emptyCheque());
+		const chequeFile = ref(null);
+		const chequeUploading = ref(false);
+		const bankOptions = ref([]);
+		const bankLoading = ref(false);
+		const payeeOptions = ref([]);
+		const payeeLoading = ref(false);
+		let payeeSearchTimeout = null;
+
+		const resetCheque = () => {
+			cheque.value = emptyCheque();
+			chequeFile.value = null;
+		};
+
+		const loadBanks = async () => {
+			if (bankOptions.value.length) return;
+			bankLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: "posawesome.posawesome.api.bsp_daily_deposit.get_bank_options",
+				});
+				bankOptions.value = message || [];
+			} catch (e) {
+				console.error("Failed to load banks", e);
+			} finally {
+				bankLoading.value = false;
+			}
+		};
+
+		const searchPayees = async (txt = "") => {
+			payeeLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: "posawesome.posawesome.api.payment_entry.search_payee_users",
+					args: { txt },
+				});
+				const rows = (message || []).map((u) => ({ ...u, full_name: u.full_name || u.name }));
+				// Keep the current pick selectable even when the search no longer matches it.
+				const current = cheque.value.payee;
+				if (current && !rows.some((u) => u.name === current)) {
+					const known = payeeOptions.value.find((u) => u.name === current);
+					rows.unshift(known || { name: current, full_name: frappe.session?.user_fullname || current });
+				}
+				payeeOptions.value = rows;
+			} catch (e) {
+				console.error("Failed to load users", e);
+			} finally {
+				payeeLoading.value = false;
+			}
+		};
+
+		const onPayeeSearch = (txt) => {
+			clearTimeout(payeeSearchTimeout);
+			payeeSearchTimeout = setTimeout(() => searchPayees(txt || ""), 300);
+		};
+
+		const onChequeFileSelected = async (file) => {
+			const selected = Array.isArray(file) ? file[0] : file;
+			if (!selected) {
+				cheque.value.cheque_image = "";
+				return;
+			}
+			chequeUploading.value = true;
+			try {
+				// Public, so the check image opens for anyone viewing the payment.
+				cheque.value.cheque_image = await uploadFile(selected, { isPrivate: false });
+			} catch (e) {
+				cheque.value.cheque_image = "";
+				chequeFile.value = null;
+				proxy?.eventBus?.emit("show_message", {
+					title: e?.message || __("Failed to upload check image"),
+					color: "error",
+				});
+			} finally {
+				chequeUploading.value = false;
+			}
+		};
+
+		const chequeArgs = () => {
+			if (props.partyType !== "Supplier") return null;
+			const c = cheque.value;
+			if (!c.bank_name && !c.cheque_no && !c.cheque_image) return null;
+			return { ...c };
+		};
+
 		const handleSubmit = async (printAfter = false) => {
 			if (isSubmitting.value) return;
 
@@ -1143,6 +1312,12 @@ export default {
 			const activeMethods = payment_methods.value.filter((m) => (m.amount || 0) > 0);
 			if (activeMethods.length === 0) {
 				frappe.throw(__("Please enter a payment amount"));
+				return;
+			}
+
+			const chequeData = chequeArgs();
+			if (chequeData && (!chequeData.bank_name || !chequeData.cheque_no)) {
+				frappe.throw(__("Please enter both Bank and Check Number, or clear the cheque details."));
 				return;
 			}
 
@@ -1167,6 +1342,7 @@ export default {
 						payment_account: canEditPaymentAccount.value
 							? (paymentAccountOverride.value || null)
 							: null,
+						cheque: chequeData,
 					},
 					freeze: true,
 					freeze_message: __("Processing Payment..."),
@@ -1180,6 +1356,7 @@ export default {
 					});
 					clearSelections();
 					resetPaymentMethodAmounts();
+					resetCheque();
 					if (printAfter) loadPrintPage(result.message.name);
 					await syncData();
 				}
@@ -1263,8 +1440,13 @@ export default {
 				partyOutstanding.value = 0;
 				paymentHistory.value = [];
 				resetPaymentMethodAmounts();
+				resetCheque();
 				await fetchOutstandingInvoices();
-				if (props.partyType === "Supplier") onPartySearch("");
+				if (props.partyType === "Supplier") {
+					onPartySearch("");
+					loadBanks();
+					searchPayees("");
+				}
 			},
 		);
 
@@ -1284,7 +1466,11 @@ export default {
 		// ── Lifecycle ────────────────────────────────────────────────
 		onMounted(() => {
 			if (redirectIfSupplierNotAllowed()) return;
-			if (props.partyType === "Supplier") onPartySearch("");
+			if (props.partyType === "Supplier") {
+				onPartySearch("");
+				loadBanks();
+				searchPayees("");
+			}
 			if (proxy?.eventBus) {
 				proxy.eventBus.on("network-online", syncPending);
 				proxy.eventBus.on("server-online", syncPending);
@@ -1371,6 +1557,15 @@ export default {
 			total_payment_methods,
 			paymentHistory,
 			historyLoading,
+			cheque,
+			chequeFile,
+			chequeUploading,
+			bankOptions,
+			bankLoading,
+			payeeOptions,
+			payeeLoading,
+			onPayeeSearch,
+			onChequeFileSelected,
 			totalOutstanding,
 			paymentDiff,
 			canSubmit,
@@ -1398,6 +1593,18 @@ export default {
 
 <style scoped>
 @import "../invoice-shared-styles.css";
+
+.cheque-details-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+
+@media (max-width: 600px) {
+	.cheque-details-grid {
+		grid-template-columns: 1fr;
+	}
+}
 
 .payment-shell {
 	overflow: hidden;

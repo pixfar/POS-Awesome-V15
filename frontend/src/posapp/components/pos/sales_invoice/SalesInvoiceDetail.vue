@@ -50,6 +50,13 @@ export default {
 			return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 		};
 
+		const formatDisplayDateTime = (value) => {
+			if (!value) return '—';
+			const [datePart, timePart] = String(value).split(' ');
+			const date = formatDisplayDate(datePart);
+			return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
+		};
+
 		return {
 			name,
 			doctype,
@@ -57,6 +64,7 @@ export default {
 			notFound,
 			detail,
 			formatDisplayDate,
+			formatDisplayDateTime,
 			route,
 			router,
 		};
@@ -65,9 +73,10 @@ export default {
 		metaFields() {
 			const fields = [
 				{
-					label: this.__('Date'),
+					label: this.__('Posting Date'),
 					value: `${this.formatDisplayDate(this.detail.posting_date)} ${this.detail.posting_time || ''}`.trim(),
 				},
+				{ label: this.__('Created On'), value: this.formatDisplayDateTime(this.detail.creation) },
 				{ label: this.__('Customer'), value: this.detail.customer_name || this.detail.customer },
 				{ label: this.__('Mobile No'), value: this.detail.customer_mobile || '—' },
 				{ label: this.__('Currency'), value: this.detail.currency },

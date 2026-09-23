@@ -5,7 +5,8 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import flt, today
+from frappe.utils import flt, money_in_words, nowdate, today
+from erpnext.accounts.utils import get_balance_on
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import is_privileged_invoice_viewer
 from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
@@ -183,7 +184,16 @@ def _list_filters():
 
 
 @frappe.whitelist()
-def get_fund_transfers_list(page_start=0, page_length=20, from_date=None, to_date=None, search=None):
+def get_fund_transfers_list(
+	page_start=0,
+	page_length=20,
+	from_date=None,
+	to_date=None,
+	search=None,
+	paid_to=None,
+	mode_of_payment=None,
+	docstatus=None,
+):
 	"""Paginated list of Fund Transfers -- all of them for BSP Admin/System
 	Manager, otherwise only the ones sent to the logged-in user's own
 	showroom account (POS Profile account_for_change_amount)."""
@@ -191,6 +201,15 @@ def get_fund_transfers_list(page_start=0, page_length=20, from_date=None, to_dat
 	page_length = max(1, min(int(page_length or 20), 100))
 
 	filters = _list_filters()
+	# "Paid To" filter -- only for users who can see every transfer; a
+	# regular user's list is already locked to their own account above.
+	if paid_to and 'paid_to' not in filters:
+		filters['paid_to'] = paid_to
+	if mode_of_payment:
+		filters['mode_of_payment'] = mode_of_payment
+	# Status filter: 0 Draft, 1 Submitted, 2 Cancelled.
+	if docstatus not in (None, ''):
+		filters['docstatus'] = int(docstatus)
 
 	if from_date and to_date:
 		filters['posting_date'] = ['between', [from_date, to_date]]
@@ -252,17 +271,53 @@ def get_fund_transfer_detail(name):
 		if not change_account or doc.paid_to != change_account:
 			frappe.throw(_('You are not permitted to view this Fund Transfer.'), exc=frappe.PermissionError)
 
+	currency = doc.paid_to_account_currency or frappe.get_cached_value('Company', doc.company, 'default_currency')
+	amount = flt(doc.paid_amount)
+
 	return {
 		'name': doc.name,
 		'posting_date': doc.posting_date,
+		'creation': doc.creation,
 		'company': doc.company,
 		'paid_from': doc.paid_from,
 		'paid_to': doc.paid_to,
 		'mode_of_payment': doc.mode_of_payment,
-		'amount': flt(doc.paid_amount),
+		'amount': amount,
 		'docstatus': doc.docstatus,
 		'owner': doc.owner,
 		'remarks': doc.reference_no,
+		# Same figures as the "BSP Fundtransfer" print (Fund Receive Voucher).
+		'currency': currency,
+		'received_from': frappe.db.get_value('User', doc.owner, 'full_name') or doc.owner,
+		'reference_no': doc.reference_no,
+		'description': doc.remarks,
+		'amount_in_words': money_in_words(amount, currency),
+		**_voucher_balances(doc, amount),
+	}
+
+
+def _voucher_balances(doc, amount):
+	"""Previous / current balance of the receiving account, computed like the
+	print format: balance as on the posting date, minus this transfer for
+	"previous". Only meaningful for a submitted transfer."""
+	if doc.docstatus != 1:
+		return {'previous_balance': None, 'current_balance': None}
+	current = flt(get_balance_on(account=doc.paid_to, date=doc.posting_date, company=doc.company))
+	return {'previous_balance': current - amount, 'current_balance': current}
+
+
+@frappe.whitelist()
+def get_account_closing_balance(account, company=None):
+	"""Current closing balance of a "Account Paid To" option, shown on the
+	New Fund Transfer screen when the account is picked."""
+	_require_fund_transfer_manager()
+	company = company or _default_company()
+	allowed = {row.name for row in get_paid_to_account_options(company)}
+	if account not in allowed:
+		frappe.throw(_('{0} is not a valid Cash In Hand account for this company.').format(account))
+	return {
+		'account': account,
+		'balance': flt(get_balance_on(account=account, date=nowdate(), company=company)),
 	}
 
 

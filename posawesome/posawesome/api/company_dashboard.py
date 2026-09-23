@@ -369,7 +369,9 @@ def _collect_fund_transfers(company, start_date, end_date, warehouse):
     return {"total": flt(row.get("total")), "count": cint(row.get("count"))}
 
 
-def _sum_top_items(doctype, item_doctype, company, start_date, end_date, warehouse, is_admin, limit):
+def _sum_top_items(
+    doctype, item_doctype, company, start_date, end_date, warehouse, is_admin, limit, order_by="amount"
+):
     conditions = [
         "main.docstatus = 1",
         "main.is_return = 0",
@@ -395,12 +397,13 @@ def _sum_top_items(doctype, item_doctype, company, start_date, end_date, warehou
     return frappe.db.sql(
         f"""
         SELECT item.item_code as item_code, item.item_name as item_name,
-               SUM(item.amount) as amount, SUM(item.qty) as qty
+               SUM(item.amount) as amount, SUM(item.stock_qty) as qty,
+               MAX(item.stock_uom) as uom
         FROM `tab{item_doctype}` item
         INNER JOIN `tab{doctype}` main ON main.name = item.parent
         WHERE {where_clause}
         GROUP BY item.item_code
-        ORDER BY amount DESC
+        ORDER BY {"qty" if order_by == "qty" else "amount"} DESC
         LIMIT %(limit)s
         """,
         values,
@@ -408,7 +411,9 @@ def _sum_top_items(doctype, item_doctype, company, start_date, end_date, warehou
     )
 
 
-def _collect_top_items(company, start_date, end_date, warehouse, is_admin, limit=5):
+def _collect_top_items(company, start_date, end_date, warehouse, is_admin, limit=5, order_by="amount"):
+    """Top items ranked by sales amount (order_by="amount") or by quantity
+    sold in the item's stock UOM (order_by="qty")."""
     merged = {}
     for doctype, item_doctype in (
         ("Sales Invoice", "Sales Invoice Item"),
@@ -419,17 +424,18 @@ def _collect_top_items(company, start_date, end_date, warehouse, is_admin, limit
         # combining -- still capped, not exhaustive, which is fine for a
         # "Top 5" widget.
         rows = _sum_top_items(
-            doctype, item_doctype, company, start_date, end_date, warehouse, is_admin, limit=200
+            doctype, item_doctype, company, start_date, end_date, warehouse, is_admin, limit=200, order_by=order_by
         )
         for row in rows:
             entry = merged.setdefault(
                 row.item_code,
-                {"item_code": row.item_code, "item_name": row.item_name, "amount": 0.0, "qty": 0.0},
+                {"item_code": row.item_code, "item_name": row.item_name, "uom": row.uom, "amount": 0.0, "qty": 0.0},
             )
             entry["amount"] += flt(row.amount)
             entry["qty"] += flt(row.qty)
 
-    return sorted(merged.values(), key=lambda r: r["amount"], reverse=True)[:limit]
+    key = "qty" if order_by == "qty" else "amount"
+    return sorted(merged.values(), key=lambda r: r[key], reverse=True)[:limit]
 
 
 def _collect_top_warehouses(company, start_date, end_date, is_admin, limit=5):
@@ -541,5 +547,8 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
         "deposits": _collect_deposits(company, start_date, end_date, warehouse, is_admin),
         "fund_transfers": _collect_fund_transfers(company, start_date, end_date, warehouse),
         "top_items": _collect_top_items(company, start_date, end_date, warehouse, is_admin),
+        "top_items_by_qty": _collect_top_items(
+            company, start_date, end_date, warehouse, is_admin, order_by="qty"
+        ),
         "top_warehouses": _collect_top_warehouses(company, start_date, end_date, is_admin),
     }

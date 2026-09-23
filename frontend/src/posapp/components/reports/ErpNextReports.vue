@@ -1,5 +1,5 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell pos-list-page">
+	<div class="pa-0 h-100 invoice-shell pos-list-page erp-reports-page">
 		<v-card flat class="invoice-section-card pos-themed-card erp-reports-card">
 			<div class="erp-reports-groups">
 				<section
@@ -25,9 +25,7 @@
 							<div class="erp-report-card__body">
 								<p class="erp-report-card__title">{{ __(report.title) }}</p>
 							</div>
-							<v-icon size="18" class="erp-report-card__arrow">
-								{{ report.route ? 'mdi-arrow-right' : 'mdi-open-in-new' }}
-							</v-icon>
+							<v-icon size="18" class="erp-report-card__arrow">mdi-arrow-right</v-icon>
 						</button>
 					</div>
 				</section>
@@ -44,4 +42,13 @@ const { __, visibleReportGroups, openReport } = useErpReports();
 
 <style scoped>
 @import './erp-reports-grid.css';
+
+/* The page fills a fixed-height layout slot; scroll inside it, otherwise
+   every report group below the fold is cut off on smaller screens. */
+.erp-reports-page {
+	height: 100%;
+	overflow-y: auto;
+	overflow-x: hidden;
+	-webkit-overflow-scrolling: touch;
+}
 </style>

@@ -26,11 +26,20 @@
 									</div>
 								</v-card>
 
+								<!-- Current closing balance of the selected "Account Paid To". -->
 								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
 									<div class="outstanding-panel__inner">
-										<div class="outstanding-panel__label">{{ __("Amount") }}</div>
-										<div class="outstanding-panel__amount outstanding-panel__amount--clear">
-											{{ formatCurrency(amount) }}
+										<div class="outstanding-panel__label">{{ __("Closing Balance") }}</div>
+										<div
+											class="outstanding-panel__amount"
+											:class="closingBalance !== null && closingBalance < 0
+												? 'outstanding-panel__amount--due'
+												: 'outstanding-panel__amount--clear'"
+										>
+											<v-progress-circular v-if="closingBalanceLoading" indeterminate size="20" width="2" />
+											<template v-else>
+												{{ closingBalance === null ? "—" : formatCurrency(closingBalance) }}
+											</template>
 										</div>
 									</div>
 								</v-card>
@@ -130,16 +139,27 @@
 				</v-card>
 			</v-col>
 		</v-row>
+
+		<FundTransferVoucherDialog
+			v-model="voucherDialog"
+			:loading="voucherLoading"
+			:detail="voucherDetail"
+			@print="printVoucher"
+			@view="viewVoucher"
+		/>
 	</div>
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
+import FundTransferVoucherDialog from './FundTransferVoucherDialog.vue';
+import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
+import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
@@ -147,7 +167,7 @@ const getTodayDate = () =>
 export default {
 	name: 'FundTransferNew',
 	mixins: [format],
-	components: { DateFilterField },
+	components: { DateFilterField, FundTransferVoucherDialog },
 	setup() {
 		const router = useRouter();
 		const uiStore = useUIStore();
@@ -172,6 +192,66 @@ export default {
 
 		const submitLoading = ref(false);
 		const errorMessage = ref('');
+
+		// Closing balance of the selected "Account Paid To".
+		const closingBalance = ref(null);
+		const closingBalanceLoading = ref(false);
+		const loadClosingBalance = async (account) => {
+			closingBalance.value = null;
+			if (!account) return;
+			closingBalanceLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.fund_transfer.get_account_closing_balance',
+					args: { account, company },
+				});
+				// Ignore a late answer for an account that's no longer selected.
+				if (paidTo.value === account) closingBalance.value = Number(message?.balance || 0);
+			} catch (e) {
+				console.error('Failed to load closing balance', e);
+			} finally {
+				closingBalanceLoading.value = false;
+			}
+		};
+		watch(paidTo, loadClosingBalance);
+
+		// "Fund Receive Voucher" popup shown after submit.
+		const voucherDialog = ref(false);
+		const voucherLoading = ref(false);
+		const voucherDetail = ref({});
+		const showVoucher = async (name) => {
+			voucherDetail.value = { name };
+			voucherLoading.value = true;
+			voucherDialog.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.fund_transfer.get_fund_transfer_detail',
+					args: { name },
+				});
+				voucherDetail.value = message || { name };
+			} catch (e) {
+				console.error('Failed to load fund transfer voucher', e);
+			} finally {
+				voucherLoading.value = false;
+			}
+		};
+		const printVoucher = async (name) => {
+			try {
+				await openDocumentPdfPrint({
+					doctype: 'Payment Entry',
+					name,
+					printFormat: 'BSP Fundtransfer',
+					noLetterhead: true,
+				});
+			} catch (error) {
+				console.warn('PDF print failed, falling back to printview', error);
+				openDocumentPrintView('Payment Entry', name, 'BSP Fundtransfer');
+			}
+		};
+		const viewVoucher = (name) => {
+			voucherDialog.value = false;
+			if (name) router.push(`/fund-transfer/${name}`);
+		};
 
 		const loadPaidFrom = async () => {
 			paidFromLoading.value = true;
@@ -263,7 +343,7 @@ export default {
 					color: 'success',
 				});
 				resetForm();
-				await router.push('/fund-transfer/list');
+				if (message?.name) showVoucher(message.name);
 			} catch (e) {
 				errorMessage.value = e?.message || __('Failed to submit transfer');
 			} finally {
@@ -290,6 +370,13 @@ export default {
 			submitLoading,
 			errorMessage,
 			submitTransfer,
+			closingBalance,
+			closingBalanceLoading,
+			voucherDialog,
+			voucherLoading,
+			voucherDetail,
+			printVoucher,
+			viewVoucher,
 		};
 	},
 };

@@ -400,6 +400,7 @@ def get_payment_entries_list(
     from_date=None,
     to_date=None,
     search=None,
+    warehouse=None,
 ):
     """Paginated, filterable list of submitted Payment Entries for the Payment List page.
 
@@ -433,6 +434,8 @@ def get_payment_entries_list(
         filters.append([doctype, "posting_date", ">=", from_date])
     if to_date:
         filters.append([doctype, "posting_date", "<=", to_date])
+    if warehouse:
+        filters.append([doctype, "name", "in", _payment_entries_for_warehouse(warehouse, company) or [""]])
 
     or_filters = None
     if search:
@@ -526,11 +529,18 @@ def get_payment_entry_detail(name):
     """Full detail (header + allocated references) for the Payment List's detail page."""
     doc = frappe.get_doc("Payment Entry", name)
     owner_name = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
+    payee = doc.get("custom_payee")
+    payee_name = (frappe.db.get_value("User", payee, "full_name") or payee) if payee else None
 
     return {
         "name": doc.name,
         "posting_date": doc.posting_date,
         "company": doc.company,
+        # Supplier Payment's "Bank / Cheque Details" (cheque no = reference_no).
+        "cheque_bank": doc.get("custom_cheque_bank"),
+        "payee": payee,
+        "payee_name": payee_name,
+        "cheque_image": doc.get("custom_cheque_image"),
         "party_type": doc.party_type,
         "party": doc.party,
         "party_name": doc.party_name,
@@ -659,8 +669,17 @@ def make_payment_direct(
     reference_date=None,
     auto_allocate=False,
     payment_account=None,
+    cheque=None,
 ):
-    """Create Payment Entry(ies) with ERPNext-style invoice allocation."""
+    """Create Payment Entry(ies) with ERPNext-style invoice allocation.
+
+    `cheque` (optional, from the Supplier Payment screen's "Bank / Cheque
+    Details" section): {bank_name, cheque_no, payee, cheque_image}. No amount
+    of its own -- the amounts come from the payment methods as usual; these
+    details are stamped on every Payment Entry this call creates (cheque
+    number as reference_no, the rest on custom_cheque_bank / custom_payee /
+    custom_cheque_image).
+    """
     ensure_can_create(_("create a Payment"))
 
     # "Accounts" override -- System Manager / BSP Admin only, same feature as
@@ -703,6 +722,8 @@ def make_payment_direct(
     posting_date = posting_date or nowdate()
 
     active_methods = [m for m in (payment_methods or []) if flt(m.get("amount")) > 0]
+    cheque_details = _parse_cheque_details(cheque)
+
     if not active_methods:
         frappe.throw(_("Please enter a payment amount"))
 
@@ -733,11 +754,14 @@ def make_payment_direct(
             party=party,
             party_type=party_type,
             payment_type=payment_type,
-            reference_no=reference_no or None,
-            reference_date=reference_date or None,
+            reference_no=(cheque_details or {}).get("cheque_no") or reference_no or None,
+            reference_date=reference_date or (posting_date if cheque_details else None),
             posting_date=posting_date,
             override_account=payment_account or None,
         )
+        for fieldname, value in ((cheque_details or {}).get("fields") or {}).items():
+            if value and pe.meta.has_field(fieldname):
+                pe.set(fieldname, value)
 
         if invoices_to_allocate:
             _allocate_payment_references(
@@ -756,9 +780,120 @@ def make_payment_direct(
 
         pe.insert(ignore_permissions=True)
         pe.submit()
+        _attach_cheque_image(pe)
         created.append(pe.name)
 
     if not created:
         frappe.throw(_("Payment could not be processed"))
 
     return {"name": created[0], "payments": created}
+
+
+def _attach_cheque_image(pe):
+    """The cheque image is uploaded before the Payment Entry exists, as a
+    private file attached to nothing -- which only its uploader can open.
+    Attach it to the Payment Entry so anyone who can see the payment can
+    open the image too. With a split payment the first entry keeps the
+    File; the others just reference the same URL."""
+    file_url = pe.get("custom_cheque_image")
+    if not file_url:
+        return
+    file_name = frappe.db.get_value(
+        "File", {"file_url": file_url, "attached_to_name": ["in", ["", None]]}, "name"
+    )
+    if file_name:
+        frappe.db.set_value(
+            "File",
+            file_name,
+            {
+                "attached_to_doctype": "Payment Entry",
+                "attached_to_name": pe.name,
+                "attached_to_field": "custom_cheque_image",
+            },
+        )
+
+
+def _parse_cheque_details(cheque):
+    """Validate the optional "Bank / Cheque Details" section. Returns None
+    when nothing was entered."""
+    if isinstance(cheque, str):
+        cheque = json.loads(cheque) if cheque else None
+    cheque = cheque or {}
+
+    bank_name = (cheque.get("bank_name") or "").strip()
+    cheque_no = (cheque.get("cheque_no") or "").strip()
+    payee = (cheque.get("payee") or "").strip()
+    cheque_image = cheque.get("cheque_image") or None
+    if not (bank_name or cheque_no or payee or cheque_image):
+        return None
+
+    if not bank_name:
+        frappe.throw(_("Bank is required when cheque details are entered."))
+    if not frappe.db.exists("Bank", bank_name):
+        frappe.throw(_("Bank {0} does not exist.").format(bank_name))
+    if not cheque_no:
+        frappe.throw(_("Check Number is required when cheque details are entered."))
+    if payee and not frappe.db.exists("User", payee):
+        frappe.throw(_("Payee {0} is not a valid User.").format(payee))
+
+    return {
+        "cheque_no": cheque_no,
+        "fields": {
+            "custom_cheque_bank": bank_name,
+            "custom_payee": payee or None,
+            "custom_cheque_image": cheque_image,
+        },
+    }
+
+
+@frappe.whitelist()
+def search_payee_users(txt=None, limit=20):
+    """Enabled system users for the Supplier Payment screen's "Payee" picker.
+    Same gate as Supplier Payment itself; ignore_permissions because BSP
+    Admin users usually can't read the User doctype directly."""
+    if not is_privileged_invoice_viewer():
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+    filters = {"enabled": 1, "user_type": "System User", "name": ["not in", ["Administrator", "Guest"]]}
+    or_filters = None
+    if txt:
+        like = f"%{txt}%"
+        or_filters = {"name": ["like", like], "full_name": ["like", like]}
+    return frappe.get_all(
+        "User",
+        filters=filters,
+        or_filters=or_filters,
+        fields=["name", "full_name"],
+        order_by="full_name asc",
+        limit_page_length=min(cint(limit) or 20, 50),
+        ignore_permissions=True,
+    )
+
+
+def _payment_entries_for_warehouse(warehouse, company=None):
+    """Payment Entries belonging to a warehouse: tagged with it
+    (custom_warehouse), or moving money through one of its cash accounts
+    (paid_from / paid_to) -- most payments were never tagged, but every
+    showroom's cash account maps to its warehouse (same mapping the BSP cash
+    reports use)."""
+    accounts = []
+    try:
+        from bsp_engineering.utils.warehouse_accounts import get_accounts_for_warehouse
+
+        accounts = list(get_accounts_for_warehouse(warehouse) or [])
+    except ImportError:
+        pass
+
+    conditions = ["custom_warehouse = %(warehouse)s"]
+    if accounts:
+        conditions.append("paid_from IN %(accounts)s")
+        conditions.append("paid_to IN %(accounts)s")
+    company_condition = "AND company = %(company)s" if company else ""
+
+    return frappe.db.sql_list(
+        f"""
+        SELECT name FROM `tabPayment Entry`
+        WHERE ({" OR ".join(conditions)}) {company_condition}
+        """,
+        {"warehouse": warehouse, "accounts": tuple(accounts), "company": company},
+    )

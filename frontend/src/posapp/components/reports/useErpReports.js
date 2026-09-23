@@ -209,8 +209,10 @@ export function useErpReports() {
 			router.push(report.route);
 			return;
 		}
-		const url = `/app/query-report/${encodeURIComponent(report.name)}`;
-		window.open(url, '_blank', 'noopener,noreferrer');
+		// Open in the current window with a full page load. frappe.set_route()
+		// only changes the URL here: POS Awesome owns the page, so the desk
+		// never renders the report underneath it.
+		window.location.assign(`/app/query-report/${encodeURIComponent(report.name)}`);
 	}
 
 	return { __, visibleReportGroups, openReport };

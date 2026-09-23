@@ -77,7 +77,17 @@
 				<div class="pos-detail-meta-grid">
 					<div v-for="field in metaFields" :key="field.label" class="pos-detail-meta-field">
 						<span class="pos-detail-meta-field__label">{{ field.label }}</span>
-						<v-tooltip v-if="isTruncated(field.value)" :text="String(field.value)" location="bottom">
+						<!-- Optional `href`: shown as a link opening in a new tab (e.g. an attachment). -->
+						<a
+							v-if="field.href"
+							:href="field.href"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="pos-detail-meta-field__value pos-detail-meta-field__link"
+						>
+							{{ field.value || field.href }}
+						</a>
+						<v-tooltip v-else-if="isTruncated(field.value)" :text="String(field.value)" location="bottom">
 							<template #activator="{ props: tooltipProps }">
 								<span v-bind="tooltipProps" class="pos-detail-meta-field__value">
 									{{ truncateValue(field.value) }}

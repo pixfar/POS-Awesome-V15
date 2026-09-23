@@ -92,8 +92,8 @@
 										:loading="itemSearchLoading"
 										:disabled="hasReachedItemLimit"
 										item-title="item_name"
-										item-value="item_code"
-										:label="__('Search by item code or name')"
+										item-value="bom_no"
+										:label="__('Search by item code, name or BOM ID')"
 										:placeholder="
 											hasReachedItemLimit
 												? __('Remove the current item to add a different one')
@@ -385,9 +385,11 @@ export default {
 			});
 		};
 
-		const handleSearchItemPicked = (itemCode) => {
-			if (!itemCode) return;
-			const item = itemSearchResults.value.find((row) => row.item_code === itemCode);
+		// Rows are keyed by bom_no: a BOM ID search can list the same item
+		// twice (its default BOM and another active one).
+		const handleSearchItemPicked = (bomNo) => {
+			if (!bomNo) return;
+			const item = itemSearchResults.value.find((row) => row.bom_no === bomNo);
 			if (item) onAddItem(item);
 			selectedSearchItemCode.value = null;
 			itemSearchQuery.value = '';

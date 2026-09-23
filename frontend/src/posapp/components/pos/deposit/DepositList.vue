@@ -75,6 +75,19 @@
 					:min="fromDate"
 					@update:model-value="resetAndLoad"
 				/>
+				<v-select
+					v-model="warehouseFilter"
+					:items="warehouseOptions"
+					item-title="warehouse_name"
+					item-value="name"
+					:label="__('Warehouse')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="resetAndLoad"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -159,6 +172,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
+import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import { useToastStore } from '../../../stores/toastStore';
@@ -285,6 +299,8 @@ export default {
 
 		const fromDate = ref('');
 		const toDate = ref('');
+		const warehouseFilter = ref(null);
+		const { warehouseOptions, loadWarehouseOptions } = useWarehouseFilterOptions();
 
 		const listHeaders = [
 			{ title: __('Deposit'), key: 'name', sortable: true },
@@ -298,7 +314,7 @@ export default {
 		];
 
 		const hasActiveFilters = computed(() =>
-			Boolean(searchQuery.value || fromDate.value || toDate.value),
+			Boolean(searchQuery.value || fromDate.value || toDate.value || warehouseFilter.value),
 		);
 
 		// Cancelled deposits (docstatus 2) stay in the list for the audit trail
@@ -337,6 +353,7 @@ export default {
 						page_length: PAGE_LENGTH,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
+						warehouse: warehouseFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -363,6 +380,7 @@ export default {
 			searchQuery.value = '';
 			fromDate.value = '';
 			toDate.value = '';
+			warehouseFilter.value = null;
 			resetAndLoad();
 		};
 
@@ -375,6 +393,7 @@ export default {
 		};
 
 		onMounted(() => {
+			loadWarehouseOptions();
 			loadDeposits();
 		});
 
@@ -386,6 +405,8 @@ export default {
 			total,
 			fromDate,
 			toDate,
+			warehouseFilter,
+			warehouseOptions,
 			hasActiveFilters,
 			totalDeposited,
 			loadDeposits,

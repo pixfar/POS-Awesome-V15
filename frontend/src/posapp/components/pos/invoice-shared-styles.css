@@ -1006,6 +1006,11 @@
 	color: var(--pos-text-primary);
 }
 
+.pos-detail-meta-field__link {
+	color: rgb(var(--v-theme-primary));
+	text-decoration: underline;
+}
+
 .pos-detail-table-wrap {
 	flex: 0 0 auto;
 }

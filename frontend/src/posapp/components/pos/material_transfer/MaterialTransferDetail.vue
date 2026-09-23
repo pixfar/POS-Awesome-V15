@@ -118,7 +118,7 @@ export default {
 
 		const metaFields = computed(() => {
 			const fields = [
-				{ label: __('Date'), value: formatDisplayDate(detail.value.transaction_date) },
+				{ label: __('Posting Date'), value: formatDisplayDate(detail.value.transaction_date) },
 				{ label: __('Requested By'), value: detail.value.requested_by },
 				{ label: __('From Warehouse'), value: detail.value.from_warehouse },
 				{ label: __('To Warehouse'), value: detail.value.to_warehouse },

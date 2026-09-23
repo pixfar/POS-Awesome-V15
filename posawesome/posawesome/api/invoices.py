@@ -347,6 +347,7 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
         "customer_mobile": customer_mobile,
         "customer_outstanding": customer_outstanding,
         "posting_date": doc.posting_date,
+        "creation": doc.creation,
         "posting_time": doc.posting_time,
         "status": doc.status,
         "currency": doc.currency,

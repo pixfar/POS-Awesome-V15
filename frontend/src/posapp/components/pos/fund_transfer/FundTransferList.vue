@@ -66,15 +66,56 @@
 				<DateFilterField
 					v-model="fromDate"
 					:label="__('From Date')"
-					field-class="pos-themed-input pos-list-filter-field"
+					field-class="pos-themed-input pos-list-filter-field pos-list-filter-field--date"
 					:max="toDate"
 					@update:model-value="resetAndLoad"
 				/>
 				<DateFilterField
 					v-model="toDate"
 					:label="__('To Date')"
-					field-class="pos-themed-input pos-list-filter-field"
+					field-class="pos-themed-input pos-list-filter-field pos-list-filter-field--date"
 					:min="fromDate"
+					@update:model-value="resetAndLoad"
+				/>
+				<v-autocomplete
+					v-if="isFundTransferManager"
+					v-model="paidToFilter"
+					:items="paidToOptions"
+					item-title="name"
+					item-value="name"
+					:label="__('Paid To')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field pos-list-filter-field--wide"
+					@update:model-value="resetAndLoad"
+				/>
+				<v-select
+					v-model="statusFilter"
+					:items="statusOptions"
+					item-title="title"
+					item-value="value"
+					:label="__('Status')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field pos-list-filter-field--status"
+					@update:model-value="resetAndLoad"
+				/>
+				<v-select
+					v-if="isFundTransferManager"
+					v-model="modeOfPaymentFilter"
+					:items="modeOfPaymentOptions"
+					item-title="name"
+					item-value="name"
+					:label="__('Mode of Payment')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
@@ -252,6 +293,38 @@ export default {
 
 		const fromDate = ref('');
 		const toDate = ref('');
+		const paidToFilter = ref(null);
+		const statusFilter = ref(null);
+		const statusOptions = [
+			{ title: __('Draft'), value: 0 },
+			{ title: __('Submitted'), value: 1 },
+			{ title: __('Cancelled'), value: 2 },
+		];
+		const modeOfPaymentFilter = ref(null);
+		const modeOfPaymentOptions = ref([]);
+		const loadModeOfPaymentOptions = async () => {
+			if (!canManage.value) return;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.fund_transfer.get_mode_of_payment_options',
+				});
+				modeOfPaymentOptions.value = message || [];
+			} catch (e) {
+				console.error('Failed to load Modes of Payment', e);
+			}
+		};
+		const paidToOptions = ref([]);
+		const loadPaidToOptions = async () => {
+			if (!canManage.value) return;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.fund_transfer.get_paid_to_account_options',
+				});
+				paidToOptions.value = message || [];
+			} catch (e) {
+				console.error('Failed to load Paid To accounts', e);
+			}
+		};
 
 		const listHeaders = [
 			{ title: __('Transfer'), key: 'name', sortable: true },
@@ -265,7 +338,7 @@ export default {
 		];
 
 		const hasActiveFilters = computed(() =>
-			Boolean(searchQuery.value || fromDate.value || toDate.value),
+			Boolean(searchQuery.value || fromDate.value || toDate.value || paidToFilter.value || modeOfPaymentFilter.value || statusFilter.value !== null),
 		);
 
 		// Cancelled transfers (docstatus 2) stay in the list for the audit trail
@@ -304,6 +377,9 @@ export default {
 						page_length: PAGE_LENGTH,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
+						paid_to: paidToFilter.value || undefined,
+						mode_of_payment: modeOfPaymentFilter.value || undefined,
+						docstatus: statusFilter.value ?? undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -330,6 +406,9 @@ export default {
 			searchQuery.value = '';
 			fromDate.value = '';
 			toDate.value = '';
+			paidToFilter.value = null;
+			modeOfPaymentFilter.value = null;
+			statusFilter.value = null;
 			resetAndLoad();
 		};
 
@@ -342,6 +421,8 @@ export default {
 		};
 
 		onMounted(() => {
+			loadPaidToOptions();
+			loadModeOfPaymentOptions();
 			loadTransfers();
 		});
 
@@ -353,6 +434,12 @@ export default {
 			total,
 			fromDate,
 			toDate,
+			paidToFilter,
+			paidToOptions,
+			modeOfPaymentFilter,
+			statusFilter,
+			statusOptions,
+			modeOfPaymentOptions,
 			hasActiveFilters,
 			totalTransferred,
 			loadTransfers,
@@ -382,4 +469,26 @@ export default {
 
 <style scoped>
 @import '../invoice-shared-styles.css';
+
+/* Dates only need room for "DD-MM-YYYY"; give the account name the space. */
+.pos-list-filters :deep(.pos-list-filter-field--date) {
+	flex: 0 0 150px;
+	max-width: 150px;
+}
+.pos-list-filters :deep(.pos-list-filter-field--status) {
+	flex: 0 0 150px;
+	max-width: 150px;
+}
+.pos-list-filters :deep(.pos-list-filter-field--wide) {
+	flex: 1 1 240px;
+	max-width: 300px;
+}
+@media (max-width: 600px) {
+	.pos-list-filters :deep(.pos-list-filter-field--date),
+	.pos-list-filters :deep(.pos-list-filter-field--status),
+	.pos-list-filters :deep(.pos-list-filter-field--wide) {
+		flex: 1 1 100%;
+		max-width: none;
+	}
+}
 </style>

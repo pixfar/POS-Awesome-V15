@@ -230,7 +230,9 @@ def _pay_expense_claim(doc, override_account=None):
 
 
 @frappe.whitelist()
-def get_expense_claims_list(page_start=0, page_length=20, from_date=None, to_date=None, search=None):
+def get_expense_claims_list(
+	page_start=0, page_length=20, from_date=None, to_date=None, search=None, warehouse=None
+):
 	"""Paginated list of Expense Claims -- all of them for System Manager,
 	otherwise only the logged-in user's own."""
 	page_start = max(0, int(page_start or 0))
@@ -240,6 +242,9 @@ def get_expense_claims_list(page_start=0, page_length=20, from_date=None, to_dat
 	if not is_system_manager():
 		employee = _get_employee_for_user()
 		filters['employee'] = employee.name
+
+	if warehouse:
+		filters['custom_warehouse'] = warehouse
 
 	if from_date and to_date:
 		filters['posting_date'] = ['between', [from_date, to_date]]
@@ -305,6 +310,7 @@ def get_expense_claim_detail(expense_claim):
 	return {
 		'name': doc.name,
 		'posting_date': doc.posting_date,
+		'creation': doc.creation,
 		'employee': doc.employee,
 		'employee_name': doc.employee_name,
 		'warehouse': doc.custom_warehouse,

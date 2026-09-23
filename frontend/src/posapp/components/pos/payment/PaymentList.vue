@@ -147,6 +147,19 @@
 					@update:model-value="resetAndLoad"
 				/>
 				<v-select
+					v-model="warehouseFilter"
+					:items="warehouseOptions"
+					item-title="warehouse_name"
+					item-value="name"
+					:label="__('Warehouse')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="resetAndLoad"
+				/>
+				<v-select
 					v-model="modeOfPaymentFilter"
 					:items="modeOfPaymentOptions"
 					item-title="name"
@@ -314,6 +327,7 @@ import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import DateFilterField from '../shared/DateFilterField.vue';
+import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import { useToastStore } from '../../../stores/toastStore';
@@ -451,6 +465,8 @@ export default {
 		const paymentTypeFilter = ref(null);
 		const fromDate = ref('');
 		const toDate = ref('');
+		const warehouseFilter = ref(null);
+		const { warehouseOptions, loadWarehouseOptions } = useWarehouseFilterOptions();
 		const modeOfPaymentFilter = ref(null);
 		const modeOfPaymentOptions = ref([]);
 
@@ -485,6 +501,7 @@ export default {
 					paymentTypeFilter.value ||
 					fromDate.value ||
 					toDate.value ||
+					warehouseFilter.value ||
 					modeOfPaymentFilter.value,
 			),
 		);
@@ -553,6 +570,7 @@ export default {
 						payment_type: paymentTypeFilter.value || undefined,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
+						warehouse: warehouseFilter.value || undefined,
 						mode_of_payment: modeOfPaymentFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
@@ -671,6 +689,7 @@ export default {
 			paymentTypeFilter.value = null;
 			fromDate.value = '';
 			toDate.value = '';
+			warehouseFilter.value = null;
 			modeOfPaymentFilter.value = null;
 			resetAndLoad();
 		};
@@ -695,6 +714,7 @@ export default {
 		};
 
 		onMounted(() => {
+			loadWarehouseOptions();
 			loadModeOfPayments();
 			fetchCustomers('');
 			fetchSuppliers('');
@@ -719,6 +739,8 @@ export default {
 			paymentTypeFilter,
 			fromDate,
 			toDate,
+			warehouseFilter,
+			warehouseOptions,
 			modeOfPaymentFilter,
 			modeOfPaymentOptions,
 			customerFilter,

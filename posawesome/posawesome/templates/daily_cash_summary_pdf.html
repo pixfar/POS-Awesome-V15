@@ -126,6 +126,11 @@
 	table.data-table td.num,
 	table.data-table th.num {
 		text-align: right;
+		white-space: nowrap;
+	}
+
+	table.summary-table td.num {
+		width: 28%;
 	}
 
 	table.data-table tr.total-row td {
@@ -225,6 +230,117 @@
 	</tbody>
 </table>
 
+<div class="section-title">Customer Payments (Due Collection / Advance)</div>
+<table class="data-table">
+	<thead>
+		<tr>
+			<th style="width: 6%;">S.L</th>
+			<th>Party</th>
+			<th>Against</th>
+			<th>Reference No.</th>
+			<th class="num">Amount</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in customer_payment_rows %}
+		<tr>
+			<td>{{ row.sl }}</td>
+			<td>{{ row.party }}<span class="row-note">{{ row.payment_type }} &middot; {{ row.mode_of_payment }}{% if row.cheque %} &middot; Cheque: {{ row.cheque }}{% endif %}</span></td>
+			<td>{{ row.against }}</td>
+			<td>{{ row.reference_no }}</td>
+			<td class="num">{{ row.amount }}</td>
+		</tr>
+		{% else %}
+		<tr class="empty-row">
+			<td colspan="5">No other customer payments for this date.</td>
+		</tr>
+		{% endfor %}
+		{% if customer_payment_rows %}
+		<tr class="total-row">
+			<td colspan="4">Total Customer Payments</td>
+			<td class="num">{{ customer_payment_total }}</td>
+		</tr>
+		{% endif %}
+	</tbody>
+</table>
+
+<div class="section-title">Purchase Summary</div>
+<table class="data-table">
+	<thead>
+		<tr>
+			<th style="width: 6%;">S.L</th>
+			<th>Invoice No.</th>
+			<th class="num">Purchase</th>
+			<th class="num">Discount</th>
+			<th class="num">Due</th>
+			<th class="num">Paid</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in purchase_rows %}
+		<tr>
+			<td>{{ row.sl }}</td>
+			<td>
+				{{ row.invoice_no }}
+				{% if row.supplier %}<span class="row-note">{{ row.supplier }}</span>{% endif %}
+				{% if row.description %}<span class="row-note">{{ row.description }}</span>{% endif %}
+			</td>
+			<td class="num">{{ row.purchase }}</td>
+			<td class="num">{{ row.discount }}</td>
+			<td class="num">{{ row.due }}</td>
+			<td class="num">{{ row.paid }}</td>
+		</tr>
+		{% else %}
+		<tr class="empty-row">
+			<td colspan="6">No purchase invoices for this date.</td>
+		</tr>
+		{% endfor %}
+		{% if purchase_rows %}
+		<tr class="total-row">
+			<td colspan="2">Total</td>
+			<td class="num">{{ purchase_total.purchase }}</td>
+			<td class="num">{{ purchase_total.discount }}</td>
+			<td class="num">{{ purchase_total.due }}</td>
+			<td class="num">{{ purchase_total.paid }}</td>
+		</tr>
+		{% endif %}
+	</tbody>
+</table>
+
+<div class="section-title">Supplier Payments</div>
+<table class="data-table">
+	<thead>
+		<tr>
+			<th style="width: 6%;">S.L</th>
+			<th>Party</th>
+			<th>Against</th>
+			<th>Reference No.</th>
+			<th class="num">Amount</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in supplier_payment_rows %}
+		<tr>
+			<td>{{ row.sl }}</td>
+			<td>{{ row.party }}<span class="row-note">{{ row.payment_type }} &middot; {{ row.mode_of_payment }}{% if row.cheque %} &middot; Cheque: {{ row.cheque }}{% endif %}</span></td>
+			<td>{{ row.against }}</td>
+			<td>{{ row.reference_no }}</td>
+			<td class="num">{{ row.amount }}</td>
+		</tr>
+		{% else %}
+		<tr class="empty-row">
+			<td colspan="5">No other supplier payments for this date.</td>
+		</tr>
+		{% endfor %}
+		{% if supplier_payment_rows %}
+		<tr class="total-row">
+			<td colspan="4">Total Supplier Payments</td>
+			<td class="num">{{ supplier_payment_total }}</td>
+		</tr>
+		{% endif %}
+	</tbody>
+</table>
+
 <div class="section-title">Fund Transfer</div>
 <table class="data-table">
 	<thead>
@@ -254,6 +370,42 @@
 		<tr class="total-row">
 			<td colspan="4">Total Fund Transfer</td>
 			<td class="num">{{ fund_transfer_total }}</td>
+		</tr>
+		{% endif %}
+	</tbody>
+</table>
+
+<div class="section-title">Journal Entries</div>
+<table class="data-table">
+	<thead>
+		<tr>
+			<th style="width: 6%;">S.L</th>
+			<th>Party</th>
+			<th>Description</th>
+			<th>Reference No.</th>
+			<th>In / Out</th>
+			<th class="num">Amount</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in journal_rows %}
+		<tr>
+			<td>{{ row.sl }}</td>
+			<td>{{ row.party }}</td>
+			<td>{{ row.description }}</td>
+			<td>{{ row.reference_no }}</td>
+			<td>{{ row.direction }}</td>
+			<td class="num">{{ row.amount }}</td>
+		</tr>
+		{% else %}
+		<tr class="empty-row">
+			<td colspan="6">No journal entries for this date.</td>
+		</tr>
+		{% endfor %}
+		{% if journal_rows %}
+		<tr class="total-row">
+			<td colspan="5">Total Journal Entries</td>
+			<td class="num">{{ journal_total }}</td>
 		</tr>
 		{% endif %}
 	</tbody>
@@ -327,11 +479,22 @@
 	</tbody>
 </table>
 
-<table class="info-table">
-	<tr>
-		<td>Expected Deposit (Collection + Fund Transfer - Expense): {{ expected_deposit }}</td>
-		<td class="right">Closing Balance: {{ closing_balance }}</td>
-	</tr>
+<div class="section-title">Summary</div>
+<table class="data-table summary-table">
+	<tbody>
+		<tr><td>Opening Balance</td><td class="num">{{ opening_balance }}</td></tr>
+		<tr><td>Total Collection (Sales Received + Customer Payments)</td><td class="num">{{ total_collection }}</td></tr>
+		<tr><td>Fund Transfer</td><td class="num">{{ fund_transfer_total }}</td></tr>
+		<tr><td>Journal Entries</td><td class="num">{{ journal_total }}</td></tr>
+		<tr><td>Purchase Paid (Purchase + Supplier Payments)</td><td class="num">{{ total_purchase_paid }}</td></tr>
+		<tr><td>Total Expense</td><td class="num">{{ expense_total }}</td></tr>
+		<tr class="total-row"><td>Expected Deposit (Collection + Fund Transfer + Journal Entries - Expense - Purchase Paid)</td><td class="num">{{ expected_deposit }}</td></tr>
+		<tr><td>Total Deposited</td><td class="num">{{ deposit_total }}</td></tr>
+		{% if other_activity %}
+		<tr><td>Other Ledger Activity (not itemised above)</td><td class="num">{{ other_activity }}</td></tr>
+		{% endif %}
+		<tr class="total-row"><td>Closing Balance</td><td class="num">{{ closing_balance }}</td></tr>
+	</tbody>
 </table>
 
 </body>

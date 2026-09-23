@@ -1173,6 +1173,7 @@ def get_purchase_invoice_detail(name):
         "supplier_mobile": supplier_mobile,
         "supplier_outstanding": supplier_outstanding,
         "posting_date": doc.posting_date,
+        "creation": doc.creation,
         "posting_time": doc.posting_time,
         "due_date": doc.get("due_date"),
         "status": doc.status,
