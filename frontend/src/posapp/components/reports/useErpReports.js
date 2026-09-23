@@ -155,6 +155,16 @@ const reportGroups = [
 				icon: 'mdi-account-cash-outline',
 			},
 			{
+				title: 'Customer Accounts Statement',
+				name: 'Customer Accounts Statement',
+				icon: 'mdi-account-details-outline',
+			},
+			{
+				title: 'Supplier Accounts Statement',
+				name: 'Supplier Accounts Statement',
+				icon: 'mdi-truck-delivery-outline',
+			},
+			{
 				title: 'Customer Due Collection Report',
 				name: 'Accounts Receivable Summary',
 				icon: 'mdi-cash-plus',

@@ -37,7 +37,9 @@
 
 								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
 									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Date") }}</h3>
+										<h3 class="invoice-section-heading__title">
+											{{ canEditPaymentAccount ? __("Date & Accounts") : __("Date") }}
+										</h3>
 									</div>
 									<div class="sale-options-body">
 										<DateFilterField
@@ -46,6 +48,20 @@
 											:clearable="false"
 											:disabled="!canEditPostingDate"
 											field-class="pos-themed-input"
+										/>
+										<v-autocomplete
+											v-if="canEditPaymentAccount"
+											v-model="paymentAccountOverride"
+											:items="cashAccountOptions"
+											item-title="name"
+											item-value="name"
+											:label="__('Accounts')"
+											density="compact"
+											variant="outlined"
+											hide-details
+											clearable
+											:loading="cashAccountsLoading"
+											class="pos-themed-input mt-2"
 										/>
 									</div>
 								</v-card>
@@ -185,10 +201,11 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
+import { ensurePosProfile } from '../../../../utils/pos_profile';
 import { useToastStore } from '../../../stores/toastStore';
 import { uploadFile } from '../../../utils/uploadFile';
 import { isPosWarehouseSwitcher, isFundTransferManager } from '../../../utils/posWarehouseAccess';
@@ -217,6 +234,15 @@ export default {
 		// Same gate as the DO Number card on Sales/Purchase/Material Transfer --
 		// only BSP Admin/System Manager can back- or post-date a deposit.
 		const canEditPostingDate = computed(() => isFundTransferManager());
+		// "Accounts" override -- System Manager / BSP Admin only, same feature
+		// as the Expense screen's "Accounts" card. Defaults to the active POS
+		// Profile's own account_for_change_amount, but an admin can deposit
+		// cash from a different showroom's cash account instead; re-verified
+		// server-side, this flag is UX-only.
+		const canEditPaymentAccount = computed(() => isFundTransferManager());
+		const cashAccountOptions = ref([]);
+		const cashAccountsLoading = ref(false);
+		const paymentAccountOverride = ref(null);
 		const warehouseOptions = ref([]);
 		const warehouseLabel = ref('');
 		const warehouseLoading = ref(false);
@@ -350,6 +376,24 @@ export default {
 			}
 		};
 
+		const loadCashInHandAccounts = async () => {
+			const company = pos_profile.value?.company;
+			if (!canEditPaymentAccount.value || !company) return;
+			cashAccountsLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.payment_processing.utils.get_cash_in_hand_accounts',
+					args: { company },
+				});
+				cashAccountOptions.value = message || [];
+			} catch (e) {
+				console.error('Failed to load Cash In Hand accounts', e);
+				cashAccountOptions.value = [];
+			} finally {
+				cashAccountsLoading.value = false;
+			}
+		};
+
 		const handleReceiptSelected = async (file) => {
 			const selected = Array.isArray(file) ? file[0] : file;
 			if (!selected) {
@@ -413,6 +457,11 @@ export default {
 							amount: amount.value,
 							acknowledgment_receipt: receiptUrl.value,
 							remarks: remarks.value || null,
+							// Re-verified server-side (System Manager / BSP Admin) --
+							// see bsp_daily_deposit.create_daily_deposit.
+							payment_account: canEditPaymentAccount.value
+								? (paymentAccountOverride.value || null)
+								: null,
 						},
 					},
 					freeze: true,
@@ -432,6 +481,43 @@ export default {
 		};
 
 		onMounted(async () => {
+			// Same pattern as ExpenseNew.vue: uiStore.posProfile can still be
+			// empty on a fresh page load, so wait for it before loading the
+			// Accounts dropdown.
+			watch(
+				() => uiStore.posProfile,
+				(p) => {
+					if (p) pos_profile.value = p;
+				},
+				{ immediate: true },
+			);
+			// A direct page load can land here before anything has put the
+			// active POS Profile in uiStore -- fetch it ourselves so company
+			// (and so the Accounts dropdown) is never left blank.
+			if (!uiStore.posProfile?.name) {
+				try {
+					const profile = await ensurePosProfile();
+					if (profile?.name) uiStore.setPosProfile(profile);
+				} catch (e) {
+					console.error('Failed to resolve active POS profile', e);
+				}
+			}
+			watch(
+				() => pos_profile.value?.company,
+				() => {
+					// Default to the account already picked elsewhere this session
+					// (uiStore.activeSaleAccount), else this POS Profile's own
+					// change account.
+					paymentAccountOverride.value =
+						uiStore.activeSaleAccount || pos_profile.value?.account_for_change_amount || null;
+					loadCashInHandAccounts();
+				},
+				{ immediate: true },
+			);
+			// Keep every other "Accounts" picker in sync with this one.
+			watch(paymentAccountOverride, (val) => {
+				uiStore.setActiveSaleAccount(val);
+			});
 			await Promise.all([loadUser(), loadWarehouses(), loadDepositTypes(), loadBanks()]);
 		});
 
@@ -440,6 +526,10 @@ export default {
 			userLoading,
 			canChangeWarehouse,
 			canEditPostingDate,
+			canEditPaymentAccount,
+			cashAccountOptions,
+			cashAccountsLoading,
+			paymentAccountOverride,
 			warehouseOptions,
 			warehouseLabel,
 			warehouseLoading,

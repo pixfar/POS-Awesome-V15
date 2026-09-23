@@ -11,8 +11,12 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_permission_scoped_names,
 	is_system_manager,
 	ensure_can_create,
+	is_privileged_invoice_viewer,
 )
-from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
+from posawesome.posawesome.api.payment_processing.utils import (
+	get_cash_in_hand_accounts,
+	get_pos_change_account,
+)
 
 DOCTYPE = 'BSP Daily Deposit'
 
@@ -76,10 +80,17 @@ def create_daily_deposit(data):
 	if frappe.get_meta(DOCTYPE).has_field('remarks'):
 		doc.remarks = data.get('remarks')
 
+	# "Accounts" override -- System Manager / BSP Admin only, re-verified
+	# here since the client flag is UX-only. Same gate as the Expense
+	# screen's own "Accounts" override (see expense_claims.create_expense_claim).
+	payment_account_override = data.get('payment_account')
+	if payment_account_override and not is_privileged_invoice_viewer():
+		payment_account_override = None
+
 	doc.insert(ignore_permissions=True)
 	doc.submit()
 
-	payment_entry = _create_deposit_payment_entry(doc)
+	payment_entry = _create_deposit_payment_entry(doc, override_account=payment_account_override)
 	doc.db_set('payment_entry', payment_entry.name, update_modified=False)
 	doc.db_set('status', 'Deposited', update_modified=False)
 
@@ -91,7 +102,7 @@ def create_daily_deposit(data):
 	}
 
 
-def _create_deposit_payment_entry(doc):
+def _create_deposit_payment_entry(doc, override_account=None):
 	"""Internal Transfer Payment Entry moving the showroom's daily cash from
 	its own POS Profile account_for_change_amount into the company's central
 	default_cash_account -- this is what "depositing" a BSP Daily Deposit
@@ -99,16 +110,28 @@ def _create_deposit_payment_entry(doc):
 	as a Connection on the deposit's own form (Internal Transfer entries
 	clear the `references` child table on every save, so that's not usable
 	for the link -- see PaymentEntry.set_missing_values).
+
+	`override_account` (System Manager / BSP Admin only -- re-verified by
+	the caller) replaces the POS Profile account as paid_from, so an admin
+	can deposit cash from a different showroom's Cash In Hand account.
 	"""
-	change_account = get_pos_change_account()
+	company = frappe.db.get_value('Warehouse', doc.warehouse, 'company')
+	if not company:
+		frappe.throw(_('Could not determine Company for warehouse {0}.').format(doc.warehouse))
+
+	if override_account:
+		allowed_accounts = {row.name for row in get_cash_in_hand_accounts(company)}
+		if override_account not in allowed_accounts:
+			frappe.throw(
+				_('{0} is not a valid Cash In Hand account for company {1}.').format(override_account, company)
+			)
+		change_account = override_account
+	else:
+		change_account = get_pos_change_account()
 	if not change_account:
 		frappe.throw(
 			_('Please set "Account for Change Amount" on your POS Profile before creating a deposit.')
 		)
-
-	company = frappe.db.get_value('Warehouse', doc.warehouse, 'company')
-	if not company:
-		frappe.throw(_('Could not determine Company for warehouse {0}.').format(doc.warehouse))
 
 	default_cash_account = frappe.get_cached_value('Company', company, 'default_cash_account')
 	if not default_cash_account:

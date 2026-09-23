@@ -310,6 +310,9 @@ def create_customer(
 
         ensure_can_create(_("create a Customer"))
 
+        if not (mobile_no or "").strip():
+            frappe.throw(_("Mobile No is required."))
+
     pos_profile = json.loads(pos_profile_doc)
 
     # Format birthday to MySQL compatible format (YYYY-MM-DD) if provided

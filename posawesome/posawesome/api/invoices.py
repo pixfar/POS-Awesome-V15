@@ -329,11 +329,23 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
             }
         )
 
+    # Customer's mobile and *total* current outstanding (all open invoices +
+    # Journal Entry dues, same figure as the new Sales Invoice screen) --
+    # not just this one invoice's outstanding_amount.
+    from posawesome.posawesome.api.customers import get_customer_outstanding
+
+    customer_mobile = frappe.db.get_value("Customer", doc.customer, "mobile_no") or doc.get("contact_mobile")
+    customer_outstanding = flt(
+        (get_customer_outstanding(doc.customer, company=doc.company) or {}).get("outstanding")
+    )
+
     return {
         "name": doc.name,
         "doctype": doctype,
         "customer": doc.customer,
         "customer_name": doc.customer_name,
+        "customer_mobile": customer_mobile,
+        "customer_outstanding": customer_outstanding,
         "posting_date": doc.posting_date,
         "posting_time": doc.posting_time,
         "status": doc.status,

@@ -48,6 +48,7 @@ export default {
 					value: `${this.formatDisplayDate(this.detail.posting_date)} ${this.detail.posting_time || ''}`.trim(),
 				},
 				{ label: this.__('Supplier'), value: this.detail.supplier_name || this.detail.supplier },
+				{ label: this.__('Mobile No'), value: this.detail.supplier_mobile || '—' },
 				{ label: this.__('Currency'), value: this.detail.currency },
 				{ label: this.__('Due Date'), value: this.formatDisplayDate(this.detail.due_date) },
 				{ label: this.__('Warehouse'), value: this.detail.warehouse },
@@ -100,6 +101,8 @@ export default {
 				{ label: this.__('Grand Total'), value: money(this.detail.grand_total) },
 				{ label: this.__('Paid Amount'), value: money(this.detail.paid_amount) },
 				{ label: this.__('Outstanding'), value: money(this.detail.outstanding_amount) },
+				// Whole supplier balance (every open invoice + JE dues), not just this invoice.
+				{ label: this.__('Supplier Total Outstanding'), value: money(this.detail.supplier_outstanding) },
 			);
 			(this.detail.taxes || []).forEach((tax) => {
 				rows.push({ label: tax.description, value: money(tax.tax_amount) });
@@ -126,8 +129,9 @@ export default {
 				'Unpaid and Discounted': 'orange',
 				'Partly Paid': 'orange',
 				'Partly Paid and Discounted': 'orange',
-				Overdue: 'red',
-				'Overdue and Discounted': 'red',
+				// Purple, not red -- red is Cancelled, so the two must look different.
+				Overdue: 'purple',
+				'Overdue and Discounted': 'purple',
 				Paid: 'green',
 				'Debit Note Issued': 'blue',
 				Cancelled: 'red',

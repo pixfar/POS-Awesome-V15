@@ -11,14 +11,14 @@
 			<v-card-text>
 				<v-text-field
 					v-model="form.supplier_name"
-					:label="frappe._('Supplier Name')"
+					:label="frappe._('Supplier Name') + ' *'"
 					density="compact"
 					variant="outlined"
 					class="pos-themed-input"
 				/>
 				<v-text-field
 					v-model="form.mobile_no"
-					:label="frappe._('Mobile Number')"
+					:label="frappe._('Mobile Number') + ' *'"
 					density="compact"
 					variant="outlined"
 					class="pos-themed-input"
@@ -88,6 +88,10 @@ export default {
 				// Use the toast store passed as a prop or inject if available
 				// For now let's use frappe.msgprint or similar if available, or just emit error
 				this.$emit("error", __("Supplier name is required"));
+				return;
+			}
+			if (!String(this.form.mobile_no || "").trim()) {
+				this.$emit("error", __("Mobile Number is required"));
 				return;
 			}
 			this.loading = true;

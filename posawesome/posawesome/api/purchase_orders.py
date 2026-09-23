@@ -276,6 +276,9 @@ def create_supplier(data):
     if existing:
         return frappe.get_doc("Supplier", existing).as_dict()
 
+    if not (payload.get("mobile_no") or "").strip():
+        frappe.throw(_("Mobile Number is required."))
+
     supplier_group = payload.get("supplier_group") or frappe.db.get_value(
         "Supplier Group", {"is_group": 0}, "name"
     )
@@ -1155,10 +1158,20 @@ def get_purchase_invoice_detail(name):
             }
         )
 
+    # Supplier's mobile and *total* current outstanding (all open invoices +
+    # Journal Entry dues, same figure as the new Purchase Invoice screen) --
+    # not just this one invoice's outstanding_amount.
+    supplier_mobile = frappe.db.get_value("Supplier", doc.supplier, "mobile_no") or doc.get("contact_mobile")
+    supplier_outstanding = flt(
+        get_supplier_info(doc.supplier, company=doc.company).get("outstanding_amount")
+    )
+
     return {
         "name": doc.name,
         "supplier": doc.supplier,
         "supplier_name": doc.get("supplier_name"),
+        "supplier_mobile": supplier_mobile,
+        "supplier_outstanding": supplier_outstanding,
         "posting_date": doc.posting_date,
         "posting_time": doc.posting_time,
         "due_date": doc.get("due_date"),

@@ -69,6 +69,7 @@ export default {
 					value: `${this.formatDisplayDate(this.detail.posting_date)} ${this.detail.posting_time || ''}`.trim(),
 				},
 				{ label: this.__('Customer'), value: this.detail.customer_name || this.detail.customer },
+				{ label: this.__('Mobile No'), value: this.detail.customer_mobile || '—' },
 				{ label: this.__('Currency'), value: this.detail.currency },
 				{
 					label: this.__('Return'),
@@ -124,6 +125,8 @@ export default {
 				{ label: this.__('Grand Total'), value: money(this.detail.grand_total) },
 				{ label: this.__('Paid Amount'), value: money(this.detail.paid_amount) },
 				{ label: this.__('Outstanding'), value: money(this.detail.outstanding_amount) },
+				// Whole customer balance (every open invoice + JE dues), not just this invoice.
+				{ label: this.__('Customer Total Outstanding'), value: money(this.detail.customer_outstanding) },
 			);
 			if (this.detail.change_amount) {
 				rows.push({ label: this.__('Change'), value: money(this.detail.change_amount) });
@@ -163,8 +166,9 @@ export default {
 				'Unpaid and Discounted': 'orange',
 				'Partly Paid': 'orange',
 				'Partly Paid and Discounted': 'orange',
-				Overdue: 'red',
-				'Overdue and Discounted': 'red',
+				// Purple, not red -- red is Cancelled, so the two must look different.
+				Overdue: 'purple',
+				'Overdue and Discounted': 'purple',
 				Paid: 'green',
 				Return: 'blue',
 				'Credit Note Issued': 'blue',

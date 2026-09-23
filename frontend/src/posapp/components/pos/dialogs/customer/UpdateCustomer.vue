@@ -29,7 +29,7 @@
 								<v-text-field
 									density="compact"
 									color="primary"
-									:label="frappe._('Mobile No')"
+									:label="frappe._('Mobile No') + (customer_id ? '' : ' *')"
 									class="pos-themed-input"
 									hide-details
 									v-model="mobile_no"
@@ -381,6 +381,12 @@ export default {
 			const vm = this;
 			if (!this.customer_name) {
 				frappe.throw(__("Customer Name is required"));
+				return;
+			}
+			// Mobile No is mandatory for new customers only -- editing an
+			// older customer saved without one must still work.
+			if (!this.customer_id && !String(this.mobile_no || "").trim()) {
+				frappe.throw(__("Mobile No is required"));
 				return;
 			}
 

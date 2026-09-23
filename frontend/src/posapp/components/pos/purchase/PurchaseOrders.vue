@@ -373,6 +373,17 @@
 			@error="(msg) => toastStore.show({ title: msg, color: 'error' })"
 		/>
 
+		<!-- Shown after a purchase is submitted: details + supplier balance -->
+		<PurchaseCompleteDialog
+			v-model="completeDialog"
+			:loading="completeLoading"
+			:detail="completeDetail"
+			:supplier-outstanding="completeSupplierOutstanding"
+			:previous-outstanding="completePreviousOutstanding"
+			@print="(name) => printPurchaseInvoice(name)"
+			@view="openCompletedInvoice"
+		/>
+
 		<!-- Validation Dialog -->
 		<v-dialog v-model="validationDialog" max-width="380" persistent>
 			<v-card class="pos-themed-card pa-2" style="border-radius: 12px;">
@@ -409,9 +420,11 @@ import { usePurchaseOrder } from "../../../composables/pos/payments/usePurchaseO
 import ItemsSelector from "../items/ItemsSelector.vue";
 import PurchasePaymentDialog from "./PurchasePaymentDialog.vue";
 import SupplierDialog from "../dialogs/purchase/SupplierDialog.vue";
+import PurchaseCompleteDialog from "./PurchaseCompleteDialog.vue";
 import PurchaseHeader from "./PurchaseHeader.vue";
 import PurchaseItemsTable from "./PurchaseItemsTable.vue";
 import { ref, watch, onMounted, onBeforeUnmount, inject, computed } from "vue";
+import { useRouter } from "vue-router";
 import { isPosWarehouseSwitcher, isFundTransferManager } from "../../../utils/posWarehouseAccess";
 import { openDocumentPdfPrint } from "../../../utils/openDocumentPdfPrint";
 import { useCompactTransactionPanel } from "../../../composables/core/useCompactTransactionPanel";
@@ -422,6 +435,7 @@ export default {
 		ItemsSelector,
 		PurchasePaymentDialog,
 		SupplierDialog,
+		PurchaseCompleteDialog,
 		PurchaseHeader,
 		PurchaseItemsTable,
 	},
@@ -429,6 +443,7 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
+		const router = useRouter();
 		const eventBus = inject("eventBus");
 		const {
 			responsiveStyles,
@@ -814,6 +829,69 @@ export default {
 			};
 		};
 
+		// "Purchase Completed" summary dialog (PurchaseCompleteDialog.vue).
+		const completeDialog = ref(false);
+		const completeLoading = ref(false);
+		const completeDetail = ref({});
+		const completeSupplierOutstanding = ref(null);
+		const completePreviousOutstanding = ref(null);
+
+		const showPurchaseComplete = async (invoiceName, supplierName, company, previousOutstanding) => {
+			completeDetail.value = { name: invoiceName };
+			completeSupplierOutstanding.value = null;
+			completePreviousOutstanding.value =
+				previousOutstanding === null || previousOutstanding === undefined
+					? null
+					: Number(previousOutstanding);
+			completeLoading.value = true;
+			completeDialog.value = true;
+			try {
+				const [detailRes, supplierRes] = await Promise.all([
+					frappe.call({
+						method: "posawesome.posawesome.api.purchase_invoices.get_purchase_invoice_detail",
+						args: { name: invoiceName },
+					}),
+					frappe.call({
+						method: "posawesome.posawesome.api.purchase_invoices.get_supplier_info",
+						args: { supplier: supplierName, company },
+					}),
+				]);
+				completeDetail.value = detailRes?.message || { name: invoiceName };
+				const outstanding = supplierRes?.message?.outstanding_amount;
+				completeSupplierOutstanding.value =
+					outstanding === null || outstanding === undefined ? null : Number(outstanding);
+			} catch (e) {
+				console.error("Failed to load purchase summary", e);
+			} finally {
+				completeLoading.value = false;
+			}
+		};
+
+		const printPurchaseInvoice = async (docname, printFormat = null) => {
+			const doctype = "Purchase Invoice";
+			const formatName =
+				printFormat || pos_profile.value.print_format_for_purchase || "BSP Purchase Invoice";
+			try {
+				await openDocumentPdfPrint({
+					doctype,
+					name: docname,
+					printFormat: formatName,
+					autoPrint: true,
+				});
+			} catch (printError) {
+				console.warn("PDF print failed, opening printview", printError);
+				const printUrl = frappe.urllib.get_full_url(
+					`/printview?doctype=${doctype}&name=${docname}&format=${encodeURIComponent(formatName)}&trigger_print=1`,
+				);
+				window.open(printUrl, "_blank")?.focus();
+			}
+		};
+
+		const openCompletedInvoice = (name) => {
+			completeDialog.value = false;
+			if (name) router.push(`/purchase-invoices/${name}`);
+		};
+
 		const submitPurchaseInvoice = async (print = false, printFormat = null) => {
 			if (!supplier.value || !postingDateTime.value) {
 				errorMessage.value = __("Supplier and date are required.");
@@ -875,29 +953,14 @@ export default {
 				const invoiceName = message?.purchase_invoice || message?.purchase_order;
 				if (invoiceName) {
 					toastStore.show({ title: __("Purchase Invoice created"), color: "success" });
+					// Captured before resetForm() clears the supplier.
+					const previousOutstanding = supplierOutstanding.value;
+					const company = pos_profile.value.company;
 					if (print) {
-						const doctype = "Purchase Invoice";
-						const docname = invoiceName;
-						const formatName =
-							printFormat ||
-							pos_profile.value.print_format_for_purchase ||
-							"BSP Purchase Invoice";
-						try {
-							await openDocumentPdfPrint({
-								doctype,
-								name: docname,
-								printFormat: formatName,
-								autoPrint: true,
-							});
-						} catch (printError) {
-							console.warn("PDF print failed, opening printview", printError);
-							const printUrl = frappe.urllib.get_full_url(
-								`/printview?doctype=${doctype}&name=${docname}&format=${encodeURIComponent(formatName)}&trigger_print=1`,
-							);
-							window.open(printUrl, "_blank")?.focus();
-						}
+						await printPurchaseInvoice(invoiceName, printFormat);
 					}
 					resetForm();
+					showPurchaseComplete(invoiceName, resolvedSupplier, company, previousOutstanding);
 				}
 			} catch (error) {
 				errorMessage.value = extractServerError(error);
@@ -995,6 +1058,13 @@ export default {
 		return {
 			pos_profile,
 			receiveNow,
+			completeDialog,
+			completeLoading,
+			completeDetail,
+			completeSupplierOutstanding,
+			completePreviousOutstanding,
+			printPurchaseInvoice,
+			openCompletedInvoice,
 			canChangePosWarehouse,
 			canEditDoNumber,
 			canEditPostingDate,

@@ -259,6 +259,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
+import { ensurePosProfile } from '../../../../utils/pos_profile';
 import { useToastStore } from '../../../stores/toastStore';
 import { isPosWarehouseSwitcher, isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import DateFilterField from '../shared/DateFilterField.vue';
@@ -567,6 +568,17 @@ export default {
 				},
 				{ immediate: true },
 			);
+			// A direct page load can land here before anything has put the
+			// active POS Profile in uiStore -- fetch it ourselves so company
+			// (and so the Accounts dropdown) is never left blank.
+			if (!uiStore.posProfile?.name) {
+				try {
+					const profile = await ensurePosProfile();
+					if (profile?.name) uiStore.setPosProfile(profile);
+				} catch (e) {
+					console.error('Failed to resolve active POS profile', e);
+				}
+			}
 			watch(
 				() => pos_profile.value?.company,
 				() => {

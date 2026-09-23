@@ -921,8 +921,9 @@ export default {
 				'Unpaid and Discounted': 'orange',
 				'Partly Paid': 'orange',
 				'Partly Paid and Discounted': 'orange',
-				Overdue: 'red',
-				'Overdue and Discounted': 'red',
+				// Purple, not red -- red is Cancelled, so the two must look different.
+				Overdue: 'purple',
+				'Overdue and Discounted': 'purple',
 				Paid: 'green',
 				Return: 'blue',
 				'Credit Note Issued': 'blue',

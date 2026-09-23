@@ -512,7 +512,7 @@ export default {
 					args: {
 						data: {
 							pos_profile: pos_profile.value?.name,
-							posting_date: getTodayDate(),
+							posting_date: requiredDate.value,
 							source_warehouse: sourceWarehouse.value,
 							target_warehouse: targetWarehouse.value,
 							items: planItems.value.map((row) => ({
