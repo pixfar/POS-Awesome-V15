@@ -99,6 +99,7 @@ def get_material_transfers_list(
 	item_group=None,
 	warehouse=None,
 	do_number=None,
+	remarks=None,
 	search=None,
 ):
 	page_start = max(0, int(page_start or 0))
@@ -113,6 +114,7 @@ def get_material_transfers_list(
 		item_group=item_group,
 		warehouse=warehouse,
 		do_number=do_number,
+		remarks=remarks,
 		search=search,
 		search_fields=['name', 'from_warehouse', 'to_warehouse', 'requested_by'],
 		# Rejecting a transfer cancels it (docstatus=2); it should still show up in

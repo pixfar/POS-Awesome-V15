@@ -172,6 +172,16 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="handleSearchUpdate"
 				/>
+				<v-text-field
+					v-model="remarksFilter"
+					:label="__('Remarks')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="handleSearchUpdate"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -450,6 +460,7 @@ import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
 import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
+import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
 const UNPAID_STATUSES = [
 	'Unpaid',
@@ -641,6 +652,7 @@ export default {
 		const warehouseFilter = ref(null);
 		const warehouseOptions = ref([]);
 		const doNumberFilter = ref('');
+		const remarksFilter = ref('');
 
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
@@ -653,6 +665,26 @@ export default {
 		let customerSearchTimeout = null;
 
 		const itemGroupOptions = ref([]);
+
+		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
+			'posa_filter_sales_invoice',
+			{
+				searchQuery,
+				statusFilter,
+				fromDate,
+				toDate,
+				itemCodeFilter,
+				itemSearchResults,
+				itemGroupFilter,
+				customerFilter,
+				customerSearchResults,
+				warehouseFilter,
+				doNumberFilter,
+				remarksFilter,
+				mineOnly,
+				page,
+			},
+		);
 
 		const listHeaders = [
 			{ title: __('Invoice'), key: 'name', sortable: true },
@@ -677,7 +709,8 @@ export default {
 					itemGroupFilter.value ||
 					customerFilter.value ||
 					warehouseFilter.value ||
-					doNumberFilter.value,
+					doNumberFilter.value ||
+					remarksFilter.value,
 			),
 		);
 
@@ -751,6 +784,7 @@ export default {
 						customer: customerFilter.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
 						do_number: doNumberFilter.value || undefined,
+						remarks: remarksFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -758,6 +792,7 @@ export default {
 				total.value = message?.total || 0;
 				hasMore.value = Boolean(message?.has_more);
 				statusCounts.value = message?.status_counts || {};
+				saveFilters();
 			} catch (e) {
 				console.error('Failed to load sales invoices', e);
 				invoiceList.value = [];
@@ -866,6 +901,10 @@ export default {
 			customerFilter.value = null;
 			warehouseFilter.value = null;
 			doNumberFilter.value = '';
+			remarksFilter.value = '';
+			itemSearchResults.value = [];
+			customerSearchResults.value = [];
+			clearSavedFilters();
 			resetAndLoad();
 		};
 
@@ -923,6 +962,7 @@ export default {
 		};
 
 		onMounted(() => {
+			loadSavedFilters();
 			loadItemGroups();
 			loadWarehouses();
 			loadInvoices();
@@ -962,6 +1002,7 @@ export default {
 			warehouseFilter,
 			warehouseOptions,
 			doNumberFilter,
+			remarksFilter,
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,

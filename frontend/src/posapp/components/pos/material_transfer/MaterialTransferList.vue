@@ -159,6 +159,16 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="handleSearchUpdate"
 				/>
+				<v-text-field
+					v-model="remarksFilter"
+					:label="__('Remarks')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="handleSearchUpdate"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -353,6 +363,7 @@ import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
+import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
 export default {
 	name: 'MaterialTransferList',
@@ -397,6 +408,7 @@ export default {
 		const itemGroupFilter = ref(null);
 		const warehouseFilter = ref(null);
 		const doNumberFilter = ref('');
+		const remarksFilter = ref('');
 
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
@@ -405,6 +417,24 @@ export default {
 
 		const itemGroupOptions = ref([]);
 		const warehouseOptions = ref([]);
+
+		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
+			'posa_filter_material_transfer',
+			{
+				searchQuery,
+				statusFilter,
+				fromDate,
+				toDate,
+				itemCodeFilter,
+				itemSearchResults,
+				itemGroupFilter,
+				warehouseFilter,
+				doNumberFilter,
+				remarksFilter,
+				mineOnly,
+				page,
+			},
+		);
 
 		const listHeaders = [
 			{ title: __('Transfer'), key: 'name', sortable: true },
@@ -426,7 +456,8 @@ export default {
 					itemCodeFilter.value ||
 					itemGroupFilter.value ||
 					warehouseFilter.value ||
-					doNumberFilter.value,
+					doNumberFilter.value ||
+					remarksFilter.value,
 			),
 		);
 
@@ -469,6 +500,7 @@ export default {
 						item_group: itemGroupFilter.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
 						do_number: doNumberFilter.value || undefined,
+						remarks: remarksFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -476,6 +508,7 @@ export default {
 				total.value = message?.total || 0;
 				hasMore.value = Boolean(message?.has_more);
 				statusCounts.value = message?.status_counts || {};
+				saveFilters();
 			} catch (e) {
 				console.error('Failed to load material transfers', e);
 				transferList.value = [];
@@ -564,6 +597,9 @@ export default {
 			itemGroupFilter.value = null;
 			warehouseFilter.value = null;
 			doNumberFilter.value = '';
+			remarksFilter.value = '';
+			itemSearchResults.value = [];
+			clearSavedFilters();
 			resetAndLoad();
 		};
 
@@ -720,6 +756,7 @@ export default {
 		};
 
 		onMounted(() => {
+			loadSavedFilters();
 			loadItemGroups();
 			loadWarehouses();
 			loadTransfers();
@@ -748,6 +785,7 @@ export default {
 			warehouseFilter,
 			warehouseOptions,
 			doNumberFilter,
+			remarksFilter,
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,

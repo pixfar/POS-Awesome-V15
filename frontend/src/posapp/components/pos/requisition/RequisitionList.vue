@@ -149,6 +149,16 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
+				<v-text-field
+					v-model="remarksFilter"
+					:label="__('Remarks')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="handleSearchUpdate"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -303,6 +313,7 @@ import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
+import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
 const STATUS_CONFIRM_MESSAGES = {
 	Seen: __('Mark this requisition as Seen? This lets the requester know it is being processed.'),
@@ -353,6 +364,7 @@ export default {
 		const itemCodeFilter = ref(null);
 		const itemGroupFilter = ref(null);
 		const warehouseFilter = ref(null);
+		const remarksFilter = ref('');
 
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
@@ -361,6 +373,23 @@ export default {
 
 		const itemGroupOptions = ref([]);
 		const warehouseOptions = ref([]);
+
+		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
+			'posa_filter_requisition',
+			{
+				searchQuery,
+				statusFilter,
+				fromDate,
+				toDate,
+				itemCodeFilter,
+				itemSearchResults,
+				itemGroupFilter,
+				warehouseFilter,
+				remarksFilter,
+				mineOnly,
+				page,
+			},
+		);
 
 		const listHeaders = [
 			{ title: __('Requisition'), key: 'name', sortable: true },
@@ -380,7 +409,8 @@ export default {
 					toDate.value ||
 					itemCodeFilter.value ||
 					itemGroupFilter.value ||
-					warehouseFilter.value,
+					warehouseFilter.value ||
+					remarksFilter.value,
 			),
 		);
 
@@ -422,6 +452,7 @@ export default {
 						item_code: itemCodeFilter.value || undefined,
 						item_group: itemGroupFilter.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
+						remarks: remarksFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -429,6 +460,7 @@ export default {
 				total.value = message?.total || 0;
 				hasMore.value = Boolean(message?.has_more);
 				statusCounts.value = message?.status_counts || {};
+				saveFilters();
 			} catch (e) {
 				console.error('Failed to load requisitions', e);
 				requisitionList.value = [];
@@ -512,6 +544,9 @@ export default {
 			itemCodeFilter.value = null;
 			itemGroupFilter.value = null;
 			warehouseFilter.value = null;
+			remarksFilter.value = '';
+			itemSearchResults.value = [];
+			clearSavedFilters();
 			resetAndLoad();
 		};
 
@@ -677,6 +712,7 @@ export default {
 		};
 
 		onMounted(() => {
+			loadSavedFilters();
 			loadItemGroups();
 			loadWarehouses();
 			loadRequisitions();
@@ -704,6 +740,7 @@ export default {
 			itemGroupOptions,
 			warehouseFilter,
 			warehouseOptions,
+			remarksFilter,
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,

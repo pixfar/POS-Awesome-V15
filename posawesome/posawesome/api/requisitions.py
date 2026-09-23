@@ -103,6 +103,7 @@ def get_requisitions_list(
 	item_code=None,
 	item_group=None,
 	warehouse=None,
+	remarks=None,
 	search=None,
 ):
 	"""Paginated, filterable requisition list for POS tracking."""
@@ -117,6 +118,7 @@ def get_requisitions_list(
 		item_code=item_code,
 		item_group=item_group,
 		warehouse=warehouse,
+		remarks=remarks,
 		search=search,
 		search_fields=['name', 'source_warehouse', 'target_warehouse', 'requested_by'],
 		# A cancelled Requisition (docstatus=2) should still show up in the list

@@ -252,7 +252,7 @@ def get_boms_list(
 		filters=filters,
 		or_filters=or_filters,
 		fields=fields,
-		order_by='modified desc',
+		order_by=f'`tab{doctype}`.modified desc',
 		limit_start=page_start,
 		limit_page_length=page_length,
 		ignore_permissions=True,

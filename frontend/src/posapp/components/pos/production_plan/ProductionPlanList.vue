@@ -289,6 +289,7 @@ import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
+import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
 const ACTION_CONFIRM_MESSAGES = {
 	'Start Production': __('Start production for this plan? This will submit it and lock in the planned quantities.'),
@@ -333,6 +334,21 @@ export default {
 
 		const itemGroupOptions = ref([]);
 		const warehouseOptions = ref([]);
+
+		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
+			'posa_filter_production_plan',
+			{
+				searchQuery,
+				statusFilter,
+				fromDate,
+				toDate,
+				itemCodeFilter,
+				itemSearchResults,
+				itemGroupFilter,
+				warehouseFilter,
+				page,
+			},
+		);
 
 		const listHeaders = [
 			{ title: __('Plan'), key: 'name', sortable: true },
@@ -402,6 +418,7 @@ export default {
 				total.value = message?.total || 0;
 				hasMore.value = Boolean(message?.has_more);
 				statusCounts.value = message?.status_counts || {};
+				saveFilters();
 			} catch (e) {
 				console.error('Failed to load production plans', e);
 				planList.value = [];
@@ -489,6 +506,8 @@ export default {
 			itemCodeFilter.value = null;
 			itemGroupFilter.value = null;
 			warehouseFilter.value = null;
+			itemSearchResults.value = [];
+			clearSavedFilters();
 			resetAndLoad();
 		};
 
@@ -621,6 +640,7 @@ export default {
 		};
 
 		onMounted(() => {
+			loadSavedFilters();
 			loadItemGroups();
 			loadWarehouses();
 			loadPlans();

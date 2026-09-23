@@ -267,6 +267,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
+import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
 export default {
 	name: 'BomList',
@@ -400,6 +401,18 @@ export default {
 		const itemSearchLoading = ref(false);
 		let itemSearchTimeout = null;
 
+		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
+			'posa_filter_bom',
+			{
+				searchQuery,
+				itemCodeFilter,
+				itemSearchResults,
+				isActiveFilter,
+				isDefaultFilter,
+				page,
+			},
+		);
+
 		const listHeaders = [
 			{ title: __('BOM'), key: 'name', sortable: true },
 			{ title: __('Item'), key: 'item', sortable: true },
@@ -459,6 +472,7 @@ export default {
 				bomList.value = message?.boms || [];
 				total.value = message?.total || 0;
 				hasMore.value = Boolean(message?.has_more);
+				saveFilters();
 			} catch (e) {
 				console.error('Failed to load BOMs', e);
 				bomList.value = [];
@@ -506,6 +520,8 @@ export default {
 			itemCodeFilter.value = null;
 			isActiveFilter.value = null;
 			isDefaultFilter.value = null;
+			itemSearchResults.value = [];
+			clearSavedFilters();
 			resetAndLoad();
 		};
 
@@ -529,6 +545,7 @@ export default {
 		};
 
 		onMounted(() => {
+			loadSavedFilters();
 			loadBoms();
 		});
 

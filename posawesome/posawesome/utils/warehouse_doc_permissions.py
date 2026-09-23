@@ -211,6 +211,7 @@ def _build_warehouse_doc_conditions(
 	item_group=None,
 	warehouse=None,
 	do_number=None,
+	remarks=None,
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
@@ -259,6 +260,16 @@ def _build_warehouse_doc_conditions(
 	if do_number and frappe.db.has_column(doctype, 'custom_do_number'):
 		conditions.append('main.custom_do_number LIKE %(do_number)s')
 		values['do_number'] = f'%{do_number}%'
+
+	if remarks:
+		remarks_conds = []
+		if frappe.db.has_column(doctype, 'remarks'):
+			remarks_conds.append('main.remarks LIKE %(remarks)s')
+		if frappe.db.has_column(doctype, 'notes'):
+			remarks_conds.append('main.notes LIKE %(remarks)s')
+		if remarks_conds:
+			conditions.append('(' + ' OR '.join(remarks_conds) + ')')
+			values['remarks'] = f'%{remarks}%'
 
 	if item_code or item_group:
 		item_conditions = ['item.parent = main.name', 'item.parenttype = %(main_doctype)s']
@@ -311,6 +322,7 @@ def get_warehouse_doc_list_rows(
 	item_group=None,
 	warehouse=None,
 	do_number=None,
+	remarks=None,
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
@@ -333,6 +345,7 @@ def get_warehouse_doc_list_rows(
 		item_group=item_group,
 		warehouse=warehouse,
 		do_number=do_number,
+		remarks=remarks,
 		search=search,
 		search_fields=search_fields,
 		include_cancelled=include_cancelled,
@@ -381,6 +394,7 @@ def get_warehouse_doc_status_counts(
 	item_group=None,
 	warehouse=None,
 	do_number=None,
+	remarks=None,
 	search=None,
 	search_fields=None,
 	include_cancelled=False,
@@ -401,6 +415,7 @@ def get_warehouse_doc_status_counts(
 		item_group=item_group,
 		warehouse=warehouse,
 		do_number=do_number,
+		remarks=remarks,
 		search=search,
 		search_fields=search_fields,
 		include_cancelled=include_cancelled,

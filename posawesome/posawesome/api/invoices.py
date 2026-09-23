@@ -126,6 +126,7 @@ def get_sales_invoices_list(
     customer=None,
     warehouse=None,
     do_number=None,
+    remarks=None,
     search=None,
 ):
     """Paginated, filterable list of submitted sales invoices for the Invoice List page."""
@@ -169,6 +170,10 @@ def get_sales_invoices_list(
     if do_number and has_do_number:
         filters.append([doctype, "custom_do_number", "like", f"%{do_number}%"])
 
+    has_remarks = frappe.db.has_column(doctype, "remarks")
+    if remarks and has_remarks:
+        filters.append([doctype, "remarks", "like", f"%{remarks}%"])
+
     item_doctype = f"{doctype} Item"
     if item_code:
         filters.append([item_doctype, "item_code", "=", item_code])
@@ -185,34 +190,38 @@ def get_sales_invoices_list(
         ]
         if has_do_number:
             or_filters.append([doctype, "custom_do_number", "like", like])
+        if has_remarks:
+            or_filters.append([doctype, "remarks", "like", like])
 
     page_start = max(0, int(page_start or 0))
     page_length = max(1, min(int(page_length or 100), 200))
 
     fields = [
-        "name",
-        "customer",
-        "customer_name",
-        "posting_date",
-        "posting_time",
-        "grand_total",
-        "outstanding_amount",
-        "status",
-        "currency",
-        "is_return",
-        "owner",
+        f"`tab{doctype}`.name as name",
+        f"`tab{doctype}`.customer as customer",
+        f"`tab{doctype}`.customer_name as customer_name",
+        f"`tab{doctype}`.posting_date as posting_date",
+        f"`tab{doctype}`.posting_time as posting_time",
+        f"`tab{doctype}`.grand_total as grand_total",
+        f"`tab{doctype}`.outstanding_amount as outstanding_amount",
+        f"`tab{doctype}`.status as status",
+        f"`tab{doctype}`.currency as currency",
+        f"`tab{doctype}`.is_return as is_return",
+        f"`tab{doctype}`.owner as owner",
     ]
     if doctype == "Sales Invoice":
-        fields.append("update_stock")
+        fields.append(f"`tab{doctype}`.update_stock as update_stock")
     if has_do_number:
-        fields.append("custom_do_number")
+        fields.append(f"`tab{doctype}`.custom_do_number as custom_do_number")
+    if has_remarks:
+        fields.append(f"`tab{doctype}`.remarks as remarks")
 
     rows = frappe.get_list(
         doctype,
         filters=filters,
         or_filters=or_filters,
         fields=fields,
-        order_by="posting_date desc, posting_time desc, modified desc",
+        order_by=f"`tab{doctype}`.posting_date desc, `tab{doctype}`.posting_time desc, `tab{doctype}`.modified desc",
         limit_start=page_start,
         limit_page_length=page_length,
         distinct=True,
@@ -249,7 +258,7 @@ def get_sales_invoices_list(
             doctype,
             filters=filters,
             or_filters=or_filters,
-            fields=["name"],
+            fields=[f"`tab{doctype}`.name"],
             distinct=True,
             ignore_permissions=True,
             limit_page_length=0,
@@ -263,8 +272,8 @@ def get_sales_invoices_list(
             doctype,
             filters=status_filters,
             or_filters=or_filters,
-            fields=["status", "count(name) as count"],
-            group_by="status",
+            fields=[f"`tab{doctype}`.status as status", f"count(`tab{doctype}`.name) as count"],
+            group_by=f"`tab{doctype}`.status",
             ignore_permissions=True,
             limit_page_length=0,
         )

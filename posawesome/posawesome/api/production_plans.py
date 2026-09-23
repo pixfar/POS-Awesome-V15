@@ -332,7 +332,7 @@ def get_production_plans_list(
 		filters=filters,
 		or_filters=or_filters,
 		fields=fields,
-		order_by='posting_date desc, modified desc',
+		order_by=f'`tab{doctype}`.posting_date desc, `tab{doctype}`.modified desc',
 		limit_start=page_start,
 		limit_page_length=page_length,
 		distinct=True,
