@@ -11,6 +11,31 @@ const STATIC_PRECACHE_URLS = [
 	"/offline.html",
 ];
 
+// A connection that is "up" but barely moving must never freeze the app: every
+// network request made here gives up after these limits and falls back to the
+// cache instead of waiting forever.
+const NAVIGATION_TIMEOUT_MS = 8000;
+const ASSET_TIMEOUT_MS = 6000;
+const VERSION_TIMEOUT_MS = 4000;
+// Retry a failed version.json lookup at most this often (it used to be
+// re-fetched, and awaited, on every single asset request after a failure).
+const VERSION_RETRY_MS = 60000;
+// Trimming the cache walks every entry -- do it in the background, not per request.
+const CACHE_TRIM_INTERVAL_MS = 5 * 60 * 1000;
+
+// Vite build output is content-hashed (e.g. "BomList-D1a4bu-a.js"): a given
+// URL never changes content, so serve it from cache without a network round trip.
+const HASHED_ASSET_RE = /^\/assets\/posawesome\/dist\/.+-[A-Za-z0-9_-]{8}\.(?:m?js|css)$/;
+const NEVER_CACHE_PATHS = ["/assets/posawesome/dist/js/version.json", "/sw.js"];
+
+function fetchWithTimeout(request, timeoutMs, init = {}) {
+	const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+	const timer = setTimeout(() => controller && controller.abort(), timeoutMs);
+	return fetch(request, controller ? { ...init, signal: controller.signal } : init).finally(() =>
+		clearTimeout(timer),
+	);
+}
+
 function buildVersionedAssetUrl(url, version) {
 	return `${url}?v=${encodeURIComponent(version || DEFAULT_CACHE_VERSION)}`;
 }
@@ -31,6 +56,24 @@ function getPrecacheUrls(version, assets = {}) {
 
 let cachedCacheName = null;
 let cacheNameInFlight = null;
+let fallbackCacheName = null;
+let lastVersionAttempt = 0;
+let lastCacheTrim = 0;
+
+async function findExistingCacheName() {
+	const keys = (await caches.keys()).filter((key) => key.startsWith(CACHE_PREFIX));
+	return keys.length ? keys[keys.length - 1] : null;
+}
+
+function trimCacheIfDue(cacheName) {
+	const now = Date.now();
+	if (now - lastCacheTrim < CACHE_TRIM_INTERVAL_MS) return Promise.resolve();
+	lastCacheTrim = now;
+	return caches
+		.open(cacheName)
+		.then(enforceCacheLimit)
+		.catch(() => {});
+}
 let currentVersion = null;
 let currentAssets = {};
 
@@ -115,7 +158,7 @@ async function resolveBuildMetadata(forceRefresh = false) {
 		currentAssets = {};
 	}
 	try {
-		const response = await fetch(VERSION_URL, { cache: "no-store" });
+		const response = await fetchWithTimeout(VERSION_URL, VERSION_TIMEOUT_MS, { cache: "no-store" });
 		if (response && response.ok) {
 			const payload = await response.json();
 			currentVersion = extractBuildVersion(payload);
@@ -145,15 +188,26 @@ async function getCacheName(forceRefresh = false, resolvedMetadata = null) {
 	if (cacheNameInFlight) {
 		return cacheNameInFlight;
 	}
+	if (!forceRefresh && !resolvedMetadata && fallbackCacheName && Date.now() - lastVersionAttempt < VERSION_RETRY_MS) {
+		return fallbackCacheName;
+	}
 	cacheNameInFlight = (async () => {
-		const metadata = resolvedMetadata || (await resolveBuildMetadata(forceRefresh));
-		const version = metadata?.version || DEFAULT_CACHE_VERSION;
-		const name = `${CACHE_PREFIX}${version}`;
-		if (version !== DEFAULT_CACHE_VERSION) {
-			cachedCacheName = name;
+		lastVersionAttempt = Date.now();
+		try {
+			const metadata = resolvedMetadata || (await resolveBuildMetadata(forceRefresh));
+			const version = metadata?.version || DEFAULT_CACHE_VERSION;
+			if (version !== DEFAULT_CACHE_VERSION) {
+				cachedCacheName = `${CACHE_PREFIX}${version}`;
+				fallbackCacheName = null;
+				return cachedCacheName;
+			}
+			// Version unknown (offline / server slow): keep using the newest cache
+			// we already have rather than an empty "default" one.
+			fallbackCacheName = (await findExistingCacheName()) || `${CACHE_PREFIX}${DEFAULT_CACHE_VERSION}`;
+			return fallbackCacheName;
+		} finally {
+			cacheNameInFlight = null;
 		}
-		cacheNameInFlight = null;
-		return name;
 	})();
 	return cacheNameInFlight;
 }
@@ -162,9 +216,7 @@ async function enforceCacheLimit(cache) {
 	const keys = await cache.keys();
 	if (keys.length > MAX_CACHE_ITEMS) {
 		const excess = keys.length - MAX_CACHE_ITEMS;
-		for (let i = 0; i < excess; i++) {
-			await cache.delete(keys[i]);
-		}
+		await Promise.all(keys.slice(0, excess).map((key) => cache.delete(key)));
 	}
 }
 
@@ -224,8 +276,9 @@ self.addEventListener("fetch", (event) => {
 
 	const url = new URL(event.request.url);
 	if (url.protocol !== "http:" && url.protocol !== "https:") return;
-
+	if (url.origin !== self.location.origin) return;
 	if (event.request.url.includes("socket.io")) return;
+	if (NEVER_CACHE_PATHS.includes(url.pathname)) return;
 
 	const assetDestinations = ["style", "script", "worker", "font", "image"];
 	const isAssetRequest = assetDestinations.includes(event.request.destination);
@@ -240,7 +293,7 @@ self.addEventListener("fetch", (event) => {
 		event.respondWith(
 			(async () => {
 				try {
-					return await fetch(event.request);
+					return await fetchWithTimeout(event.request, NAVIGATION_TIMEOUT_MS);
 				} catch (err) {
 					const cached = await caches.match(event.request, { ignoreSearch: true });
 					if (cached) {
@@ -264,26 +317,36 @@ self.addEventListener("fetch", (event) => {
 		return;
 	}
 
+	const hasVersionQuery = url.searchParams.has("v");
+	// Hashed build chunks and ?v=<build>-versioned files never change for a
+	// given URL -- cache first, network only on a miss.
+	const isImmutable = HASHED_ASSET_RE.test(url.pathname) || (isPosawesomeAsset && hasVersionQuery);
+
+	const putInCache = (cacheName, copy) =>
+		caches
+			.open(cacheName)
+			.then((cache) => cache.put(event.request, copy))
+			.then(() => trimCacheIfDue(cacheName))
+			.catch((cacheError) => console.warn("SW cache put failed", cacheError));
+
 	event.respondWith(
 		(async () => {
-			const cacheName = await getCacheName();
-			const hasVersionQuery = url.searchParams.has("v");
+			if (isImmutable) {
+				const cached = await caches.match(event.request);
+				if (cached) {
+					return cached;
+				}
+			}
+
+			const cacheNamePromise = getCacheName().catch(() => `${CACHE_PREFIX}${DEFAULT_CACHE_VERSION}`);
 			try {
-				const response = await fetch(event.request);
+				const response = await fetchWithTimeout(event.request, ASSET_TIMEOUT_MS);
+				// Resolve the cache name off the response path -- the asset is
+				// returned as soon as it arrives, never held for version.json.
 				const cacheableTypes = ["basic", "default", "cors"];
-				if (
-					response &&
-					response.ok &&
-					response.status === 200 &&
-					cacheableTypes.includes(response.type)
-				) {
-					try {
-						const cache = await caches.open(cacheName);
-						await cache.put(event.request, response.clone());
-						await enforceCacheLimit(cache);
-					} catch (cacheError) {
-						console.warn("SW cache put failed", cacheError);
-					}
+				if (response && response.ok && response.status === 200 && cacheableTypes.includes(response.type)) {
+					const copy = response.clone();
+					event.waitUntil(cacheNamePromise.then((name) => putInCache(name, copy)).catch(() => {}));
 				}
 				return response;
 			} catch (networkError) {
