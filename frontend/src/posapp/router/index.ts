@@ -72,6 +72,16 @@ const routes = [
 		},
 	},
 	{
+		path: "/requisitions/:name/edit",
+		component: () =>
+			import("../components/pos/requisition/RequisitionNew.vue"),
+		meta: {
+			title: "Edit Requisition",
+			layout: "default",
+			loadingMessage: "Loading requisition...",
+		},
+	},
+	{
 		path: "/requisitions/:name",
 		component: () =>
 			import("../components/pos/requisition/RequisitionDetail.vue"),

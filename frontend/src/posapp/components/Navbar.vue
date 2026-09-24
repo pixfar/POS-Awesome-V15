@@ -551,8 +551,14 @@ export default {
 		// Clicking a Notification Log entry (it has a `link`, unlike toast
 		// history entries) marks that single entry read on the server.
 		handleNotificationOpen(item) {
-			if (item && item.link) {
+			if (item && (item.route || item.link)) {
 				this.notificationLogStore.markOneRead(item.id);
+			}
+			// Documents with their own POS Awesome detail page (e.g. a
+			// Requisition alert) open in-app; NotificationBell falls back to the
+			// Desk link in a new tab for everything else.
+			if (item?.route) {
+				this.$router.push(item.route);
 			}
 		},
 		preInitialize() {

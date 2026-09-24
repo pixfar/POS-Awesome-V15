@@ -29,6 +29,29 @@ export interface NotificationLogEntry {
 	timestamp: number;
 	read: boolean;
 	link?: string;
+	// In-app POS Awesome route for the notification's document, when one exists.
+	route?: string;
+}
+
+// Document types that have their own detail page inside POS Awesome; a
+// notification about one opens that page instead of the Desk form.
+const DOCTYPE_ROUTES: Record<string, string> = {
+	Requisition: "/requisitions",
+	"Material Transfer": "/material-transfers",
+	"Sales Invoice": "/sales-invoices",
+	"Purchase Invoice": "/purchase-invoices",
+	"Production Plan": "/production-plans",
+	BOM: "/boms",
+	"Expense Claim": "/expenses",
+	"BSP Daily Deposit": "/deposits",
+	"Payment Entry": "/payments",
+	"Molding Daily Production": "/molding-production",
+	"Molding Weekly Wastage": "/molding-wastage",
+};
+
+function resolveRoute(row: any): string | undefined {
+	const base = DOCTYPE_ROUTES[row.document_type];
+	return base && row.document_name ? `${base}/${encodeURIComponent(row.document_name)}` : undefined;
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -53,6 +76,7 @@ function normalize(row: any): NotificationLogEntry {
 		timestamp: row.creation ? new Date(row.creation).getTime() : Date.now(),
 		read: isRead,
 		link: row.link || undefined,
+		route: resolveRoute(row),
 	};
 }
 

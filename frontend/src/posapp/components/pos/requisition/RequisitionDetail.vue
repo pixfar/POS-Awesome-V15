@@ -123,7 +123,7 @@ export default {
 		});
 
 		const statusColor = (status) => {
-			const map = { Sent: 'orange', Seen: 'blue', Completed: 'green', Rejected: 'red' };
+			const map = { Sent: 'orange', Seen: 'blue', Completed: 'green', Rejected: 'deep-purple' };
 			return map[status] || 'grey';
 		};
 
@@ -180,6 +180,15 @@ export default {
 
 		const actions = computed(() => {
 			const list = [];
+			// Still a Draft in "Sent" -- the requester can fix mistakes until
+			// it is marked Seen (which submits it).
+			if (detail.value.can_edit) {
+				list.push({
+					label: __('Edit'),
+					color: 'primary',
+					onClick: () => router.push(`/requisitions/${encodeURIComponent(detail.value.name)}/edit`),
+				});
+			}
 			if (detail.value.can_manage_status) {
 				if (detail.value.transfer_status === 'Sent') {
 					list.push({

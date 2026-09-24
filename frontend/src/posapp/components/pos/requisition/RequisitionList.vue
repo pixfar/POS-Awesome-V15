@@ -561,7 +561,7 @@ export default {
 				Sent: 'orange',
 				Seen: 'blue',
 				Completed: 'green',
-				Rejected: 'red',
+				Rejected: 'deep-purple',
 				Cancelled: 'red',
 				Draft: 'grey',
 			};
@@ -582,6 +582,7 @@ export default {
 
 		const rowActions = (item) => [
 			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },
+			{ key: 'edit', label: __('Edit'), icon: 'mdi-pencil-outline', show: !!item.can_edit },
 			{
 				key: 'seen',
 				label: __('Mark as Seen'),
@@ -624,6 +625,8 @@ export default {
 		const handleRowAction = (key, item) => {
 			if (key === 'view') {
 				openRequisitionDetail(item);
+			} else if (key === 'edit') {
+				router.push(`/requisitions/${encodeURIComponent(item.name)}/edit`);
 			} else if (key === 'seen') {
 				requestUpdateStatus(item.name, 'Seen');
 			} else if (key === 'completed') {

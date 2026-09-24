@@ -28,14 +28,7 @@ def _parse_json(value):
 	return value
 
 
-@frappe.whitelist()
-def create_requisition(data):
-	"""Create and submit a requisition from POS."""
-	ensure_can_create(_('create a Requisition'))
-	data = _parse_json(data)
-	if not data:
-		frappe.throw(_('Requisition data is required.'))
-
+def _validate_requisition_payload(data):
 	items = data.get('items') or []
 	if not items:
 		frappe.throw(_('Add at least one item.'), title=_('Items Required'))
@@ -52,13 +45,16 @@ def create_requisition(data):
 			_('Source Warehouse and Target Warehouse cannot be the same.'),
 			title=_('Invalid Warehouses'),
 		)
+	return items
 
-	doc = frappe.new_doc('Requisition')
-	doc.transaction_date = data.get('transaction_date') or today()
-	doc.source_warehouse = source_warehouse
-	doc.target_warehouse = target_warehouse
+
+def _fill_requisition(doc, data, items):
+	doc.transaction_date = data.get('transaction_date') or doc.transaction_date or today()
+	doc.source_warehouse = data.get('source_warehouse')
+	doc.target_warehouse = data.get('target_warehouse')
 	doc.notes = data.get('notes')
 
+	doc.set('items', [])
 	for row in items:
 		if flt(row.get('required_qty') or row.get('qty')) <= 0:
 			continue
@@ -74,9 +70,32 @@ def create_requisition(data):
 	if not doc.items:
 		frappe.throw(_('Add at least one item with quantity.'), title=_('Items Required'))
 
+
+def can_edit_requisition(doc, user=None):
+	"""A Requisition stays editable while it is still a Draft in "Sent" --
+	i.e. until the receiving side marks it "Seen" (which submits it). Only
+	the person who raised it, or a System Manager, may edit it."""
+	user = user or frappe.session.user
+	if doc.docstatus != 0 or doc.transfer_status != 'Sent':
+		return False
+	return user in (doc.requested_by, doc.owner) or is_system_manager(user)
+
+
+@frappe.whitelist()
+def create_requisition(data):
+	"""Create a requisition from POS. It is saved as a Draft with status
+	"Sent" (not submitted), so the requester can still correct it until it
+	is marked "Seen" -- see set_requisition_status."""
+	ensure_can_create(_('create a Requisition'))
+	data = _parse_json(data)
+	if not data:
+		frappe.throw(_('Requisition data is required.'))
+
+	items = _validate_requisition_payload(data)
+	doc = frappe.new_doc('Requisition')
+	_fill_requisition(doc, data, items)
+	doc.transfer_status = 'Sent'
 	doc.insert()
-	if doc.docstatus == 0:
-		doc.submit()
 
 	return {
 		'name': doc.name,
@@ -84,7 +103,39 @@ def create_requisition(data):
 	}
 
 
+@frappe.whitelist()
+def update_requisition(requisition, data):
+	"""Edit a requisition that is still Draft / "Sent"."""
+	ensure_can_create(_('edit a Requisition'))
+	data = _parse_json(data)
+	if not data:
+		frappe.throw(_('Requisition data is required.'))
+
+	doc = frappe.get_doc('Requisition', requisition)
+	if not can_edit_requisition(doc):
+		frappe.throw(
+			_('Requisition {0} can no longer be edited (it has been seen or you did not raise it).').format(
+				doc.name
+			),
+			title=_('Not Editable'),
+			exc=frappe.PermissionError,
+		)
+
+	items = _validate_requisition_payload(data)
+	_fill_requisition(doc, data, items)
+	doc.save()
+	return {'name': doc.name, 'transfer_status': doc.transfer_status}
+
+
 def _enrich_list_row(row):
+	row['can_edit'] = (
+		row.get('docstatus') == 0
+		and row.get('transfer_status') == 'Sent'
+		and (
+			frappe.session.user in (row.get('requested_by'), row.get('owner'))
+			or bool(is_system_manager())
+		)
+	)
 	row['can_manage_status'] = bool(is_system_manager()) and row.get('transfer_status') in (
 		'Sent',
 		'Seen',
@@ -135,6 +186,7 @@ def get_requisitions_list(
 		fields=[
 			'name',
 			'transaction_date',
+			'owner',
 			'requested_by',
 			'source_warehouse',
 			'target_warehouse',
@@ -230,6 +282,8 @@ def get_requisition_detail(requisition):
 		'items': items,
 		'can_manage_status': bool(is_system_manager())
 		and doc.transfer_status in ('Sent', 'Seen'),
+		'docstatus': doc.docstatus,
+		'can_edit': can_edit_requisition(doc),
 	}
 
 
@@ -248,10 +302,16 @@ def set_requisition_status(requisition, status):
 		frappe.throw(_('Invalid status {0}.').format(status))
 
 	doc = frappe.get_doc('Requisition', requisition)
-	if doc.docstatus != 1:
+	allowed_next = ALLOWED_STATUS_TRANSITIONS.get(doc.transfer_status, set())
+	if doc.docstatus == 0 and doc.transfer_status == 'Sent' and status in allowed_next:
+		# Draft until now so the requester could still edit it -- lock it in
+		# ("Seen" or "Rejected") by submitting. on_submit resets the status
+		# to "Sent"; the db_set below then records the real one.
+		doc.flags.ignore_permissions = True
+		doc.submit()
+	elif doc.docstatus != 1:
 		frappe.throw(_('Submit the Requisition before updating its status.'))
 
-	allowed_next = ALLOWED_STATUS_TRANSITIONS.get(doc.transfer_status, set())
 	if status not in allowed_next:
 		frappe.throw(
 			_('Requisition {0} cannot move from {1} to {2}.').format(

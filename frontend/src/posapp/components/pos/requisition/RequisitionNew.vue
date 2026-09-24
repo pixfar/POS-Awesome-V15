@@ -107,7 +107,12 @@
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading">
-									<h3 class="invoice-section-heading__title">{{ __("Requisition Items") }}</h3>
+									<h3 class="invoice-section-heading__title">
+										{{ __("Requisition Items") }}
+										<v-chip v-if="editName" size="small" color="warning" variant="tonal" class="ml-2">
+											{{ __("Editing") }} {{ editName }}
+										</v-chip>
+									</h3>
 								</div>
 								<div class="purchase-search-toolbar">
 									<v-autocomplete
@@ -178,7 +183,7 @@
 							prepend-icon="mdi-send"
 							@click="submitRequisition"
 						>
-							{{ __("Submit Requisition") }}
+							{{ editName ? __("Save Changes") : __("Send Requisition") }}
 						</v-btn>
 					</div>
 				</v-card>
@@ -213,7 +218,7 @@
 					prepend-icon="mdi-send"
 					@click="submitRequisition"
 				>
-					{{ __("Submit Requisition") }}
+					{{ editName ? __("Save Changes") : __("Send Requisition") }}
 				</v-btn>
 			</div>
 			<div class="mobile-pos-dock">
@@ -251,7 +256,7 @@
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
@@ -281,6 +286,10 @@ export default {
 	},
 	setup() {
 		const router = useRouter();
+		const route = useRoute();
+		// /requisitions/<name>/edit -- same form, filled from a Draft "Sent" requisition.
+		const editName = computed(() => (route.params.name ? String(route.params.name) : null));
+		const editLoading = ref(false);
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
@@ -512,6 +521,54 @@ export default {
 				? sourceWarehouse.value
 				: pos_profile.value?.warehouse || sourceWarehouse.value;
 
+		const editTransactionDate = ref(null);
+
+		const loadForEdit = async (name) => {
+			editLoading.value = true;
+			try {
+				const { message: detail } = await frappe.call({
+					method: 'posawesome.posawesome.api.requisitions.get_requisition_detail',
+					args: { requisition: name },
+				});
+				if (!detail?.can_edit) {
+					toastStore.show({
+						title: __('Requisition {0} can no longer be edited', [name]),
+						color: 'warning',
+					});
+					await router.replace(`/requisitions/${encodeURIComponent(name)}`);
+					return;
+				}
+				editTransactionDate.value = detail.transaction_date;
+				if (detail.source_warehouse) {
+					if (!sourceWarehouseOptions.value.some((w) => w.name === detail.source_warehouse)) {
+						sourceWarehouseOptions.value.unshift({ name: detail.source_warehouse, warehouse_name: detail.source_warehouse });
+					}
+					sourceWarehouse.value = detail.source_warehouse;
+					sourceWarehouseLabel.value = detail.source_warehouse;
+				}
+				targetWarehouse.value = detail.target_warehouse;
+				targetWarehouseLabel.value = detail.target_warehouse;
+				notes.value = detail.notes || '';
+				const firstSchedule = (detail.items || []).find((row) => row.schedule_date)?.schedule_date;
+				if (firstSchedule) requiredDate.value = firstSchedule;
+				requisitionItems.value = (detail.items || []).map((row, idx) => ({
+					line_id: `edit_${idx}_${row.item_code}`,
+					item_code: row.item_code,
+					item_name: row.item_name,
+					item_group: row.item_group,
+					stock_uom: row.uom,
+					uom: row.uom,
+					qty: Number(row.required_qty) || 0,
+					custom_default_weigt_of_measure:
+						Number(row.required_qty) > 0 ? Number(row.weight || 0) / Number(row.required_qty) : 0,
+				}));
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Failed to load requisition'), color: 'error' });
+			} finally {
+				editLoading.value = false;
+			}
+		};
+
 		const submitRequisition = async () => {
 			errorMessage.value = '';
 			const resolvedSource = resolveSourceWarehouse();
@@ -536,11 +593,15 @@ export default {
 
 			submitLoading.value = true;
 			try {
+				const isEdit = Boolean(editName.value);
 				const { message } = await frappe.call({
-					method: 'posawesome.posawesome.api.requisitions.create_requisition',
+					method: isEdit
+						? 'posawesome.posawesome.api.requisitions.update_requisition'
+						: 'posawesome.posawesome.api.requisitions.create_requisition',
 					args: {
+						...(isEdit ? { requisition: editName.value } : {}),
 						data: {
-							transaction_date: getTodayDate(),
+							transaction_date: isEdit ? editTransactionDate.value : getTodayDate(),
 							source_warehouse: resolvedSource,
 							target_warehouse: targetWarehouse.value,
 							notes: notes.value,
@@ -555,14 +616,16 @@ export default {
 						},
 					},
 					freeze: true,
-					freeze_message: __('Submitting requisition...'),
+					freeze_message: isEdit ? __('Saving requisition...') : __('Submitting requisition...'),
 				});
 				toastStore.show({
-					title: __('Requisition {0} submitted', [message?.name || '']),
+					title: isEdit
+						? __('Requisition {0} updated', [message?.name || ''])
+						: __('Requisition {0} sent', [message?.name || '']),
 					color: 'success',
 				});
 				resetForm();
-				await router.push('/requisitions/list');
+				await router.push(isEdit ? `/requisitions/${encodeURIComponent(message?.name || editName.value)}` : '/requisitions/list');
 			} catch (e) {
 				errorMessage.value = e?.message || __('Failed to submit requisition');
 			} finally {
@@ -621,6 +684,7 @@ export default {
 			await ensureItemsStoreInitialized(pos_profile.value);
 			initWarehousesFromProfile();
 			await loadWarehouses();
+			if (editName.value) await loadForEdit(editName.value);
 		});
 
 		return {
@@ -657,6 +721,8 @@ export default {
 			handleItemSearchUpdate,
 			handleSearchItemPicked,
 			submitRequisition,
+			editName,
+			editLoading,
 		};
 	},
 };

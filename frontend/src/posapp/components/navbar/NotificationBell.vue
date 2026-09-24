@@ -62,8 +62,8 @@
 							v-for="item in notifications"
 							:key="item.id"
 							class="notification-item"
-							:class="{ 'notification-item--clickable': !!item.link }"
-							@click="item.link && openItem(item)"
+							:class="{ 'notification-item--clickable': !!(item.route || item.link) }"
+							@click="(item.route || item.link) && openItem(item)"
 						>
 							<div class="notification-content">
 								<div class="notification-title">{{ item.title }}</div>
@@ -95,6 +95,7 @@ interface NotificationItem {
 	color?: string;
 	icon?: string;
 	link?: string;
+	route?: string;
 }
 
 interface Props {
@@ -130,6 +131,11 @@ function clearAll() {
 
 function openItem(item: NotificationItem) {
 	emit("open-item", item);
+	if (item.route) {
+		// Parent navigates in-app; just close the panel.
+		open.value = false;
+		return;
+	}
 	if (item.link) {
 		window.open(item.link, "_blank", "noopener");
 	}

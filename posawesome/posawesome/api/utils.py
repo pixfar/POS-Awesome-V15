@@ -113,7 +113,10 @@ def get_active_pos_profile(user=None):
     """Return the active POS profile for the given user."""
     user = user or frappe.session.user
     profile = frappe.db.get_value("POS Profile User", {"user": user}, "parent")
-    if not profile:
+    # POS Settings only has a default "pos_profile" field on some versions --
+    # reading it where it doesn't exist throws "Field pos_profile does not
+    # exist on POS Settings" for every user not assigned to a POS Profile.
+    if not profile and frappe.get_meta("POS Settings").has_field("pos_profile"):
         profile = frappe.db.get_single_value("POS Settings", "pos_profile")
     if not profile:
         return None
