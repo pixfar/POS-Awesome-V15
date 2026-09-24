@@ -62,40 +62,6 @@
 			animation: rise 0.5s ease both;
 		}
 
-		.brand {
-			display: flex;
-			align-items: center;
-			gap: 12px;
-			margin-bottom: 36px;
-		}
-
-		/* The Pixfar wordmark asset is white -- render it dark on this light side. */
-		.brand__logo {
-			height: 34px;
-			width: auto;
-			filter: brightness(0) saturate(100%);
-		}
-
-		.brand__divider {
-			width: 1px;
-			height: 26px;
-			background: var(--line);
-		}
-
-		.brand__name {
-			font-size: 15px;
-			font-weight: 600;
-			color: var(--brand);
-			line-height: 1.25;
-		}
-
-		.brand__name small {
-			display: block;
-			font-size: 12px;
-			font-weight: 500;
-			color: var(--muted);
-		}
-
 		h1 {
 			font-size: 30px;
 			line-height: 1.2;
@@ -535,12 +501,6 @@
 		<section class="auth__form-side">
 			<div class="auth__form-center">
 				<div class="auth__card" id="card">
-					<div class="brand">
-						<img class="brand__logo" src="{{ pixfar_logo }}" alt="Pixfar">
-						<span class="brand__divider"></span>
-						<span class="brand__name">{{ _("All In One ERP") }}</span>
-					</div>
-
 					<div class="alert alert--error" id="alert-error" role="alert">
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
 						<span id="alert-error-text"></span>
