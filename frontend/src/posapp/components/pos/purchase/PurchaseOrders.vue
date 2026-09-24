@@ -193,10 +193,33 @@
 							</div>
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
-								<div class="invoice-section-heading">
+								<div class="invoice-section-heading d-flex align-center justify-space-between flex-wrap ga-2">
 									<h3 class="invoice-section-heading__title">
 										{{ __("Purchase Items") }}
+										<v-chip
+											v-if="loadedDraft"
+											size="small"
+											color="warning"
+											variant="tonal"
+											class="ml-2"
+											closable
+											:title="__('Editing this draft - PAY submits it instead of creating a new invoice')"
+											@click:close="discardLoadedDraft"
+										>
+											{{ __("Draft") }}: {{ loadedDraft }}
+										</v-chip>
 									</h3>
+									<v-btn
+										size="small"
+										variant="tonal"
+										color="primary"
+										prepend-icon="mdi-file-document-edit-outline"
+										class="text-none"
+										:loading="draftLoading"
+										@click="draftsDialog = true"
+									>
+										{{ __("Load Draft") }}
+									</v-btn>
 								</div>
 								<div class="purchase-search-toolbar">
 									<v-autocomplete
@@ -247,10 +270,22 @@
 									:receiveNow="false"
 									:formatCurrency="formatCurrency"
 									:formatNumber="formatNumber"
+									:can-add-uom="canAddUom"
+									@add-uom="openUomDialog"
 									@update-uom="({ item, value }) => updateItemUom(item, value)"
 									@update-qty="({ item, value }) => updateItemQty(item, value)"
 									@update-rate="({ item, value }) => updateItemRate(item, value)"
 									@remove-item="removeItem"
+								/>
+								<PurchaseDraftsDialog
+									v-model="draftsDialog"
+									:format-currency="formatCurrency"
+									@load="requestLoadDraft"
+								/>
+								<UomConversionDialog
+									v-model="uomDialogOpen"
+									:item="uomDialogItem"
+									@saved="onUomSaved"
 								/>
 							</v-card>
 
@@ -424,10 +459,12 @@ import PurchaseCompleteDialog from "./PurchaseCompleteDialog.vue";
 import PurchaseHeader from "./PurchaseHeader.vue";
 import PurchaseItemsTable from "./PurchaseItemsTable.vue";
 import { ref, watch, onMounted, onBeforeUnmount, inject, computed } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { isPosWarehouseSwitcher, isFundTransferManager } from "../../../utils/posWarehouseAccess";
 import { openDocumentPdfPrint } from "../../../utils/openDocumentPdfPrint";
 import { useCompactTransactionPanel } from "../../../composables/core/useCompactTransactionPanel";
+import UomConversionDialog from "./UomConversionDialog.vue";
+import PurchaseDraftsDialog from "./PurchaseDraftsDialog.vue";
 
 export default {
 	mixins: [format],
@@ -438,12 +475,15 @@ export default {
 		PurchaseCompleteDialog,
 		PurchaseHeader,
 		PurchaseItemsTable,
+		UomConversionDialog,
+		PurchaseDraftsDialog,
 	},
 	setup() {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
 		const router = useRouter();
+		const route = useRoute();
 		const eventBus = inject("eventBus");
 		const {
 			responsiveStyles,
@@ -482,8 +522,9 @@ export default {
 			updateItemRate,
 			updateItemReceivedQty,
 			removeItem,
-			resetForm,
+			resetForm: resetPurchaseForm,
 			syncPurchaseItemsWarehouse,
+			generateLineId,
 		} = usePurchaseOrder({
 			posProfile: pos_profile,
 			receiveNow: receiveNow,
@@ -503,6 +544,33 @@ export default {
 		const warehouseLabel = ref(null);
 		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
 		const canEditDoNumber = computed(() => isFundTransferManager());
+		// Adding a unit edits the Item master -- same gate as the server
+		// (items.set_item_uom_conversion).
+		const canAddUom = computed(() => isFundTransferManager());
+		const uomDialogOpen = ref(false);
+		const uomDialogItem = ref(null);
+		const openUomDialog = (item) => {
+			uomDialogItem.value = item;
+			uomDialogOpen.value = true;
+		};
+		const onUomSaved = async ({ item, uom, item_uoms }) => {
+			// Every line of the same item gets the new unit list; only the line
+			// the dialog was opened from switches to it.
+			purchaseItems.value
+				.filter((row) => row.item_code === item.item_code)
+				.forEach((row) => {
+					row.item_uoms = item_uoms;
+					const current = item_uoms.find((u) => u.uom === row.uom);
+					if (current && row !== item) row.conversion_factor = current.conversion_factor;
+				});
+			try {
+				const cached = await itemsStore.getItemByCode(item.item_code);
+				if (cached) cached.item_uoms = item_uoms;
+			} catch (e) {
+				console.warn('Failed to refresh cached item units', e);
+			}
+			await updateItemUom(item, uom);
+		};
 		const canEditPostingDate = computed(() => isFundTransferManager());
 		// "Accounts" override -- System Manager / BSP Admin only. Defaults to
 		// the active POS Profile's own account_for_change_amount (same account
@@ -892,6 +960,79 @@ export default {
 			if (name) router.push(`/purchase-invoices/${name}`);
 		};
 
+		// ---- Draft Purchase Invoices --------------------------------------
+		const loadedDraft = ref(null);
+		const draftsDialog = ref(false);
+		const draftLoading = ref(false);
+
+		const resetForm = () => {
+			loadedDraft.value = null;
+			remarks.value = "";
+			discountAmount.value = 0;
+			resetPurchaseForm();
+		};
+
+		const toDisplayDateTime = (date, time) => {
+			const parts = String(date || "").split("-");
+			if (parts.length !== 3) return null;
+			const hhmm = String(time || "00:00").slice(0, 5).padStart(5, "0");
+			return formatUtils.toArabicNumerals(`${parts[2]}-${parts[1]}-${parts[0]} ${hhmm}`);
+		};
+
+		const loadDraft = async (name) => {
+			if (!name) return;
+			draftLoading.value = true;
+			try {
+				const { message: draft } = await frappe.call({
+					method: "posawesome.posawesome.api.purchase_invoices.get_purchase_draft",
+					args: { name },
+				});
+				resetForm();
+				if (draft.supplier && !supplierOptions.value.some((s) => s.name === draft.supplier)) {
+					supplierOptions.value.unshift({ name: draft.supplier, supplier_name: draft.supplier_name || draft.supplier });
+				}
+				supplier.value = draft.supplier;
+				postingDateTime.value = toDisplayDateTime(draft.posting_date, draft.posting_time) || postingDateTime.value;
+				if (draft.warehouse) warehouse.value = draft.warehouse;
+				updateStock.value = Boolean(draft.update_stock);
+				doNumber.value = draft.custom_do_number || "";
+				remarks.value = draft.remarks && draft.remarks !== "No Remarks" ? draft.remarks : "";
+				discountAmount.value = Number(draft.discount_amount) || 0;
+				const lineWarehouse = warehouse.value || pos_profile.value?.warehouse || null;
+				purchaseItems.value = (draft.items || []).map((row) => ({
+					...row,
+					line_id: generateLineId(),
+					stock_uom_rate: (Number(row.rate) || 0) / (Number(row.conversion_factor) || 1),
+					warehouse: lineWarehouse,
+					received_qty: 0,
+					receivedQtyManual: false,
+				}));
+				loadedDraft.value = draft.name;
+				draftsDialog.value = false;
+				toastStore.show({ title: __("Draft {0} loaded", [draft.name]), color: "success" });
+			} catch (e) {
+				toastStore.show({ title: extractServerError(e) || __("Failed to load draft"), color: "error" });
+			} finally {
+				draftLoading.value = false;
+			}
+		};
+
+		const requestLoadDraft = (name) => {
+			if (purchaseItems.value.length && loadedDraft.value !== name) {
+				frappe.confirm(
+					__("Replace the items in the current purchase with draft {0}?", [name]),
+					() => loadDraft(name),
+				);
+				return;
+			}
+			loadDraft(name);
+		};
+
+		const discardLoadedDraft = () => {
+			// Only detaches the form from the draft; the draft itself stays saved.
+			resetForm();
+		};
+
 		const submitPurchaseInvoice = async (print = false, printFormat = null) => {
 			if (!supplier.value || !postingDateTime.value) {
 				errorMessage.value = __("Supplier and date are required.");
@@ -927,6 +1068,8 @@ export default {
 					custom_is_paid: customIsPaid.value ? 1 : 0,
 					custom_do_number: doNumber.value || null,
 					remarks: remarks.value || null,
+					// Submits the loaded draft in place instead of creating a new invoice.
+					draft_name: loadedDraft.value || null,
 					// Server re-verifies System Manager / BSP Admin before honoring
 					// this -- see purchase_orders._create_purchase_invoice_from_pos.
 					payment_account: canEditPaymentAccount.value ? (paymentAccountOverride.value || null) : null,
@@ -1045,6 +1188,11 @@ export default {
 
 			resetForm();
 			await Promise.all([searchSuppliers(""), loadSupplierGroups(), loadWarehouses()]);
+			// /purchase-invoices/new?draft=<name> -- "Load Draft" from the list page.
+			if (route.query.draft) {
+				await loadDraft(String(route.query.draft));
+				router.replace({ query: {} });
+			}
 		});
 
 		onBeforeUnmount(() => {
@@ -1066,6 +1214,16 @@ export default {
 			printPurchaseInvoice,
 			openCompletedInvoice,
 			canChangePosWarehouse,
+			loadedDraft,
+			draftsDialog,
+			draftLoading,
+			requestLoadDraft,
+			discardLoadedDraft,
+			canAddUom,
+			uomDialogOpen,
+			uomDialogItem,
+			openUomDialog,
+			onUomSaved,
 			canEditDoNumber,
 			canEditPostingDate,
 			canEditPaymentAccount,

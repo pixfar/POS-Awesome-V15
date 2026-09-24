@@ -267,6 +267,12 @@
 										</template>
 										<v-list-item-title>{{ __("View") }}</v-list-item-title>
 									</v-list-item>
+									<v-list-item v-if="canLoadDraft(item)" @click="loadDraftIntoForm(item)">
+										<template #prepend>
+											<v-icon size="18" color="primary">mdi-file-document-edit-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Load Draft") }}</v-list-item-title>
+									</v-list-item>
 									<v-list-item v-if="canReturn(item)" @click="openReturnConfirm(item)">
 										<template #prepend>
 											<v-icon size="18" color="blue">mdi-keyboard-return</v-icon>
@@ -909,6 +915,14 @@ export default {
 			router.push('/purchase-invoices/new');
 		};
 
+		// BSP Viewer is read-only -- it can open drafts but not finish them.
+		const canLoadDraft = (item) =>
+			item.status === 'Draft' &&
+			(isSystemManager.value || !(frappe?.boot?.user?.roles || []).includes('BSP Viewer'));
+		const loadDraftIntoForm = (item) => {
+			router.push({ path: '/purchase-invoices/new', query: { draft: item.name } });
+		};
+
 		const openInvoiceDetail = (item) => {
 			router.push(`/purchase-invoices/${item.name}`);
 		};
@@ -975,6 +989,8 @@ export default {
 			formatDisplayDate,
 			statusColor,
 			goToNew,
+			canLoadDraft,
+			loadDraftIntoForm,
 			openInvoiceDetail,
 			isSystemManager,
 			canReturn,

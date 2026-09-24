@@ -43,7 +43,16 @@
 					hide-details
 					@focus="item._isEditingUom = true"
 					@blur="item._isEditingUom = false"
-				></v-select>
+				>
+					<template v-if="canAddUom" #append-item>
+						<v-divider />
+						<v-list-item
+							prepend-icon="mdi-plus"
+							:title="__('Other unit / conversion...')"
+							@click="$emit('add-uom', item)"
+						/>
+					</template>
+				</v-select>
 				<v-btn
 					size="x-small"
 					variant="flat"
@@ -54,6 +63,9 @@
 				>
 					<v-icon size="small">mdi-chevron-right</v-icon>
 				</v-btn>
+			</div>
+			<div v-if="item.uom !== item.stock_uom" class="uom-stock-hint">
+				= {{ formatNumber(Number(item.qty || 0) * Number(item.conversion_factor || 1)) }} {{ item.stock_uom }}
 			</div>
 		</template>
 
@@ -101,9 +113,9 @@
 		</template>
 
 		<template v-slot:item.weight="{ item }">
-			<!-- qty * the item's own custom_default_weigt_of_measure -->
+			<!-- stock qty (qty * conversion_factor) * the item's per-stock-unit custom_default_weigt_of_measure -->
 			<span class="text-medium-emphasis">
-				{{ formatNumber(Number(item.qty || 0) * Number(item.custom_default_weigt_of_measure || 0)) }}
+				{{ formatNumber(Number(item.qty || 0) * Number(item.conversion_factor || 1) * Number(item.custom_default_weigt_of_measure || 0)) }}
 			</span>
 		</template>
 
@@ -188,8 +200,10 @@ export default {
 		receiveNow: Boolean,
 		formatCurrency: Function,
 		formatNumber: Function,
+		// Shows "Other unit / conversion..." in the UOM dropdown (System Manager / BSP Admin).
+		canAddUom: { type: Boolean, default: false },
 	},
-	emits: ["update-uom", "update-qty", "update-rate", "update-received-qty", "remove-item"],
+	emits: ["add-uom", "update-uom", "update-qty", "update-rate", "update-received-qty", "remove-item"],
 	methods: {
 		changeUom(item, direction) {
 			if (!item.item_uoms || item.item_uoms.length <= 1) return;
@@ -531,6 +545,13 @@ export default {
 .uom-editor {
 	gap: 2px;
 }
+.uom-stock-hint {
+	margin-top: 2px;
+	font-size: 11px;
+	text-align: center;
+	color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
 .uom-arrow {
 	flex-shrink: 0;
 }

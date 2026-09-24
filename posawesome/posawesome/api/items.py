@@ -10,7 +10,7 @@ implementation work to `posawesome.posawesome.api.item_processing` modules.
 import json
 from frappe import _, as_json
 import frappe
-from frappe.utils import cint, get_datetime
+from frappe.utils import cint, flt, get_datetime
 
 from posawesome.posawesome.api.utils import get_active_pos_profile
 from posawesome.posawesome.api.utils import (
@@ -246,3 +246,72 @@ def get_item_brand(item_code):
     if not brand and data.get("variant_of"):
         brand = frappe.db.get_value("Item", data.get("variant_of"), "brand")
     return normalize_brand(brand) if brand else ""
+
+
+@frappe.whitelist()
+def search_uoms(search_text=None, limit=20):
+	"""Enabled UOMs for the Purchase screen's "Add unit" dialog."""
+	limit = max(1, min(int(limit or 20), 50))
+	filters = {"enabled": 1}
+	if search_text and search_text.strip():
+		filters["name"] = ["like", f"%{search_text.strip()}%"]
+	return frappe.get_all(
+		"UOM",
+		filters=filters,
+		fields=["name", "must_be_whole_number"],
+		order_by="name asc",
+		limit_page_length=limit,
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def set_item_uom_conversion(item_code, uom, conversion_factor):
+	"""Add (or update) a UOM Conversion row on an Item, e.g. "1 Kg = 40 Pc",
+	so it can be bought in one unit and stocked/sold in its stock UOM.
+	Restricted to System Manager / BSP Admin since it edits the Item master;
+	returns the item's full UOM list for the caller to refresh its rows."""
+	from posawesome.posawesome.utils.warehouse_doc_permissions import (
+		ensure_can_create,
+		is_privileged_invoice_viewer,
+	)
+
+	ensure_can_create(_("change an Item's units"))
+	if not is_privileged_invoice_viewer():
+		frappe.throw(
+			_("Only a System Manager or BSP Admin can add a unit to an Item."),
+			exc=frappe.PermissionError,
+		)
+
+	conversion_factor = flt(conversion_factor)
+	if conversion_factor <= 0:
+		frappe.throw(_("Conversion factor must be greater than zero."))
+	# UOM names match case-insensitively in the DB ("Kg" finds "KG") -- use the
+	# canonical name so the duplicate check below compares like with like.
+	canonical = frappe.db.get_value("UOM", {"name": uom, "enabled": 1}, "name")
+	if not canonical:
+		frappe.throw(_("Unit {0} does not exist or is disabled.").format(uom))
+	uom = canonical
+
+	item = frappe.get_doc("Item", item_code)
+	if uom.lower() == (item.stock_uom or "").lower():
+		frappe.throw(
+			_("{0} is already the stock unit of {1}; its factor is always 1.").format(uom, item_code)
+		)
+
+	existing = next((row for row in item.uoms if (row.uom or "").lower() == uom.lower()), None)
+	if existing:
+		existing.conversion_factor = conversion_factor
+	else:
+		item.append("uoms", {"uom": uom, "conversion_factor": conversion_factor})
+
+	item.flags.ignore_permissions = True
+	item.save()
+
+	return {
+		"item_code": item.name,
+		"stock_uom": item.stock_uom,
+		"item_uoms": [
+			{"uom": row.uom, "conversion_factor": flt(row.conversion_factor)} for row in item.uoms
+		],
+	}

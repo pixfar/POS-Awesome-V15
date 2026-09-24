@@ -749,6 +749,22 @@ def _resolve_purchase_invoice_custom_is_paid(payments, grand_total):
     return 1 if total_paid >= flt(grand_total) - 0.001 else 0
 
 
+def get_editable_purchase_draft(name):
+    """A Draft Purchase Invoice this user may load back into the POS form --
+    same visibility rule as the Purchase Invoice list (own invoices or ones
+    touching a permitted warehouse; System Manager / BSP Admin / BSP Viewer
+    see all)."""
+    if not name or not frappe.db.exists("Purchase Invoice", name):
+        frappe.throw(_("Draft Purchase Invoice {0} was not found.").format(name))
+    scoped = get_permission_scoped_names("Purchase Invoice", "set_warehouse")
+    if scoped is not None and name not in scoped:
+        frappe.throw(_("You are not permitted to open {0}.").format(name), frappe.PermissionError)
+    invoice = frappe.get_doc("Purchase Invoice", name)
+    if invoice.docstatus != 0:
+        frappe.throw(_("{0} is no longer a draft.").format(name))
+    return invoice
+
+
 def _create_purchase_invoice_from_pos(payload):
     ensure_can_create(_("create a Purchase Invoice"))
     profile = _resolve_pos_profile(payload.get("pos_profile"))
@@ -810,18 +826,29 @@ def _create_purchase_invoice_from_pos(payload):
     if receive_now:
         update_stock = 1
 
-    invoice = frappe.get_doc(
-        {
-            "doctype": "Purchase Invoice",
-            "supplier": supplier,
-            "company": company,
-            "posting_date": transaction_date,
-            "due_date": schedule_date,
-            "currency": supplier_currency,
-            "buying_price_list": buying_price_list,
-            "update_stock": update_stock,
-        }
-    )
+    header = {
+        "supplier": supplier,
+        "company": company,
+        "posting_date": transaction_date,
+        "due_date": schedule_date,
+        "currency": supplier_currency,
+        "buying_price_list": buying_price_list,
+        "update_stock": update_stock,
+    }
+    draft_name = payload.get("draft_name")
+    if draft_name:
+        # Finishing a draft loaded back into the POS form: rebuild that same
+        # document from the form instead of creating a second invoice.
+        invoice = get_editable_purchase_draft(draft_name)
+        invoice.update(header)
+        invoice.set("items", [])
+        # The form is the source of truth: clear what it may have removed.
+        invoice.discount_amount = 0
+        invoice.remarks = None
+        if invoice.meta.has_field("custom_do_number"):
+            invoice.custom_do_number = None
+    else:
+        invoice = frappe.get_doc({"doctype": "Purchase Invoice", **header})
 
     if posting_time:
         invoice.posting_time = posting_time
