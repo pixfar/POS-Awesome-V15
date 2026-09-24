@@ -136,6 +136,9 @@
 						<strong class="pos-detail-totals__value">{{ t.value }}</strong>
 					</div>
 				</div>
+
+				<!-- Optional extra section below the totals (e.g. Production Plan's raw materials). -->
+				<slot />
 			</template>
 		</v-card>
 	</div>

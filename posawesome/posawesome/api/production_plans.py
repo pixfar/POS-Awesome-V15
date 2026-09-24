@@ -199,6 +199,30 @@ def get_bom_raw_materials(bom_no, qty=1):
 	]
 
 
+def _validate_raw_material_overrides(raw_materials, production_item):
+	"""Edited raw material list for the plan's single production item:
+	[{"item_code", "qty"}], qty being the total for the whole planned qty.
+	Empty/None means "use the BOM as-is"."""
+	if not raw_materials:
+		return None
+
+	merged = {}
+	for row in raw_materials:
+		item_code = (row or {}).get('item_code')
+		qty = flt(row.get('qty'))
+		if not item_code or qty <= 0:
+			continue
+		if item_code == production_item:
+			frappe.throw(_('{0} cannot be a raw material of itself.').format(item_code))
+		if not frappe.db.exists('Item', {'name': item_code, 'disabled': 0}):
+			frappe.throw(_('Raw material {0} does not exist or is disabled.').format(item_code))
+		merged[item_code] = merged.get(item_code, 0) + qty
+
+	if not merged:
+		frappe.throw(_('Add at least one raw material with quantity.'), title=_('Raw Materials Required'))
+	return [{'item_code': code, 'qty': qty} for code, qty in merged.items()]
+
+
 @frappe.whitelist()
 def create_production_plan(data):
 	"""Create a Production Plan (Draft) from POS. Restricted to System Manager."""
@@ -252,10 +276,24 @@ def create_production_plan(data):
 	if not doc.po_items:
 		frappe.throw(_('Add at least one item with quantity.'), title=_('Items Required'))
 
+	raw_materials = _validate_raw_material_overrides(data.get('raw_materials'), doc.po_items[0].item_code)
+	if raw_materials:
+		# Read by bsp_engineering's ProductionPlan.create_work_order while this
+		# insert() is still running (on_update auto-creates and submits the
+		# Work Order), see apply_raw_material_overrides there.
+		doc.flags.raw_material_overrides = {doc.po_items[0].item_code: raw_materials}
+
 	doc.flags.ignore_permissions = True
 	doc.insert()
 
-	return {'name': doc.name, 'workflow_state': doc.workflow_state}
+	# ERPNext's make_work_order() msgprints "<Work Order> created / No Purchase
+	# Orders were created" as a side effect of the insert above (via
+	# bsp_engineering's on_update hook) -- drop those; the POS page shows its
+	# own confirmation from the values returned here.
+	frappe.clear_messages()
+	work_orders = frappe.get_all('Work Order', filters={'production_plan': doc.name}, pluck='name')
+
+	return {'name': doc.name, 'workflow_state': doc.workflow_state, 'work_orders': work_orders}
 
 
 def _available_actions(workflow_state, docstatus):
@@ -267,6 +305,8 @@ def _available_actions(workflow_state, docstatus):
 	# exact label, so key it off docstatus instead of the state string.
 	if docstatus == 1 and workflow_state != 'Cancelled' and 'Cancel' not in actions:
 		actions.append('Cancel')
+	if docstatus == 0 and workflow_state in DELETABLE_STATES:
+		actions.append('Delete')
 	return actions
 
 
@@ -437,6 +477,7 @@ def get_production_plan_detail(name):
 		)
 
 	return {
+		'raw_materials': _get_plan_raw_materials(doc),
 		'name': doc.name,
 		'company': doc.company,
 		'posting_date': doc.posting_date,
@@ -456,6 +497,48 @@ def get_production_plan_detail(name):
 		'docstatus': doc.docstatus,
 		'available_actions': _available_actions(doc.workflow_state, doc.docstatus),
 	}
+
+
+def _get_plan_raw_materials(doc):
+	"""Raw materials the plan's Work Order(s) will consume -- which can differ
+	from the BOM when they were edited at creation -- each with the BOM's own
+	qty for comparison (None for a raw material that isn't on the BOM)."""
+	from erpnext.manufacturing.doctype.bom.bom import get_bom_items
+
+	work_orders = frappe.get_all(
+		'Work Order',
+		filters={'production_plan': doc.name, 'docstatus': ['!=', 2]},
+		fields=['name', 'bom_no', 'qty', 'company'],
+	)
+	totals = {}
+	bom_qty = {}
+	for wo in work_orders:
+		for row in frappe.get_all(
+			'Work Order Item',
+			filters={'parent': wo.name, 'parenttype': 'Work Order'},
+			fields=['item_code', 'item_name', 'stock_uom', 'required_qty'],
+			order_by='idx asc',
+		):
+			entry = totals.setdefault(
+				row.item_code,
+				{'item_code': row.item_code, 'item_name': row.item_name, 'uom': row.stock_uom, 'qty': 0.0},
+			)
+			entry['qty'] += flt(row.required_qty)
+		if wo.bom_no:
+			for d in get_bom_items(wo.bom_no, wo.company, qty=flt(wo.qty) or 1, fetch_exploded=0):
+				bom_qty[d.item_code] = bom_qty.get(d.item_code, 0.0) + flt(d.qty)
+
+	rows = list(totals.values())
+	for row in rows:
+		row['bom_qty'] = bom_qty.get(row['item_code'])
+	removed = [
+		{'item_code': code, 'item_name': frappe.db.get_value('Item', code, 'item_name'), 'bom_qty': qty}
+		for code, qty in bom_qty.items()
+		if code not in totals
+	]
+	return {'items': rows, 'removed': removed, 'edited': bool(removed) or any(
+		row['bom_qty'] is None or abs(flt(row['bom_qty']) - flt(row['qty'])) > 1e-6 for row in rows
+	)}
 
 
 def _cancel_linked_production_documents(production_plan_name):
@@ -557,6 +640,63 @@ def advance_production_plan_status(name, action):
 
 	doc.db_set('workflow_state', next_state, update_modified=False)
 	return {'name': doc.name, 'workflow_state': next_state}
+
+
+DELETABLE_STATES = ('Draft', 'Work In Progress')
+
+
+@frappe.whitelist()
+def delete_production_plan(name):
+	"""Permanently delete a Draft or Work In Progress Production Plan together
+	with the Work Order(s) (and Job Cards) auto-created for it.
+
+	Both states are still docstatus 0 on the plan itself -- only "Mark
+	Production Complete" submits it -- but bsp_engineering's on_update hook
+	has already created and auto-submitted a Work Order, which would
+	otherwise be left orphaned. Refused once any submitted Stock Entry exists
+	against those Work Orders, since stock has then already moved; such a
+	plan has to go through Cancel instead."""
+	if not is_system_manager():
+		frappe.throw(
+			_('Only a System Manager can delete Production Plans.'),
+			exc=frappe.PermissionError,
+		)
+
+	doc = frappe.get_doc('Production Plan', name)
+	if doc.docstatus != 0 or doc.workflow_state not in DELETABLE_STATES:
+		frappe.throw(_('Only a Draft or Work In Progress Production Plan can be deleted.'))
+
+	work_orders = frappe.get_all('Work Order', filters={'production_plan': name}, pluck='name')
+	if work_orders and frappe.db.exists(
+		'Stock Entry', {'work_order': ['in', work_orders], 'docstatus': 1}
+	):
+		frappe.throw(
+			_('Stock has already been moved for this plan. Cancel it instead of deleting.'),
+			title=_('Cannot Delete'),
+		)
+
+	for wo_name in work_orders:
+		for jc_name in frappe.get_all('Job Card', filters={'work_order': wo_name}, pluck='name'):
+			jc_doc = frappe.get_doc('Job Card', jc_name)
+			if jc_doc.docstatus == 1:
+				jc_doc.flags.ignore_permissions = True
+				jc_doc.cancel()
+			frappe.delete_doc('Job Card', jc_name, ignore_permissions=True, force=True)
+
+		wo_doc = frappe.get_doc('Work Order', wo_name)
+		if wo_doc.docstatus == 1:
+			wo_doc.flags.ignore_permissions = True
+			wo_doc.cancel()
+		# Draft (docstatus 0) Stock Entries left behind by a failed completion
+		# attempt still link to the Work Order.
+		for se_name in frappe.get_all(
+			'Stock Entry', filters={'work_order': wo_name, 'docstatus': 0}, pluck='name'
+		):
+			frappe.delete_doc('Stock Entry', se_name, ignore_permissions=True, force=True)
+		frappe.delete_doc('Work Order', wo_name, ignore_permissions=True, force=True)
+
+	frappe.delete_doc('Production Plan', name, ignore_permissions=True, force=True)
+	return {'name': name, 'work_orders': work_orders}
 
 
 @frappe.whitelist()

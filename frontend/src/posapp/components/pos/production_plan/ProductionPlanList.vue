@@ -297,7 +297,9 @@ const ACTION_CONFIRM_MESSAGES = {
 	Cancel: __(
 		'Cancel this production plan? This will also cancel any linked Work Orders, Stock Entries and Job Cards, and reverse stock already consumed or produced.',
 	),
-	Delete: __('Permanently delete this cancelled production plan? This cannot be undone.'),
+	Delete: __(
+		'Permanently delete this production plan and its linked Work Order? This cannot be undone.',
+	),
 };
 
 export default {
@@ -580,15 +582,6 @@ export default {
 					color: actionColor(action),
 				});
 			}
-			actions.push({
-				key: 'Delete',
-				label: __('Delete'),
-				icon: ACTION_ICONS.Delete,
-				color: 'error',
-				// Hidden from the UI -- users are no longer allowed to delete
-				// Draft/Cancelled Production Plans from POS Awesome.
-				show: false,
-			});
 			return actions;
 		};
 
@@ -607,12 +600,15 @@ export default {
 			try {
 				if (action === 'Delete') {
 					await frappe.call({
-						method: 'posawesome.posawesome.api.production_plans.delete_cancelled_production_plan',
+						method: 'posawesome.posawesome.api.production_plans.delete_production_plan',
 						args: { name },
 						freeze: true,
 						freeze_message: __('Deleting...'),
 					});
-					toastStore.show({ title: __('Production Plan {0} deleted', [name]), color: 'success' });
+					toastStore.show({
+						title: __('Production Plan {0} and its Work Order deleted', [name]),
+						color: 'success',
+					});
 				} else {
 					await frappe.call({
 						method: 'posawesome.posawesome.api.production_plans.advance_production_plan_status',

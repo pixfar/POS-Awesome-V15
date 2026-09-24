@@ -10,6 +10,25 @@ app_url = "https://github.com/defendicon/POS-Awesome-V15"
 app_source_link = "https://github.com/defendicon/POS-Awesome-V15"
 source_link = "https://github.com/defendicon/POS-Awesome-V15"
 
+# Shown on the /apps screen, and used as the post-login landing page: the
+# add_posawesome_as_default_app patch sets System Settings.default_app to this
+# app, so Frappe's get_default_path() sends users here after login.
+# The route can't be /app/posapp/overview directly -- frappe.apps.get_route()
+# replaces any "/app/<name>" route whose <name> isn't a Workspace with some
+# workspace the user can see -- so it points at a short redirect instead.
+add_to_apps_screen = [
+    {
+        "name": "posawesome",
+        "logo": "/assets/posawesome/icons/logo-144.png",
+        "title": "POS Awesome",
+        "route": "/pos-dashboard",
+    }
+]
+
+website_redirects = [
+    {"source": "/pos-dashboard", "target": "/app/posapp/overview", "redirect_http_status": 302},
+]
+
 # Includes in <head>
 # ------------------
 

@@ -628,6 +628,27 @@ export default {
 					],
 				});
 			}
+			// Molding and Material Issue/Receipt: visible to System Manager, BSP
+			// Admin and BSP Viewer; the "New" entries only to System Manager /
+			// BSP Admin since BSP Viewer is read-only (re-checked server-side in
+			// api/molding.py and api/stock_entries.py).
+			if (isPosWarehouseSwitcher()) {
+				const canCreate = isFundTransferManager();
+				const section = (text, icon, base, newText, listText) => ({
+					text,
+					icon,
+					children: [
+						...(canCreate ? [{ text: newText, icon: "mdi-plus-circle-outline", to: `${base}/new` }] : []),
+						{ text: listText, icon: "mdi-format-list-bulleted", to: `${base}/list` },
+					],
+				});
+				items.push(
+					section("Molding Daily Production", "mdi-factory", "/molding-production", "New Production", "Production List"),
+					section("Molding Weekly Wastage", "mdi-delete-variant", "/molding-wastage", "New Wastage", "Wastage List"),
+					section("Material Issue", "mdi-package-up", "/material-issues", "New Issue", "Issue List"),
+					section("Material Receipt", "mdi-package-down", "/material-receipts", "New Receipt", "Receipt List"),
+				);
+			}
 			// Same gate as "New Transfer" above -- only BSP Admin/System Manager
 			// can make a Supplier Payment. Rebuilds the "Payment" entry (and its
 			// children array) rather than mutating it in place -- `items` is only

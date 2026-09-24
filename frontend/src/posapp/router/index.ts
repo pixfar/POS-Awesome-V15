@@ -206,6 +206,136 @@ const routes = [
 		},
 	},
 	{
+		path: "/molding-production",
+		redirect: "/molding-production/list",
+	},
+	{
+		path: "/molding-production/list",
+		component: () => import("../components/pos/molding/MoldingProductionList.vue"),
+		meta: {
+			title: "Molding Daily Production",
+			layout: "default",
+			loadingMessage: "Loading molding daily production...",
+		},
+	},
+	{
+		path: "/molding-production/new",
+		component: () => import("../components/pos/molding/MoldingProductionNew.vue"),
+		meta: {
+			title: "Molding Daily Production",
+			layout: "default",
+			loadingMessage: "Loading molding daily production...",
+		},
+	},
+	{
+		path: "/molding-production/:name",
+		component: () => import("../components/pos/molding/MoldingProductionDetail.vue"),
+		meta: {
+			title: "Molding Daily Production",
+			layout: "default",
+			loadingMessage: "Loading molding daily production...",
+		},
+	},
+	{
+		path: "/molding-wastage",
+		redirect: "/molding-wastage/list",
+	},
+	{
+		path: "/molding-wastage/list",
+		component: () => import("../components/pos/molding/MoldingWastageList.vue"),
+		meta: {
+			title: "Molding Weekly Wastage",
+			layout: "default",
+			loadingMessage: "Loading molding weekly wastage...",
+		},
+	},
+	{
+		path: "/molding-wastage/new",
+		component: () => import("../components/pos/molding/MoldingWastageNew.vue"),
+		meta: {
+			title: "Molding Weekly Wastage",
+			layout: "default",
+			loadingMessage: "Loading molding weekly wastage...",
+		},
+	},
+	{
+		path: "/molding-wastage/:name",
+		component: () => import("../components/pos/molding/MoldingWastageDetail.vue"),
+		meta: {
+			title: "Molding Weekly Wastage",
+			layout: "default",
+			loadingMessage: "Loading molding weekly wastage...",
+		},
+	},
+	{
+		path: "/material-issues",
+		redirect: "/material-issues/list",
+	},
+	{
+		path: "/material-issues/list",
+		component: () => import("../components/pos/stock_entry/StockEntryList.vue"),
+		meta: {
+			title: "Material Issues",
+			layout: "default",
+			loadingMessage: "Loading material issue...",
+		},
+		props: { purpose: "Material Issue" },
+	},
+	{
+		path: "/material-issues/new",
+		component: () => import("../components/pos/stock_entry/StockEntryNew.vue"),
+		meta: {
+			title: "New Material Issue",
+			layout: "default",
+			loadingMessage: "Loading material issue...",
+		},
+		props: { purpose: "Material Issue" },
+	},
+	{
+		path: "/material-issues/:name",
+		component: () => import("../components/pos/stock_entry/StockEntryDetail.vue"),
+		meta: {
+			title: "Material Issue",
+			layout: "default",
+			loadingMessage: "Loading material issue...",
+		},
+		props: { purpose: "Material Issue" },
+	},
+	{
+		path: "/material-receipts",
+		redirect: "/material-receipts/list",
+	},
+	{
+		path: "/material-receipts/list",
+		component: () => import("../components/pos/stock_entry/StockEntryList.vue"),
+		meta: {
+			title: "Material Receipts",
+			layout: "default",
+			loadingMessage: "Loading material receipt...",
+		},
+		props: { purpose: "Material Receipt" },
+	},
+	{
+		path: "/material-receipts/new",
+		component: () => import("../components/pos/stock_entry/StockEntryNew.vue"),
+		meta: {
+			title: "New Material Receipt",
+			layout: "default",
+			loadingMessage: "Loading material receipt...",
+		},
+		props: { purpose: "Material Receipt" },
+	},
+	{
+		path: "/material-receipts/:name",
+		component: () => import("../components/pos/stock_entry/StockEntryDetail.vue"),
+		meta: {
+			title: "Material Receipt",
+			layout: "default",
+			loadingMessage: "Loading material receipt...",
+		},
+		props: { purpose: "Material Receipt" },
+	},
+	{
 		path: "/production-plans",
 		redirect: "/production-plans/new",
 	},

@@ -20,3 +20,4 @@ posawesome.patches.add_requisition_support
 posawesome.patches.add_material_transfer_do_number_index
 posawesome.patches.remove_pos_awesome_workspace_extra_cards
 posawesome.patches.add_requisition_seen_status
+posawesome.patches.add_posawesome_as_default_app

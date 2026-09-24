@@ -149,40 +149,139 @@
 							</v-card>
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
-								<div class="invoice-section-heading">
-									<h3 class="invoice-section-heading__title">{{ __("Raw Materials Required") }}</h3>
-									<p class="text-caption text-medium-emphasis mb-0">
-										{{ __("Combined raw materials needed to produce the planned items above") }}
-									</p>
+								<div class="invoice-section-heading d-flex align-center justify-space-between flex-wrap ga-2">
+									<div>
+										<h3 class="invoice-section-heading__title">
+											{{ __("Raw Materials Required") }}
+											<v-chip
+												v-if="rawMaterialsEdited"
+												size="x-small"
+												color="warning"
+												variant="tonal"
+												class="ml-2"
+											>
+												{{ __("Edited") }}
+											</v-chip>
+										</h3>
+										<p class="text-caption text-medium-emphasis mb-0">
+											{{ __("Loaded from the BOM. Change a quantity, remove or add a raw material for this plan only - the BOM itself is not changed.") }}
+										</p>
+									</div>
+									<v-btn
+										v-if="rawMaterialsEdited"
+										size="small"
+										variant="tonal"
+										color="primary"
+										prepend-icon="mdi-restore"
+										class="text-none"
+										@click="resetRawMaterials"
+									>
+										{{ __("Reset to BOM") }}
+									</v-btn>
 								</div>
-								<v-table
-									v-if="aggregatedRawMaterials.length"
-									density="compact"
-									class="pos-themed-table"
-								>
+								<div v-if="planItems.length" class="purchase-search-toolbar">
+									<v-autocomplete
+										v-model:search="rawSearchQuery"
+										:model-value="null"
+										:items="rawSearchResults"
+										:loading="rawSearchLoading"
+										item-title="item_name"
+										item-value="item_code"
+										return-object
+										:label="__('Add raw material')"
+										:custom-filter="() => true"
+										:no-data-text="__('Type at least 2 characters')"
+										prepend-inner-icon="mdi-plus"
+										variant="solo"
+										density="compact"
+										hide-details
+										class="pos-themed-input"
+										@update:search="handleRawSearchUpdate"
+										@update:model-value="addRawMaterial"
+									>
+										<template #item="{ props: itemProps, item }">
+											<v-list-item v-bind="itemProps" :title="undefined">
+												<v-list-item-title>{{ item.raw.item_name }}</v-list-item-title>
+												<v-list-item-subtitle>
+													{{ item.raw.item_code }} · {{ item.raw.stock_uom }}
+												</v-list-item-subtitle>
+											</v-list-item>
+										</template>
+									</v-autocomplete>
+								</div>
+								<v-table v-if="rawMaterials.length" density="compact" class="pos-themed-table">
 									<thead>
 										<tr>
 											<th>{{ __("Raw Material") }}</th>
-											<th class="text-center">{{ __("Qty") }}</th>
+											<th class="text-center">{{ __("BOM Qty") }}</th>
+											<th class="text-center" style="width: 160px">{{ __("Qty") }}</th>
 											<th class="text-center">{{ __("UOM") }}</th>
+											<th class="text-center" style="width: 48px"></th>
 										</tr>
 									</thead>
 									<tbody>
-										<tr v-for="rm in aggregatedRawMaterials" :key="rm.item_code">
+										<tr
+											v-for="(rm, index) in rawMaterials"
+											:key="rm.item_code"
+											:class="{ 'raw-material-row--changed': isRawMaterialChanged(rm) }"
+										>
 											<td>
-												<div class="font-weight-medium">{{ rm.item_name }}</div>
+												<div class="font-weight-medium">
+													{{ rm.item_name }}
+													<v-chip
+														v-if="rm.bom_qty === null"
+														size="x-small"
+														color="success"
+														variant="tonal"
+														class="ml-1"
+													>
+														{{ __("Added") }}
+													</v-chip>
+												</div>
 												<div class="text-caption text-medium-emphasis">{{ rm.item_code }}</div>
 											</td>
-											<td class="text-center">{{ formatFloat(rm.qty) }}</td>
+											<td class="text-center text-medium-emphasis">
+												{{ rm.bom_qty === null ? "—" : formatFloat(rm.bom_qty) }}
+											</td>
+											<td>
+												<v-text-field
+													:model-value="rm.qty"
+													type="number"
+													min="0"
+													density="compact"
+													variant="outlined"
+													hide-details
+													class="pos-themed-input raw-material-qty"
+													@update:model-value="(value) => updateRawMaterialQty(rm, value)"
+												/>
+											</td>
 											<td class="text-center text-caption">{{ rm.uom }}</td>
+											<td class="text-center">
+												<v-btn
+													icon="mdi-delete-outline"
+													size="small"
+													variant="text"
+													color="error"
+													:title="__('Remove')"
+													@click="removeRawMaterial(index)"
+												/>
+											</td>
 										</tr>
 									</tbody>
 								</v-table>
-								<div v-else class="text-center text-medium-emphasis py-4">
+								<div
+									v-if="removedBomMaterials.length"
+									class="text-caption text-medium-emphasis px-3 py-2"
+								>
+									{{ __("Removed from BOM") }}: {{ removedBomMaterials.join(", ") }}
+								</div>
+								<div v-if="!rawMaterials.length" class="text-center text-medium-emphasis py-4">
 									{{
 										rawMaterialsLoading
 											? __("Calculating raw materials...")
-											: __("Add production items to see required raw materials")
+											: planItems.length
+												? __("No raw materials - add at least one")
+												: __("Add production items to see required raw materials")
 									}}
 								</div>
 							</v-card>
@@ -496,6 +595,116 @@ export default {
 			return Object.values(totals).sort((a, b) => a.item_name.localeCompare(b.item_name));
 		});
 
+		// Editable copy of the BOM raw materials. Stays in sync with the BOM
+		// (and the planned qty) until the user edits it; after that a planned
+		// qty change scales the edited quantities instead of discarding them.
+		// Sent to create_production_plan as raw_materials only when edited.
+		const rawMaterials = ref([]);
+		const rawMaterialsEdited = ref(false);
+		let rawSourceBom = null;
+		let rawSourceQty = 0;
+
+		const roundQty = (value) => Math.round((Number(value) || 0) * 1000) / 1000;
+
+		const loadRawMaterialsFromBom = (bomRows) => {
+			rawMaterials.value = bomRows.map((rm) => ({
+				item_code: rm.item_code,
+				item_name: rm.item_name,
+				uom: rm.uom,
+				qty: roundQty(rm.qty),
+				bom_qty: roundQty(rm.qty),
+			}));
+			rawMaterialsEdited.value = false;
+		};
+
+		watch(aggregatedRawMaterials, (bomRows) => {
+			const item = planItems.value[0];
+			const bomNo = item?.bom_no || null;
+			const fgQty = Number(item?.qty) || 0;
+			if (rawMaterialsLoading.value) return;
+
+			if (!rawMaterialsEdited.value || bomNo !== rawSourceBom) {
+				loadRawMaterialsFromBom(bomRows);
+			} else {
+				const ratio = rawSourceQty > 0 ? fgQty / rawSourceQty : 1;
+				const bomQtyByCode = Object.fromEntries(bomRows.map((rm) => [rm.item_code, roundQty(rm.qty)]));
+				rawMaterials.value.forEach((rm) => {
+					rm.qty = roundQty(rm.qty * ratio);
+					if (rm.bom_qty !== null) rm.bom_qty = bomQtyByCode[rm.item_code] ?? rm.bom_qty;
+				});
+			}
+			rawSourceBom = bomNo;
+			rawSourceQty = fgQty;
+		});
+
+		const isRawMaterialChanged = (rm) => rm.bom_qty === null || roundQty(rm.qty) !== rm.bom_qty;
+
+		const removedBomMaterials = computed(() => {
+			if (!rawMaterialsEdited.value) return [];
+			const kept = new Set(rawMaterials.value.map((rm) => rm.item_code));
+			return aggregatedRawMaterials.value
+				.filter((rm) => !kept.has(rm.item_code))
+				.map((rm) => rm.item_name || rm.item_code);
+		});
+
+		const updateRawMaterialQty = (rm, value) => {
+			rm.qty = Math.max(0, Number(value) || 0);
+			rawMaterialsEdited.value = true;
+		};
+
+		const removeRawMaterial = (index) => {
+			rawMaterials.value.splice(index, 1);
+			rawMaterialsEdited.value = true;
+		};
+
+		const resetRawMaterials = () => {
+			loadRawMaterialsFromBom(aggregatedRawMaterials.value);
+		};
+
+		const rawSearchQuery = ref('');
+		const rawSearchResults = ref([]);
+		const rawSearchLoading = ref(false);
+		let rawSearchTimeout = null;
+
+		const handleRawSearchUpdate = (term) => {
+			if (rawSearchTimeout) clearTimeout(rawSearchTimeout);
+			if (!term || term.trim().length < 2) return;
+			rawSearchTimeout = setTimeout(async () => {
+				rawSearchLoading.value = true;
+				try {
+					const { message } = await frappe.call({
+						method: 'posawesome.posawesome.api.material_transfers.search_items',
+						args: { search_text: term.trim(), limit: 20 },
+					});
+					const productionItem = planItems.value[0]?.item_code;
+					rawSearchResults.value = (message || []).filter((row) => row.item_code !== productionItem);
+				} catch (e) {
+					console.error('Failed to search raw materials', e);
+				} finally {
+					rawSearchLoading.value = false;
+				}
+			}, 300);
+		};
+
+		const addRawMaterial = (item) => {
+			if (!item) return;
+			const existing = rawMaterials.value.find((rm) => rm.item_code === item.item_code);
+			if (existing) {
+				existing.qty = roundQty(existing.qty + 1);
+			} else {
+				const bomRow = aggregatedRawMaterials.value.find((rm) => rm.item_code === item.item_code);
+				rawMaterials.value.push({
+					item_code: item.item_code,
+					item_name: item.item_name,
+					uom: item.stock_uom,
+					qty: 1,
+					bom_qty: bomRow ? roundQty(bomRow.qty) : null,
+				});
+			}
+			rawMaterialsEdited.value = true;
+			rawSearchQuery.value = '';
+		};
+
 		const submitPlan = async () => {
 			errorMessage.value = '';
 			if (!targetWarehouse.value) {
@@ -504,6 +713,10 @@ export default {
 			}
 			if (!planItems.value.length) {
 				errorMessage.value = __('Add at least one item.');
+				return;
+			}
+			if (rawMaterialsEdited.value && !rawMaterials.value.some((rm) => Number(rm.qty) > 0)) {
+				errorMessage.value = __('Add at least one raw material with quantity.');
 				return;
 			}
 
@@ -524,13 +737,24 @@ export default {
 								uom: row.uom,
 								planned_start_date: requiredDate.value,
 							})),
+							raw_materials: rawMaterialsEdited.value
+								? rawMaterials.value
+										.filter((rm) => Number(rm.qty) > 0)
+										.map((rm) => ({ item_code: rm.item_code, qty: rm.qty }))
+								: null,
 						},
 					},
 					freeze: true,
 					freeze_message: __('Creating production plan...'),
 				});
+				const workOrders = message?.work_orders || [];
 				toastStore.show({
-					title: __('Production Plan {0} created', [message?.name || '']),
+					title: workOrders.length
+						? __('Production Plan {0} created with Work Order {1}. Start production from the list when ready.', [
+								message?.name || '',
+								workOrders.join(', '),
+							])
+						: __('Production Plan {0} created.', [message?.name || '']),
 					color: 'success',
 				});
 				planItems.value = [];
@@ -576,8 +800,19 @@ export default {
 			updateItemQty,
 			removeItem,
 			submitPlan,
-			aggregatedRawMaterials,
 			rawMaterialsLoading,
+			rawMaterials,
+			rawMaterialsEdited,
+			removedBomMaterials,
+			isRawMaterialChanged,
+			updateRawMaterialQty,
+			removeRawMaterial,
+			resetRawMaterials,
+			rawSearchQuery,
+			rawSearchResults,
+			rawSearchLoading,
+			handleRawSearchUpdate,
+			addRawMaterial,
 			hasReachedItemLimit,
 			cameraScanner,
 			startCameraScan,
@@ -606,6 +841,14 @@ export default {
 .purchase-item-option__code {
 	font-variant-numeric: tabular-nums;
 	font-weight: 600;
+}
+
+.raw-material-row--changed td {
+	background: rgba(var(--v-theme-warning), 0.08);
+}
+
+.raw-material-qty :deep(input) {
+	text-align: center;
 }
 
 .purchase-item-option__stock,
