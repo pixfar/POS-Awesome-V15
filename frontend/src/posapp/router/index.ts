@@ -9,6 +9,9 @@ import {
 } from "../utils/chunkLoadRecovery";
 import { resolvePosAppRouteFullPath } from "../../loader-utils";
 import OfflineRouteUnavailable from "../components/system/OfflineRouteUnavailable.vue";
+import { ensureRegisterData } from "../utils/registerBootstrap";
+
+const REGISTER_WAIT_MS = 8000;
 
 const OFFLINE_ROUTE_UNAVAILABLE_NAME = "offline-route-unavailable";
 
@@ -619,11 +622,19 @@ const createPosAppRouter = () => {
 	});
 	let pendingRouteFullPath: string | null = null;
 
-	router.beforeEach((to, _from, next) => {
+	router.beforeEach(async (to, _from, next) => {
 		pendingRouteFullPath = to.fullPath || "/";
 		startRouteLoading({
 			message: resolveRouteLoadingMessage(to),
 		});
+		// First navigation only (memoized): wait for the POS Profile so every
+		// page mounts with it -- see utils/registerBootstrap. Capped so a slow
+		// or failing server never blocks the page; the layout keeps waiting on
+		// the same promise and pages react to uiStore when it lands.
+		await Promise.race([
+			ensureRegisterData(),
+			new Promise((resolve) => setTimeout(resolve, REGISTER_WAIT_MS)),
+		]);
 		next();
 	});
 

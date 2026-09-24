@@ -146,6 +146,7 @@ import { useCustomerReadiness } from "../composables/runtime/useCustomerReadines
 import { useQueueMetrics } from "../composables/runtime/useQueueMetrics";
 import authService from "../services/authService.js";
 import { getValidCachedOpeningForCurrentUser } from "../utils/openingCache";
+import { ensureRegisterData } from "../utils/registerBootstrap";
 import { formatBootstrapWarning, shouldShowBootstrapBanner } from "../utils/bootstrapWarnings";
 import { listenForBootstrapSnapshotUpdates } from "../utils/bootstrapRuntimeEvents";
 import {
@@ -917,6 +918,13 @@ const pollForFrappeNav = (maxAttempts = 50, interval = 100) => {
 };
 
 const initializeData = async () => {
+	// Usually already settled by the router guard (see utils/registerBootstrap);
+	// when it had to fetch the opening shift from the server, the tax setting
+	// the cached-opening path below loads needs refreshing for it too.
+	void ensureRegisterData().then((result) => {
+		if (result?.source === "server" && navigator.onLine) void refreshTaxInclusiveSetting();
+	});
+
 	if (!ONLINE_ONLY_MODE) {
 		await initPromise;
 		await memoryInitPromise;
