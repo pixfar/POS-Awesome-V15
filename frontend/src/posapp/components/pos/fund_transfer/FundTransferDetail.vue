@@ -2,6 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('Fund Transfer')"
 		:title="name"
+		:share="{ doctype: 'Payment Entry', name, printFormat: 'BSP Fundtransfer' }"
 		:subtitle="__('Internal Transfer')"
 		:loading="loading"
 		:not-found="notFound"

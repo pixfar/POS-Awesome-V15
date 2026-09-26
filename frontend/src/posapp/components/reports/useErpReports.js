@@ -13,6 +13,9 @@ function userHasAnyRole(roles) {
 	return roles.some((role) => userRoles.includes(role));
 }
 
+// Employee attendance/leave/salary data -- admins and HR only.
+const HR_REPORT_ROLES = ['System Manager', 'BSP Admin', 'HR Manager', 'HR User'];
+
 const reportGroups = [
 	{
 		title: 'Financial Statements & Cash Management',
@@ -35,6 +38,13 @@ const reportGroups = [
 				// No role restriction -- the backend scopes it to the user's own
 				// permitted warehouse(s), same as the Deposit/Expense lists.
 				route: '/reports/daily-cash-summary',
+			},
+			{
+				title: 'Expense Report',
+				name: 'Expense Report',
+				icon: 'mdi-receipt-text-minus-outline',
+				// No role restriction -- the report itself limits non-admins to
+				// their own warehouse(s).
 			},
 			{
 				title: 'Warehouse Wise Daily Cash Summary Report',
@@ -146,6 +156,22 @@ const reportGroups = [
 		],
 	},
 	{
+		title: 'Production',
+		icon: 'mdi-factory',
+		reports: [
+			{
+				title: 'Production Plan Report',
+				name: 'Production Plan Report',
+				icon: 'mdi-clipboard-text-clock-outline',
+			},
+			{
+				title: 'Production Report',
+				name: 'Production Report',
+				icon: 'mdi-chart-bar',
+			},
+		],
+	},
+	{
 		title: 'Accounts',
 		icon: 'mdi-finance',
 		reports: [
@@ -173,6 +199,42 @@ const reportGroups = [
 				title: 'Supplier Due Payment Report',
 				name: 'Accounts Payable Summary',
 				icon: 'mdi-cash-minus',
+			},
+		],
+	},
+	{
+		title: 'HR & Payroll',
+		icon: 'mdi-account-tie-outline',
+		reports: [
+			{
+				title: 'Monthly Attendance Sheet',
+				name: 'Monthly Attendance Sheet',
+				icon: 'mdi-calendar-month-outline',
+				roles: HR_REPORT_ROLES,
+			},
+			{
+				title: 'Employee Leave Balance',
+				name: 'Employee Leave Balance',
+				icon: 'mdi-calendar-account-outline',
+				roles: HR_REPORT_ROLES,
+			},
+			{
+				title: 'Employee Leave Balance Summary',
+				name: 'Employee Leave Balance Summary',
+				icon: 'mdi-calendar-text-outline',
+				roles: HR_REPORT_ROLES,
+			},
+			{
+				title: 'Employee Advance Summary',
+				name: 'Employee Advance Summary',
+				icon: 'mdi-cash-fast',
+				roles: HR_REPORT_ROLES,
+			},
+			{
+				title: 'Salary Register',
+				name: 'Salary Register',
+				icon: 'mdi-cash-register',
+				roles: HR_REPORT_ROLES,
 			},
 		],
 	},

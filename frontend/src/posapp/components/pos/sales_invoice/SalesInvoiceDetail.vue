@@ -2,6 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('Sales')"
 		:title="name"
+		:share="{ doctype, name, printFormat: doctype === 'Sales Invoice' ? 'BSP Sales Invoice' : null }"
 		:subtitle="__('Sales Invoice')"
 		:loading="loading"
 		:not-found="notFound"

@@ -2,6 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('Payment')"
 		:title="name"
+		:share="{ doctype: 'Payment Entry', name }"
 		:subtitle="__('Payment Entry')"
 		:loading="loading"
 		:not-found="notFound"

@@ -33,7 +33,7 @@
 					<v-chip v-if="status" size="default" variant="tonal" :color="statusColor">
 						{{ status }}
 					</v-chip>
-					<div v-if="actions.length" class="pos-detail-actions">
+					<div v-if="actions.length || share" class="pos-detail-actions">
 						<template v-for="action in actions" :key="action.label">
 							<v-menu v-if="action.menuItems && action.menuItems.length" :close-on-content-click="true">
 								<template #activator="{ props: menuProps }">
@@ -71,6 +71,17 @@
 								{{ action.label }}
 							</v-btn>
 						</template>
+						<v-btn
+							v-if="share"
+							size="small"
+							variant="tonal"
+							color="success"
+							prepend-icon="mdi-share-variant"
+							class="text-none"
+							@click="shareOpen = true"
+						>
+							{{ __("Share") }}
+						</v-btn>
 					</div>
 				</div>
 
@@ -141,12 +152,18 @@
 				<slot />
 			</template>
 		</v-card>
+
+		<ShareDocumentDialog v-if="share" v-model="shareOpen" :target="share" :text="shareText" />
 	</div>
 </template>
 
 <script>
+import ShareDocumentDialog from "./ShareDocumentDialog.vue";
+import { buildShareText } from "../../../utils/documentShare";
+
 export default {
 	name: "DocumentDetailView",
+	components: { ShareDocumentDialog },
 	props: {
 		eyebrow: { type: String, default: "" },
 		title: { type: String, default: "" },
@@ -160,8 +177,25 @@ export default {
 		items: { type: Array, default: () => [] },
 		totals: { type: Array, default: () => [] },
 		actions: { type: Array, default: () => [] },
+		// { doctype, name, printFormat } -- shows a "Share" button that sends
+		// this document's PDF (WhatsApp, email, ...). Omit to hide it.
+		share: { type: Object, default: null },
 	},
 	emits: ["back"],
+	data() {
+		return { shareOpen: false };
+	},
+	computed: {
+		shareText() {
+			return buildShareText({
+				title: this.title,
+				subtitle: this.subtitle,
+				status: this.status,
+				metaFields: this.metaFields,
+				totals: this.totals,
+			});
+		},
+	},
 	methods: {
 		// Truncation threshold for meta field values (e.g. Requisition's long
 		// free-text Notes) -- anything longer than 50 characters gets cut

@@ -2,6 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('Expenses & Advances')"
 		:title="name"
+		:share="{ doctype: 'Expense Claim', name }"
 		:subtitle="__('Expense Claim')"
 		:loading="loading"
 		:not-found="notFound"

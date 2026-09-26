@@ -3,6 +3,7 @@
 		<DocumentDetailView
 			:eyebrow="__('Manufacturing')"
 			:title="name"
+			:share="{ doctype: 'Production Plan', name }"
 			:subtitle="__('Production Plan')"
 			:loading="loading"
 			:not-found="notFound"

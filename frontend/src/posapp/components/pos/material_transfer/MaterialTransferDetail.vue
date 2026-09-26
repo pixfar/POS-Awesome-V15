@@ -2,6 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('Stock Movement')"
 		:title="name"
+		:share="{ doctype: 'Material Transfer', name, printFormat: 'BSP Material Transfer' }"
 		:subtitle="__('Material Transfer')"
 		:loading="loading"
 		:not-found="notFound"

@@ -3,6 +3,7 @@
 		<DocumentDetailView
 			:eyebrow="__('Stock Movement')"
 			:title="name"
+			:share="{ doctype: 'Requisition', name }"
 			:subtitle="__('Requisition')"
 			:loading="loading"
 			:not-found="notFound"

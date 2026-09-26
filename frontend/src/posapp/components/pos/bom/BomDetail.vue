@@ -2,6 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('Manufacturing')"
 		:title="name"
+		:share="{ doctype: 'BOM', name }"
 		:subtitle="__('Bill of Materials')"
 		:loading="loading"
 		:not-found="notFound"

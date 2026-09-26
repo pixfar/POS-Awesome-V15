@@ -349,6 +349,50 @@ const routes = [
 		props: { purpose: "Material Receipt" },
 	},
 	{
+		path: "/production-requirements",
+		redirect: "/production-requirements/list",
+	},
+	{
+		path: "/production-requirements/list",
+		component: () =>
+			import("../components/pos/production_requirement/ProductionRequirementList.vue"),
+		meta: {
+			title: "Production Requirements",
+			layout: "default",
+			loadingMessage: "Loading production requirements...",
+		},
+	},
+	{
+		path: "/production-requirements/new",
+		component: () =>
+			import("../components/pos/production_requirement/ProductionRequirementNew.vue"),
+		meta: {
+			title: "New Production Requirement",
+			layout: "default",
+			loadingMessage: "Loading new production requirement...",
+		},
+	},
+	{
+		path: "/production-requirements/:name/edit",
+		component: () =>
+			import("../components/pos/production_requirement/ProductionRequirementNew.vue"),
+		meta: {
+			title: "Edit Production Requirement",
+			layout: "default",
+			loadingMessage: "Loading production requirement...",
+		},
+	},
+	{
+		path: "/production-requirements/:name",
+		component: () =>
+			import("../components/pos/production_requirement/ProductionRequirementDetail.vue"),
+		meta: {
+			title: "Production Requirement",
+			layout: "default",
+			loadingMessage: "Loading production requirement...",
+		},
+	},
+	{
 		path: "/production-plans",
 		redirect: "/production-plans/new",
 	},
@@ -499,6 +543,15 @@ const routes = [
 			title: "Dashboard",
 			layout: "default",
 			loadingMessage: "Loading dashboard...",
+		},
+	},
+	{
+		path: "/my-workspace",
+		component: () => import("@/posapp/components/reports/MyWorkspace.vue"),
+		meta: {
+			title: "My Workspace",
+			layout: "default",
+			loadingMessage: "Loading workspace...",
 		},
 	},
 	{

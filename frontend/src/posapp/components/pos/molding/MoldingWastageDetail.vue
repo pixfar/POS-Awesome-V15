@@ -2,6 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('Molding')"
 		:title="name"
+		:share="{ doctype: 'Molding Weekly Wastage', name }"
 		:subtitle="__('Molding Weekly Wastage')"
 		:loading="loading"
 		:not-found="notFound"

@@ -589,6 +589,14 @@ export default {
 				icon: "mdi-view-dashboard-outline",
 				to: "/overview",
 			});
+			// Admin-only shortcuts to master/HR/payroll doctypes in the desk.
+			if (isFundTransferManager()) {
+				items.splice(1, 0, {
+					text: "My Workspace",
+					icon: "mdi-view-grid-plus-outline",
+					to: "/my-workspace",
+				});
+			}
 			if (this.posProfile?.posa_use_gift_cards) {
 				items.splice(1, 0, {
 					text: "Gift Cards",
@@ -614,6 +622,21 @@ export default {
 						? [{ text: "New Transfer", icon: "mdi-plus-circle-outline", to: "/fund-transfer/new" }]
 						: []),
 					{ text: "Transfers", icon: "mdi-format-list-bulleted", to: "/fund-transfer/list" },
+				],
+			});
+			// Production Requirement: everyone can view (scoped server-side to
+			// their own warehouse); BSP Viewer is read-only so gets no "New".
+			const roles = frappe?.boot?.user?.roles || [];
+			const isReadOnlyViewer =
+				roles.includes("BSP Viewer") && !roles.includes("System Manager") && !roles.includes("BSP Admin");
+			items.push({
+				text: "Production Requirement",
+				icon: "mdi-clipboard-check-outline",
+				children: [
+					...(!isReadOnlyViewer
+						? [{ text: "New Requirement", icon: "mdi-plus-circle-outline", to: "/production-requirements/new" }]
+						: []),
+					{ text: "Requirement List", icon: "mdi-format-list-bulleted", to: "/production-requirements/list" },
 				],
 			});
 			if (isPosWarehouseSwitcher()) {

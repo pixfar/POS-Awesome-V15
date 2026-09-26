@@ -2,6 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('BSP Daily Deposit')"
 		:title="name"
+		:share="{ doctype: 'BSP Daily Deposit', name }"
 		:subtitle="__('Daily Deposit')"
 		:loading="loading"
 		:not-found="notFound"
