@@ -5,7 +5,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import flt, today
+from frappe.utils import flt, getdate, today
 
 from posawesome.posawesome.doctype.material_transfer.material_transfer import (
 	can_confirm_receipt,
@@ -15,6 +15,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_warehouse_doc_list_rows,
 	get_warehouse_doc_status_counts,
 	is_system_manager,
+	is_privileged_invoice_viewer,
 	ensure_can_create,
 )
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
@@ -56,7 +57,12 @@ def create_material_transfer(data):
 		)
 
 	doc = frappe.new_doc('Material Transfer')
-	doc.transaction_date = data.get('transaction_date') or today()
+	# Back/forward-dating is BSP Admin / System Manager only -- same gate as
+	# canEditPostingDate on the client, re-checked here since that's UX-only.
+	transaction_date = data.get('transaction_date') or today()
+	if getdate(transaction_date) != getdate(today()) and not is_privileged_invoice_viewer():
+		transaction_date = today()
+	doc.transaction_date = transaction_date
 	doc.from_warehouse = from_warehouse
 	doc.to_warehouse = to_warehouse
 	doc.custom_do_number = (data.get('custom_do_number') or '').strip() or None

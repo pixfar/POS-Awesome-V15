@@ -653,7 +653,7 @@ export default {
 					method: 'posawesome.posawesome.api.material_transfers.create_material_transfer',
 					args: {
 						data: {
-							transaction_date: getTodayDate(),
+							transaction_date: requiredDate.value,
 							from_warehouse: resolvedFrom,
 							to_warehouse: toWarehouse.value,
 							custom_do_number: customDoNumber.value,

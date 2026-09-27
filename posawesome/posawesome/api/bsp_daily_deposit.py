@@ -285,6 +285,14 @@ def cancel_daily_deposit(name):
 	if doc.payment_entry and frappe.db.get_value('Payment Entry', doc.payment_entry, 'docstatus') == 1:
 		pe = frappe.get_doc('Payment Entry', doc.payment_entry)
 		pe.flags.ignore_permissions = True
+		# The deposit (still submitted at this point) links back to the Payment
+		# Entry via its own `payment_entry` field, so Frappe's back-link check on
+		# pe.cancel() would fail with "Payment Entry ... is linked with BSP Daily
+		# Deposit". (Setting pe.ignore_linked_doctypes doesn't help: ERPNext's
+		# PaymentEntry.on_cancel overwrites it before the check runs.) This PE is
+		# an Internal Transfer created solely for the deposit, which is cancelled
+		# right after, so skipping the back-link check here is safe.
+		pe.flags.ignore_links = True
 		pe.cancel()
 
 	doc.flags.ignore_permissions = True

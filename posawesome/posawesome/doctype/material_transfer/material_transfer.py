@@ -100,6 +100,11 @@ class MaterialTransfer(Document):
 		se.stock_entry_type = 'Material Transfer'
 		se.purpose = 'Material Transfer'
 		se.company = company
+		# Post the dispatch on the Material Transfer's own date so a backdated
+		# transfer isn't booked on today's date.
+		if self.transaction_date:
+			se.set_posting_time = 1
+			se.posting_date = self.transaction_date
 		se.add_to_transit = 1
 		se.from_warehouse = self.from_warehouse
 		se.to_warehouse = transit_warehouse
