@@ -237,6 +237,28 @@ def get_material_transfer_detail(transfer):
 
 
 @frappe.whitelist()
+def get_transfer_warehouses():
+	"""Every active, non-group warehouse, in BSP's official warehouse order,
+	for the Material Transfer "To Warehouse" picker and the list's Warehouse
+	filter.
+
+	frappe.client.get_list applies Warehouse User Permissions, so a user
+	restricted to their own showroom got back only that one warehouse -- and
+	with it already the From Warehouse, To Warehouse ended up empty. Sending
+	stock *to* any warehouse is intended (Material Transfer's from/to
+	warehouse fields carry ignore_user_permissions), so this lists them all."""
+	from bsp_engineering.utils.warehouse_sort import sort_warehouses
+
+	rows = frappe.get_all(
+		'Warehouse',
+		filters={'is_group': 0, 'disabled': 0},
+		fields=['name', 'warehouse_name'],
+		limit_page_length=0,
+	)
+	return sort_warehouses(rows, key='name')
+
+
+@frappe.whitelist()
 def search_items(search_text=None, limit=20):
 	limit = max(1, min(int(limit or 20), 50))
 	filters = {'disabled': 0, 'has_variants': 0}

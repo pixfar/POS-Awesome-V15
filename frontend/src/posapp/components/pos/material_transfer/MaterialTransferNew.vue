@@ -388,13 +388,9 @@ export default {
 		const loadAllWarehouses = async () => {
 			try {
 				const { message } = await frappe.call({
-					method: 'frappe.client.get_list',
-					args: {
-						doctype: 'Warehouse',
-						fields: ['name', 'warehouse_name'],
-						filters: { is_group: 0, disabled: 0 },
-						limit_page_length: 200,
-					},
+					// All warehouses, not just the user's permitted one(s) --
+					// see get_transfer_warehouses.
+					method: 'posawesome.posawesome.api.material_transfers.get_transfer_warehouses',
 				});
 				warehouseOptions.value = message || [];
 			} catch (e) {

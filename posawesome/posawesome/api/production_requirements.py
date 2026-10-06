@@ -10,12 +10,8 @@ module only builds/reads those documents for the POS UI, plus serves the
 "Production Requirement Report" data the create screen shows as its item
 catalog.
 
-Access:
-- Warehouse and Production By default to the logged-in user (their POS
-  warehouse / themselves); only System Manager / BSP Admin may change them.
-- Everyone else is scoped to their permitted warehouse(s), same as the
-  doctype's own permission hooks.
-- BSP Viewer is read-only.
+Access: System Manager and BSP Admin create/edit/delete; BSP Viewer can
+only view; nobody else can use these screens.
 """
 
 import json
@@ -43,8 +39,17 @@ def _parse_json(value):
 
 
 def _ensure_can_view():
-	if not frappe.has_permission(DOCTYPE, 'read'):
+	if not (is_privileged_invoice_viewer() or is_read_only_viewer()):
 		frappe.throw(_('You are not permitted to view Production Requirements.'), exc=frappe.PermissionError)
+
+
+def _ensure_can_manage(action_label):
+	ensure_can_create(action_label)
+	if not is_privileged_invoice_viewer():
+		frappe.throw(
+			_('Only a System Manager or BSP Admin can {0}.').format(action_label),
+			exc=frappe.PermissionError,
+		)
 
 
 def _ensure_doc_access(doc):
@@ -57,16 +62,11 @@ def _ensure_doc_access(doc):
 
 
 def _can_edit():
-	return not is_read_only_viewer()
+	return is_privileged_invoice_viewer()
 
 
-def _can_delete(doc_or_row):
-	if is_read_only_viewer():
-		return False
-	if is_privileged_invoice_viewer():
-		return True
-	# Staff may discard their own sheets.
-	return doc_or_row.get('owner') == frappe.session.user
+def _can_delete():
+	return is_privileged_invoice_viewer()
 
 
 def _user_label(user):
@@ -95,7 +95,7 @@ def get_form_context(pos_profile=None):
 		'production_by_name': _user_label(frappe.session.user),
 		'can_change_warehouse': can_change,
 		'can_change_production_by': can_change,
-		'can_create': not is_read_only_viewer(),
+		'can_create': is_privileged_invoice_viewer(),
 		'today': today(),
 	}
 
@@ -224,7 +224,7 @@ def _resolve_warehouse_for_save(requested, existing_doc, pos_profile):
 @frappe.whitelist()
 def save_production_requirement(data, name=None):
 	"""Create (no `name`) or update a Production Requirement from POS."""
-	ensure_can_create(_('create or edit a Production Requirement'))
+	_ensure_can_manage(_('create or edit a Production Requirement'))
 	data = _parse_json(data) or {}
 
 	existing = None
@@ -280,7 +280,7 @@ def _validated_status(status):
 @frappe.whitelist()
 def set_production_requirement_status(name, status):
 	"""Quick status change from the list/detail pages."""
-	ensure_can_create(_('change the status of a Production Requirement'))
+	_ensure_can_manage(_('change the status of a Production Requirement'))
 	doc = frappe.get_doc(DOCTYPE, name)
 	_ensure_doc_access(doc)
 	doc.db_set('status', _validated_status(status), notify=True)
@@ -390,7 +390,7 @@ def get_production_requirements_list(
 
 	for row in rows:
 		row['can_edit'] = _can_edit()
-		row['can_delete'] = _can_delete(row)
+		row['can_delete'] = _can_delete()
 
 	return {
 		'rows': rows,
@@ -399,7 +399,7 @@ def get_production_requirements_list(
 		'status_counts': status_counts,
 		'total_shortage_qty': flt(totals[0]),
 		'total_plan_qty': flt(totals[1]),
-		'can_create': not is_read_only_viewer(),
+		'can_create': is_privileged_invoice_viewer(),
 	}
 
 
@@ -434,7 +434,7 @@ def get_production_requirement_detail(name):
 		'creation': doc.creation,
 		'modified': doc.modified,
 		'can_edit': _can_edit(),
-		'can_delete': _can_delete(doc.as_dict()),
+		'can_delete': _can_delete(),
 		'items': [
 			{
 				'item_code': row.item_code,
@@ -452,13 +452,8 @@ def get_production_requirement_detail(name):
 
 @frappe.whitelist()
 def delete_production_requirement(name):
-	ensure_can_create(_('delete a Production Requirement'))
+	_ensure_can_manage(_('delete a Production Requirement'))
 	doc = frappe.get_doc(DOCTYPE, name)
 	_ensure_doc_access(doc)
-	if not _can_delete(doc.as_dict()):
-		frappe.throw(
-			_('Only its creator, a System Manager or a BSP Admin can delete this Production Requirement.'),
-			exc=frappe.PermissionError,
-		)
 	frappe.delete_doc(DOCTYPE, name, ignore_permissions=True)
 	return {'name': name}

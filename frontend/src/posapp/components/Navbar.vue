@@ -624,21 +624,21 @@ export default {
 					{ text: "Transfers", icon: "mdi-format-list-bulleted", to: "/fund-transfer/list" },
 				],
 			});
-			// Production Requirement: everyone can view (scoped server-side to
-			// their own warehouse); BSP Viewer is read-only so gets no "New".
-			const roles = frappe?.boot?.user?.roles || [];
-			const isReadOnlyViewer =
-				roles.includes("BSP Viewer") && !roles.includes("System Manager") && !roles.includes("BSP Admin");
-			items.push({
-				text: "Production Requirement",
-				icon: "mdi-clipboard-check-outline",
-				children: [
-					...(!isReadOnlyViewer
-						? [{ text: "New Requirement", icon: "mdi-plus-circle-outline", to: "/production-requirements/new" }]
-						: []),
-					{ text: "Requirement List", icon: "mdi-format-list-bulleted", to: "/production-requirements/list" },
-				],
-			});
+			// Production Requirement: System Manager / BSP Admin manage it, BSP
+			// Viewer can only look (no "New"); hidden from everyone else. Same
+			// rule is enforced server-side in api/production_requirements.py.
+			if (isPosWarehouseSwitcher()) {
+				items.push({
+					text: "Production Requirement",
+					icon: "mdi-clipboard-check-outline",
+					children: [
+						...(isFundTransferManager()
+							? [{ text: "New Requirement", icon: "mdi-plus-circle-outline", to: "/production-requirements/new" }]
+							: []),
+						{ text: "Requirement List", icon: "mdi-format-list-bulleted", to: "/production-requirements/list" },
+					],
+				});
+			}
 			if (isPosWarehouseSwitcher()) {
 				items.push({
 					text: "Production Plan",
