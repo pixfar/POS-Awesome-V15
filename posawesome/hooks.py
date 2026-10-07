@@ -129,6 +129,10 @@ permission_query_conditions = {
         "posawesome.posawesome.utils.warehouse_doc_permissions"
         ".get_material_transfer_permission_query"
     ),
+    "Stock Entry": (
+        "posawesome.posawesome.utils.warehouse_doc_permissions"
+        ".get_stock_entry_permission_query"
+    ),
 }
 
 has_permission = {
@@ -139,6 +143,10 @@ has_permission = {
     "Material Transfer": (
         "posawesome.posawesome.utils.warehouse_doc_permissions"
         ".has_material_transfer_permission"
+    ),
+    "Stock Entry": (
+        "posawesome.posawesome.utils.warehouse_doc_permissions"
+        ".has_stock_entry_permission"
     ),
 }
 

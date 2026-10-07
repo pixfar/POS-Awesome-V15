@@ -475,3 +475,104 @@ def has_material_transfer_permission(doc, ptype='read', user=None, debug=False):
 		'to_warehouse',
 		user=user,
 	)
+
+
+# ---------------------------------------------------------------------------
+# Stock Entry
+# ---------------------------------------------------------------------------
+# A showroom transfer passes through "Goods In Transit - BSP" (or names the
+# other showroom), so plain User Permissions -- which demand that *every*
+# warehouse on the document be permitted -- locked showroom users out of
+# their own stock entries. Stock Entry's warehouse fields carry
+# ignore_user_permissions (bsp_engineering fixtures) and these hooks apply
+# the source-OR-target rule instead.
+#
+# Only users restricted by a Warehouse User Permission are scoped here;
+# everyone else (System Manager / BSP Admin / BSP Viewer, and users with no
+# Warehouse User Permission such as Store Room or manufacturing staff) keeps
+# exactly the access they had before.
+
+STOCK_ENTRY_ACTION_PTYPES = frozenset({'create', 'write', 'submit', 'cancel', 'amend', 'delete'})
+
+
+def get_stock_entry_warehouses(user=None):
+	"""Warehouses a restricted user may act on for Stock Entry: their Warehouse
+	User Permission(s) plus their POS Profile warehouse(s), including child
+	warehouses of any group. None means not restricted (unchanged access)."""
+	user = user or frappe.session.user
+	if user == 'Administrator' or is_privileged_invoice_viewer(user) or is_read_only_viewer(user):
+		return None
+
+	permitted = frappe.db.sql_list(
+		"""
+		SELECT for_value FROM `tabUser Permission`
+		WHERE user = %(user)s AND allow = 'Warehouse'
+			AND (apply_to_all_doctypes = 1 OR applicable_for = 'Stock Entry')
+		""",
+		{'user': user},
+	)
+	if not permitted:
+		return None
+
+	profile_warehouses = frappe.db.sql_list(
+		"""
+		SELECT DISTINCT pp.warehouse FROM `tabPOS Profile User` pu
+		INNER JOIN `tabPOS Profile` pp ON pp.name = pu.parent
+		WHERE pu.user = %(user)s AND pp.disabled = 0 AND IFNULL(pp.warehouse, '') != ''
+		""",
+		{'user': user},
+	)
+
+	warehouses = set()
+	for name in [*permitted, *profile_warehouses]:
+		if not name:
+			continue
+		warehouses.add(name)
+		if frappe.db.get_value('Warehouse', name, 'is_group'):
+			warehouses.update(frappe.db.get_descendants('Warehouse', name) or [])
+	return sorted(warehouses)
+
+
+def _stock_entry_warehouse_sides(doc):
+	sources = {doc.get('from_warehouse')}
+	targets = {doc.get('to_warehouse')}
+	for row in doc.get('items') or []:
+		sources.add(row.get('s_warehouse'))
+		targets.add(row.get('t_warehouse'))
+	return sources - {None, ''}, targets - {None, ''}
+
+
+def get_stock_entry_permission_query(user=None, doctype=None):
+	warehouses = get_stock_entry_warehouses(user)
+	if warehouses is None:
+		return ''
+	in_list = _sql_in_list(warehouses)
+	return (
+		f'(`tabStock Entry`.from_warehouse in {in_list}'
+		f' or `tabStock Entry`.to_warehouse in {in_list}'
+		' or exists (select 1 from `tabStock Entry Detail` sed'
+		' where sed.parent = `tabStock Entry`.name and sed.parenttype = \'Stock Entry\''
+		f' and (sed.s_warehouse in {in_list} or sed.t_warehouse in {in_list})))'
+	)
+
+
+def has_stock_entry_permission(doc, ptype='read', user=None, debug=False):
+	"""View: any source or target warehouse is the user's. Create/edit/submit/
+	cancel: every source warehouse is the user's (or, with no source, every
+	target) -- stock can be sent out of the user's warehouse but never pulled
+	in from someone else's."""
+	warehouses = get_stock_entry_warehouses(user)
+	if warehouses is None:
+		return None
+	allowed = set(warehouses)
+	sources, targets = _stock_entry_warehouse_sides(doc)
+
+	if ptype in STOCK_ENTRY_ACTION_PTYPES:
+		if sources:
+			return sources <= allowed
+		if targets:
+			return targets <= allowed
+		# Nothing set yet (a blank new form) -- the real check runs on save.
+		return True
+
+	return bool((sources | targets) & allowed)
