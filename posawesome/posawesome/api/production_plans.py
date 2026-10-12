@@ -371,6 +371,7 @@ def get_production_plans_list(
 		'docstatus',
 		'total_planned_qty',
 		'modified',
+		'creation',
 	]
 
 	rows = frappe.get_list(
@@ -378,7 +379,7 @@ def get_production_plans_list(
 		filters=filters,
 		or_filters=or_filters,
 		fields=fields,
-		order_by=f'`tab{doctype}`.posting_date desc, `tab{doctype}`.modified desc',
+		order_by=f'`tab{doctype}`.creation desc',
 		limit_start=page_start,
 		limit_page_length=page_length,
 		distinct=True,

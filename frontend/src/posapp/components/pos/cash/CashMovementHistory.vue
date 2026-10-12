@@ -63,6 +63,9 @@
 			<template #item.posting_date="{ item }">
 				{{ formatPostingDate(item.posting_date) }}
 			</template>
+			<template #item.creation_ampm="{ item }">
+				{{ formatDisplayTimeAmPm(item.creation) }}
+			</template>
 			<template #item.docstatus="{ item }">
 				<v-chip size="small" :color="statusColor(item.docstatus)">
 					{{ statusLabel(item.docstatus) }}
@@ -105,6 +108,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { formatDisplayTimeAmPm } from "../shared/docStatusUtils";
 
 const __ = window.__ || ((text: string, _args?: any[]) => text);
 
@@ -175,6 +179,7 @@ const movementTypeFilters = [
 
 const headers: any[] = [
 	{ title: __("Date"), key: "posting_date" },
+	{ title: __("Time"), key: "creation_ampm" },
 	{ title: __("Against Name"), key: "against_name" },
 	{ title: __("Type"), key: "movement_type" },
 	{ title: __("Amount"), key: "amount", align: "end" },

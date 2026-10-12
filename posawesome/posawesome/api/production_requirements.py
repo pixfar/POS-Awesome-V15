@@ -364,13 +364,13 @@ def get_production_requirements_list(
 		f"""
 		SELECT pr.name, pr.production_date, pr.posting_date, pr.warehouse, pr.production_by,
 			pr.status, pr.total_shortage_qty, pr.total_plan_qty,
-			pr.owner, pr.modified, wh.warehouse_name, usr.full_name AS production_by_name,
+			pr.owner, pr.modified, pr.creation, wh.warehouse_name, usr.full_name AS production_by_name,
 			(SELECT COUNT(*) FROM `tab{ITEM_DOCTYPE}` c WHERE c.parent = pr.name AND c.parenttype = '{DOCTYPE}') AS item_count
 		FROM `tab{DOCTYPE}` pr
 		LEFT JOIN `tabWarehouse` wh ON wh.name = pr.warehouse
 		LEFT JOIN `tabUser` usr ON usr.name = pr.production_by
 		WHERE {base_where}
-		ORDER BY pr.production_date DESC, pr.modified DESC
+		ORDER BY pr.creation DESC
 		LIMIT %(page_start)s, %(page_length)s
 		""",
 		values,

@@ -95,6 +95,9 @@
 					<template #item.date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.total_work_kg="{ item }">{{ formatFloat(item.total_work_kg) }}</template>
 					<template #item.rate_per_kg="{ item }">{{ formatCurrency(item.rate_per_kg) }}</template>
 					<template #item.total_wage="{ item }">{{ formatCurrency(item.total_wage) }}</template>
@@ -176,6 +179,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Production'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Workers'), key: 'employee_count', sortable: true, align: 'end' },
 			{ title: __('Work (KG)'), key: 'total_work_kg', sortable: true, align: 'end' },
 			{ title: __('Rate / KG'), key: 'rate_per_kg', sortable: true, align: 'end' },

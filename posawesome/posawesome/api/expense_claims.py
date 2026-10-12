@@ -271,6 +271,7 @@ def get_expense_claims_list(
 		'is_paid',
 		'docstatus',
 		'custom_warehouse as warehouse',
+		'creation',
 	]
 
 	rows = frappe.get_all(
@@ -278,7 +279,7 @@ def get_expense_claims_list(
 		filters=filters,
 		or_filters=or_filters,
 		fields=fields,
-		order_by='posting_date desc, creation desc',
+		order_by='creation desc',
 		start=page_start,
 		page_length=page_length,
 		ignore_permissions=True,

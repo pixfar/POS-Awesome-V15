@@ -1074,6 +1074,7 @@ def get_purchase_invoices_list(
         f"`tab{doctype}`.owner as owner",
         f"`tab{doctype}`.is_return as is_return",
         f"`tab{doctype}`.update_stock as update_stock",
+        f"`tab{doctype}`.creation as creation",
     ]
     if has_do_number:
         fields.append(f"`tab{doctype}`.custom_do_number as custom_do_number")
@@ -1085,7 +1086,7 @@ def get_purchase_invoices_list(
         filters=filters,
         or_filters=or_filters,
         fields=fields,
-        order_by=f"`tab{doctype}`.posting_date desc, `tab{doctype}`.posting_time desc, `tab{doctype}`.modified desc",
+        order_by=f"`tab{doctype}`.creation desc",
         limit_start=page_start,
         limit_page_length=page_length,
         distinct=True,

@@ -17,6 +17,8 @@ import "../style.css";
 import "./styles/theme.css";
 import eventBus from "./bus";
 import themePlugin from "./plugins/theme";
+import { installNativeTooltipSuppressor } from "./plugins/suppressNativeTooltips";
+import { formatDisplayTimeAmPm } from "./components/pos/shared/docStatusUtils";
 import { pinia } from "./stores";
 import { useToastStore } from "./stores/toastStore";
 import { useSocketStore } from "./stores/socketStore";
@@ -119,6 +121,7 @@ class PosAppController {
 	router: any;
 	routerHistory: any;
 	$el: any;
+	disposeTooltipSuppressor: (() => void) | null = null;
 
 	constructor(input: any) {
 		const parent = input?.parent || input;
@@ -135,6 +138,9 @@ class PosAppController {
 	async initializeApp() {
 		// Vuetify instance is now imported from plugins/vuetify.ts
 		this.app = createApp(App);
+		// Global template helper for the list "Time" columns (creation-based,
+		// AM/PM), available in every component template without per-file imports.
+		this.app.config.globalProperties.$posTimeAmPm = formatDisplayTimeAmPm;
 		const { router, history } = createPosAppRouter();
 		this.router = router;
 		this.routerHistory = history;
@@ -169,6 +175,7 @@ class PosAppController {
 		installGlobalErrorHandlers(this.app);
 
 		this.app.mount(this.$el[0]);
+		this.disposeTooltipSuppressor = installNativeTooltipSuppressor(this.$el[0]);
 		clearChunkRecoveryState();
 		void this.router.isReady().finally(() => {
 			scheduleChunkRecoveryStateReset();
@@ -186,6 +193,10 @@ class PosAppController {
 	}
 
 	unmount() {
+		if (this.disposeTooltipSuppressor) {
+			this.disposeTooltipSuppressor();
+			this.disposeTooltipSuppressor = null;
+		}
 		if (this.app) {
 			// Clean up router to prevent global navigation interference
 			if (this.router) {

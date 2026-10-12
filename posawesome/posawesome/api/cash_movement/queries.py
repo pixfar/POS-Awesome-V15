@@ -59,8 +59,9 @@ def get_shift_movements(
             "docstatus",
             "modified",
             "owner",
+            "creation",
         ],
-        order_by="modified desc",
+        order_by="creation desc",
         start=limit_start,
         page_length=limit_page_length,
     )

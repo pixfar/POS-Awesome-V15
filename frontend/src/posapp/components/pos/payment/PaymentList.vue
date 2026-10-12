@@ -194,6 +194,9 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.party_name="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.party_name || item.party">
 							{{ item.party_name || item.party }}
@@ -485,6 +488,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Payment'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Party'), key: 'party_name', sortable: true },
 			{ title: __('Type'), key: 'payment_type', sortable: true },
 			{ title: __('Mode'), key: 'mode_of_payment', sortable: true },

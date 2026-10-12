@@ -169,6 +169,9 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.warehouse="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.warehouse">
 							{{ item.warehouse_name || item.warehouse }}
@@ -392,6 +395,7 @@ export default {
 			{ title: __("ID"), key: "name", sortable: true },
 			{ title: __("Production Date"), key: "production_date", sortable: true },
 			{ title: __("Posting Date"), key: "posting_date", sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __("Warehouse"), key: "warehouse", sortable: true },
 			{ title: __("Production By"), key: "production_by", sortable: true },
 			{ title: __("Items"), key: "item_count", sortable: true, align: "end" },

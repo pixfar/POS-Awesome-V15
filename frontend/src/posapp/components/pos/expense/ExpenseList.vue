@@ -110,6 +110,9 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.remark="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.remark">{{ item.remark || "—" }}</span>
 					</template>
@@ -310,6 +313,7 @@ export default {
 			{ title: __('Employee'), key: 'employee_name', sortable: true },
 			{ title: __('Warehouse'), key: 'warehouse', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Remark'), key: 'remark', sortable: false },
 			{ title: __('Amount'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'status', sortable: true },

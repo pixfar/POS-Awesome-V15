@@ -97,6 +97,12 @@
 							{{ formatDisplayDate(item.start_date) }} → {{ formatDisplayDate(item.end_date) }}
 						</span>
 					</template>
+					<template #item.creation_dt="{ item }">
+						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.creation) }}</span>
+					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.total_weekly_work_kg="{ item }">{{ formatFloat(item.total_weekly_work_kg) }}</template>
 					<template #item.allowed_wastage_kg="{ item }">{{ formatFloat(item.allowed_wastage_kg) }}</template>
 					<template #item.actual_wastage_kg="{ item }">{{ formatFloat(item.actual_wastage_kg) }}</template>
@@ -180,6 +186,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Wastage'), key: 'name', sortable: true },
 			{ title: __('Period'), key: 'period', sortable: false },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Work (KG)'), key: 'total_weekly_work_kg', sortable: true, align: 'end' },
 			{ title: __('Allowed (KG)'), key: 'allowed_wastage_kg', sortable: true, align: 'end' },
 			{ title: __('Actual (KG)'), key: 'actual_wastage_kg', sortable: true, align: 'end' },

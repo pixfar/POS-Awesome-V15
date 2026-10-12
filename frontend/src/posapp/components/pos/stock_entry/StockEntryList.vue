@@ -119,6 +119,9 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.remarks="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.remarks">{{ item.remarks || "—" }}</span>
 					</template>
@@ -212,6 +215,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Stock Entry'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Warehouse'), key: 'warehouse', sortable: true },
 			{ title: __('Items'), key: 'item_count', sortable: true, align: 'end' },
 			{ title: __('Qty'), key: 'total_qty', sortable: true, align: 'end' },

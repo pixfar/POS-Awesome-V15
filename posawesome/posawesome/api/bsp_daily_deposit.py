@@ -207,6 +207,7 @@ def get_daily_deposits_list(
 		'docstatus',
 		'status',
 		'payment_entry',
+		'creation',
 	]
 
 	rows = frappe.get_all(
@@ -214,7 +215,7 @@ def get_daily_deposits_list(
 		filters=filters,
 		or_filters=or_filters,
 		fields=fields,
-		order_by='posting_date desc, creation desc',
+		order_by='creation desc',
 		start=page_start,
 		page_length=page_length,
 		ignore_permissions=True,

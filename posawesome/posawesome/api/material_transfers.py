@@ -83,6 +83,43 @@ def create_material_transfer(data):
 	if not doc.items:
 		frappe.throw(_('Add at least one item with quantity.'), title=_('Items Required'))
 
+	# Pre-check every item's stock up front so the cashier sees ALL shortages at
+	# once, instead of ERPNext's Stock Entry validation throwing on the first
+	# short item one by one. The linked Stock Entry maps qty 1:1 to stock qty
+	# (conversion_factor = 1, see MaterialTransfer.on_submit), so the required
+	# stock qty per item is simply its qty in the From Warehouse. This only
+	# changes the error message; the Stock Entry still runs its own check on
+	# submit, so nothing can slip through.
+	required_by_item = {}
+	name_by_item = {}
+	for mt_item in doc.items:
+		required_by_item[mt_item.item_code] = required_by_item.get(mt_item.item_code, 0) + flt(mt_item.qty)
+		name_by_item[mt_item.item_code] = mt_item.item_name or mt_item.item_code
+
+	on_hand = get_stock_qty(list(required_by_item.keys()), doc.from_warehouse)
+	shortages = [
+		(code, name_by_item[code], need, flt(on_hand.get(code, 0)))
+		for code, need in required_by_item.items()
+		if flt(on_hand.get(code, 0)) < need
+	]
+	if shortages:
+		rows_html = ''.join(
+			_('<li><b>{0}</b> units of <b>{1}: {2}</b> needed, but only <b>{3}</b> available.</li>').format(
+				'%g' % flt(need),
+				frappe.utils.escape_html(code),
+				frappe.utils.escape_html(name),
+				'%g' % flt(have),
+			)
+			for code, name, need, have in shortages
+		)
+		frappe.throw(
+			_('The following items do not have enough stock in {0} to complete this transfer:').format(
+				frappe.bold(doc.from_warehouse)
+			)
+			+ f'<ul style="margin-top:8px">{rows_html}</ul>',
+			title=_('Insufficient Stock'),
+		)
+
 	doc.insert()
 	if doc.docstatus == 0:
 		doc.submit()
@@ -144,6 +181,7 @@ def get_material_transfers_list(
 			'custom_do_number',
 			'docstatus',
 			'modified',
+			'creation',
 		],
 		page_start=page_start,
 		page_length=page_length,

@@ -340,8 +340,9 @@ def get_payment_history(
             "unallocated_amount",
             "payment_type",
             "reference_no",
+            "creation",
         ],
-        order_by="posting_date desc, creation desc",
+        order_by="creation desc",
         limit_start=page_start,
         limit_page_length=page_length,
     )
@@ -464,6 +465,7 @@ def get_payment_entries_list(
         "company",
         "owner",
         "docstatus",
+        "creation",
     ]
 
     rows = frappe.get_list(
@@ -471,7 +473,7 @@ def get_payment_entries_list(
         filters=filters,
         or_filters=or_filters,
         fields=fields,
-        order_by="posting_date desc, creation desc",
+        order_by="creation desc",
         limit_start=page_start,
         limit_page_length=page_length,
         distinct=True,

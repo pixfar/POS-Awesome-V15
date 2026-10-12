@@ -200,6 +200,9 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.supplier="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.supplier">{{ item.supplier }}</span>
 					</template>
@@ -673,6 +676,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Invoice'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Supplier'), key: 'supplier', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
 			{ title: __('Receipt Status'), key: 'receipt_status', sortable: true },

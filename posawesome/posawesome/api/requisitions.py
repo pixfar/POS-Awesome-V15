@@ -193,6 +193,7 @@ def get_requisitions_list(
 			'transfer_status',
 			'docstatus',
 			'modified',
+			'creation',
 		],
 		page_start=page_start,
 		page_length=page_length,

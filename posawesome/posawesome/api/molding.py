@@ -66,7 +66,7 @@ def _list(doctype, fields, date_field, from_date=None, to_date=None, search=None
 		filters=filters,
 		or_filters=or_filters,
 		fields=fields,
-		order_by=f'{date_field} desc, modified desc',
+		order_by='creation desc',
 		limit_start=page_start,
 		limit_page_length=page_length,
 		ignore_permissions=True,
@@ -177,7 +177,7 @@ def get_daily_production_list(from_date=None, to_date=None, search=None, page_st
 	_ensure_can_view()
 	rows, total = _list(
 		DAILY_PRODUCTION,
-		['name', 'date', 'rate_per_kg', 'total_work_kg', 'total_wage', 'docstatus', 'modified'],
+		['name', 'date', 'rate_per_kg', 'total_work_kg', 'total_wage', 'docstatus', 'modified', 'creation'],
 		'date',
 		from_date=from_date,
 		to_date=to_date,
@@ -316,6 +316,7 @@ def get_weekly_wastage_list(from_date=None, to_date=None, search=None, page_star
 			'penalty_amount',
 			'docstatus',
 			'modified',
+			'creation',
 		],
 		'start_date',
 		from_date=from_date,

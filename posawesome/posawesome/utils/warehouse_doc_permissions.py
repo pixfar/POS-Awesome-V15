@@ -360,7 +360,7 @@ def get_warehouse_doc_list_rows(
 		SELECT {field_sql}
 		FROM {table} AS main
 		WHERE {where_clause}
-		ORDER BY main.modified DESC
+		ORDER BY main.creation DESC
 		LIMIT %(limit_start)s, %(limit_length)s
 		""",
 		{

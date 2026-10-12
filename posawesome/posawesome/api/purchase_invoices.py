@@ -144,8 +144,8 @@ def get_purchase_drafts(search=None, limit=50):
 		"Purchase Invoice",
 		filters=filters,
 		or_filters=or_filters,
-		fields=["name", "supplier", "supplier_name", "posting_date", "set_warehouse", "grand_total", "currency", "modified", "owner"],
-		order_by="modified desc",
+		fields=["name", "supplier", "supplier_name", "posting_date", "set_warehouse", "grand_total", "currency", "modified", "owner", "creation"],
+		order_by="creation desc",
 		limit_page_length=limit,
 		ignore_permissions=True,
 	)

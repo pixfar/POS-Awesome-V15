@@ -181,6 +181,9 @@
 					<template #item.transaction_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.transaction_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.source_warehouse="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.source_warehouse">
 							{{ item.source_warehouse }}
@@ -394,6 +397,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Requisition'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'transaction_date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('From'), key: 'source_warehouse', sortable: true },
 			{ title: __('To'), key: 'target_warehouse', sortable: true },
 			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },

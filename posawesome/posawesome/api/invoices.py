@@ -97,9 +97,10 @@ def get_draft_invoices(
             "pos_profile",
             "owner",
             "modified_by",
+            "creation",
         ],
         limit_page_length=limit_page_length,
-        order_by="modified desc",
+        order_by="creation desc",
     )
     for invoice in invoices_list:
         invoice["doctype"] = doctype
@@ -208,6 +209,7 @@ def get_sales_invoices_list(
         f"`tab{doctype}`.currency as currency",
         f"`tab{doctype}`.is_return as is_return",
         f"`tab{doctype}`.owner as owner",
+        f"`tab{doctype}`.creation as creation",
     ]
     if doctype == "Sales Invoice":
         fields.append(f"`tab{doctype}`.update_stock as update_stock")
@@ -221,7 +223,7 @@ def get_sales_invoices_list(
         filters=filters,
         or_filters=or_filters,
         fields=fields,
-        order_by=f"`tab{doctype}`.posting_date desc, `tab{doctype}`.posting_time desc, `tab{doctype}`.modified desc",
+        order_by=f"`tab{doctype}`.creation desc",
         limit_start=page_start,
         limit_page_length=page_length,
         distinct=True,

@@ -140,6 +140,9 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.amount="{ item }">
 						{{ formatCurrency(item.amount) }}
 					</template>
@@ -329,6 +332,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Transfer'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Paid From'), key: 'paid_from', sortable: true },
 			{ title: __('Paid To'), key: 'paid_to', sortable: true },
 			{ title: __('Mode of Payment'), key: 'mode_of_payment', sortable: true },

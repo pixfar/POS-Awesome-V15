@@ -204,6 +204,9 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.customer_name="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.customer_name || item.customer">
 							{{ item.customer_name || item.customer }}
@@ -689,6 +692,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Invoice'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Customer'), key: 'customer_name', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
 			{ title: __('Delivery Status'), key: 'delivery_status', sortable: true },

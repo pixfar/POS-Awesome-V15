@@ -176,10 +176,10 @@ def get_stock_entries_list(
 	rows = frappe.db.sql(
 		f"""
 		SELECT se.name, se.posting_date, se.total_outgoing_value, se.total_incoming_value,
-			se.remarks, se.owner, se.docstatus, se.modified
+			se.remarks, se.owner, se.docstatus, se.modified, se.creation
 		FROM `tabStock Entry` se
 		WHERE {where_clause}
-		ORDER BY se.posting_date DESC, se.modified DESC
+		ORDER BY se.creation DESC
 		LIMIT %(limit_start)s, %(limit_length)s
 		""",
 		{**values, 'limit_start': page_start, 'limit_length': page_length},

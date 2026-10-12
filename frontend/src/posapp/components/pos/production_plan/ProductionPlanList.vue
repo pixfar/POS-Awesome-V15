@@ -159,6 +159,9 @@
 					<template #item.posting_date="{ item }">
 						<span class="pos-list-cell-muted">{{ formatDisplayDate(item.posting_date) }}</span>
 					</template>
+					<template #item.creation_ampm="{ item }">
+						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
+					</template>
 					<template #item.for_warehouse="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.for_warehouse">
 							{{ item.for_warehouse || "—" }}
@@ -355,6 +358,7 @@ export default {
 		const listHeaders = [
 			{ title: __('Plan'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Source Warehouse'), key: 'for_warehouse', sortable: true },
 			{ title: __('Planned Qty'), key: 'total_planned_qty', sortable: true, align: 'end' },
 			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
