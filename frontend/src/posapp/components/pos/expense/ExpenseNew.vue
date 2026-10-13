@@ -262,6 +262,7 @@ import { useUIStore } from '../../../stores/uiStore.js';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import { useToastStore } from '../../../stores/toastStore';
 import { isPosWarehouseSwitcher, isFundTransferManager } from '../../../utils/posWarehouseAccess';
+import { useWarehouseAccountSync } from '../../../composables/pos/shared/useWarehouseAccountSync';
 import DateFilterField from '../shared/DateFilterField.vue';
 
 const getTodayDate = () =>
@@ -320,6 +321,12 @@ export default {
 		const warehouseLabel = ref('');
 		const warehouseLoading = ref(false);
 		const warehouse = ref(null);
+		// Picking a warehouse selects that warehouse's own cash account.
+		const { syncAccountForWarehouse } = useWarehouseAccountSync({
+			warehouse,
+			account: paymentAccountOverride,
+			enabled: canEditPaymentAccount,
+		});
 
 		const expenseTypeOptions = ref([]);
 		const expenseDate = ref(getTodayDate());
@@ -591,6 +598,8 @@ export default {
 					// dropdown.
 					paymentAccountOverride.value =
 						uiStore.activeSaleAccount || pos_profile.value?.account_for_change_amount || null;
+					// ...then make sure it belongs to the selected warehouse.
+					syncAccountForWarehouse();
 					loadCashInHandAccounts();
 				},
 				{ immediate: true },

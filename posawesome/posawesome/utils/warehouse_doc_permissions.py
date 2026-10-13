@@ -327,7 +327,10 @@ def get_warehouse_doc_list_rows(
 	search_fields=None,
 	include_cancelled=False,
 	include_draft=False,
+	order_by='main.creation DESC',
 ):
+	"""``order_by`` is a fixed SQL fragment chosen by the calling endpoint
+	(never user input), using the ``main`` table alias."""
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
 
@@ -360,7 +363,7 @@ def get_warehouse_doc_list_rows(
 		SELECT {field_sql}
 		FROM {table} AS main
 		WHERE {where_clause}
-		ORDER BY main.creation DESC
+		ORDER BY {order_by}
 		LIMIT %(limit_start)s, %(limit_length)s
 		""",
 		{

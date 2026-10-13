@@ -461,6 +461,7 @@ import PurchaseItemsTable from "./PurchaseItemsTable.vue";
 import { ref, watch, onMounted, onBeforeUnmount, inject, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { isPosWarehouseSwitcher, isFundTransferManager } from "../../../utils/posWarehouseAccess";
+import { useWarehouseAccountSync } from "../../../composables/pos/shared/useWarehouseAccountSync";
 import { openDocumentPdfPrint } from "../../../utils/openDocumentPdfPrint";
 import { useCompactTransactionPanel } from "../../../composables/core/useCompactTransactionPanel";
 import UomConversionDialog from "./UomConversionDialog.vue";
@@ -581,6 +582,12 @@ export default {
 		const cashAccountOptions = ref([]);
 		const cashAccountsLoading = ref(false);
 		const paymentAccountOverride = ref(null);
+		// Picking a warehouse selects that warehouse's own cash account.
+		const { syncAccountForWarehouse } = useWarehouseAccountSync({
+			warehouse,
+			account: paymentAccountOverride,
+			enabled: canEditPaymentAccount,
+		});
 		const payments = ref([]);
 		const discountAmount = ref(0);
 		const itemSearchQuery = ref("");
@@ -1153,6 +1160,8 @@ export default {
 					// from the dropdown.
 					paymentAccountOverride.value =
 						uiStore.activeSaleAccount || pos_profile.value?.account_for_change_amount || null;
+					// ...then make sure it belongs to the selected warehouse.
+					syncAccountForWarehouse();
 					loadCashInHandAccounts(company);
 				},
 				{ immediate: true },

@@ -186,6 +186,11 @@ def get_material_transfers_list(
 		page_start=page_start,
 		page_length=page_length,
 		extra_filters={'transfer_status': status} if status else None,
+		# Newest posting date first; within a date, latest first by the time
+		# shown in the list's Time column (time of day of creation -- Material
+		# Transfer has no separate posting time). A back-dated transfer sorts
+		# under its own date. creation/name keep paging stable on ties.
+		order_by='main.transaction_date DESC, TIME(main.creation) DESC, main.creation DESC, main.name DESC',
 		**shared_filter_args,
 	)
 
