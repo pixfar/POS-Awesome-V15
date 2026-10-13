@@ -419,6 +419,7 @@ import { storeToRefs } from "pinia";
 import stockCoordinator from "../../utils/stockCoordinator";
 import { getCurrentInstance, ref, computed } from "vue";
 import { save_and_clear_invoice as saveAndClearInvoiceAction } from "./invoice_utils/actions";
+import { applyWarehouseToDocItems } from "./invoice_utils/warehouse";
 import { fetchDraftInvoices } from "../../utils/draftInvoices";
 
 // Composables
@@ -796,6 +797,7 @@ export default {
 					// warehouse. loadActiveWarehouseLabel (the non-canChangePosWarehouse
 					// sibling of this function) already does this.
 					this.syncCartWarehouse(defaultWh);
+					await this.syncAccountForWarehouse(defaultWh);
 					await this.reloadItemsForWarehouse(defaultWh);
 				}
 			} catch (e) {
@@ -862,14 +864,18 @@ export default {
 			// set_warehouse and everything else in the UI already showed the
 			// new one. Same class of bug, and same fix, as
 			// paymentAccountOverride's watcher below.
+			//
+			// Rows in this cached doc usually came back from the server
+			// (update_invoice / frappe.client.get), where is_stock_item is
+			// missing -- it isn't a Sales Invoice Item field. Requiring a
+			// truthy is_stock_item here skipped every such row, so stock went
+			// out of the previous warehouse. Only a row known to be non-stock
+			// (from the row itself or its cart line) is left without a
+			// warehouse; everything else follows the switch.
 			const doc = this.invoiceStore.invoiceDoc;
 			if (doc) {
 				const updatedItems = Array.isArray(doc.items)
-					? doc.items.map((item) =>
-							item && item.is_stock_item && item.warehouse !== warehouse
-								? { ...item, warehouse }
-								: item,
-						)
+					? applyWarehouseToDocItems(doc.items, warehouse, this.items)
 					: doc.items;
 				this.invoiceStore.setInvoiceDoc({
 					...doc,
@@ -878,11 +884,32 @@ export default {
 				});
 			}
 		},
+		// Each warehouse lists its own Cash / Bank Accounts; a sale's money
+		// must land in the same warehouse its stock leaves from. Switching
+		// warehouse selects that warehouse's account (keeping the current one
+		// if it already belongs to it). The server enforces the same rule.
+		async syncAccountForWarehouse(warehouse) {
+			if (!this.canEditPaymentAccount || !warehouse) {
+				return;
+			}
+			try {
+				const r = await frappe.call({
+					method: "posawesome.posawesome.utils.invoice_warehouse.get_sale_cash_account",
+					args: { warehouse, current: this.paymentAccountOverride },
+				});
+				if (r?.message && r.message !== this.paymentAccountOverride) {
+					this.paymentAccountOverride = r.message;
+				}
+			} catch (error) {
+				console.error("Failed to resolve the warehouse's cash account", error);
+			}
+		},
 		async handleSaleWarehouseChange(warehouse) {
 			if (!this.canChangePosWarehouse || !warehouse) {
 				return;
 			}
 			this.syncCartWarehouse(warehouse);
+			await this.syncAccountForWarehouse(warehouse);
 			const canRefresh = this.canChangePosWarehouse;
 			this.itemsStore?.setActiveSaleWarehouse?.(warehouse);
 			if (

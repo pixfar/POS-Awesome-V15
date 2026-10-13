@@ -29,6 +29,7 @@ from posawesome.posawesome.api.payment_processing.utils import get_bank_cash_acc
 from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
 from posawesome.posawesome.api.utilities import ensure_child_doctype, set_batch_nos_for_bundels
 from posawesome.posawesome.api.payments import redeeming_customer_credit
+from posawesome.posawesome.utils.invoice_warehouse import apply_sale_warehouse
 from posawesome.posawesome.utils.warehouse_doc_permissions import ensure_can_create, is_privileged_invoice_viewer
 from posawesome.posawesome.api.idempotency import (
     extract_invoice_client_request_id,
@@ -715,32 +716,17 @@ def _enforce_set_warehouse_on_items(invoice_doc):
     -- the persisted document can never end up posting stock against a
     warehouse the cashier wasn't even looking at by the time they paid.
 
-    A no-op when set_warehouse isn't set (falls through to whatever each
-    item already carries, same as today for any caller that hasn't adopted
-    the "Accounts"-style per-sale override screens yet).
+    When set_warehouse isn't set, stock items keep whatever warehouse they
+    already carry (same as today for any caller that hasn't adopted the
+    "Accounts"-style per-sale override screens yet).
+
+    Stock/non-stock is decided from the Item master (see
+    posawesome.posawesome.utils.invoice_warehouse) -- never from an
+    ``is_stock_item`` attribute on the row, which only browser-built rows
+    carry and every row reloaded from the database lacks. Non-stock rows
+    get their warehouse cleared.
     """
-    warehouse = (invoice_doc.get("set_warehouse") or "").strip()
-    if not warehouse:
-        return
-
-    for row in invoice_doc.items or []:
-        is_stock_item = row.get("is_stock_item") if isinstance(row, dict) else getattr(row, "is_stock_item", None)
-        if not is_stock_item:
-            continue
-        current = row.get("warehouse") if isinstance(row, dict) else getattr(row, "warehouse", None)
-        if current != warehouse:
-            if isinstance(row, dict):
-                row["warehouse"] = warehouse
-            else:
-                row.warehouse = warehouse
-
-    for row in invoice_doc.get("packed_items") or []:
-        current = row.get("warehouse") if isinstance(row, dict) else getattr(row, "warehouse", None)
-        if current != warehouse:
-            if isinstance(row, dict):
-                row["warehouse"] = warehouse
-            else:
-                row.warehouse = warehouse
+    apply_sale_warehouse(invoice_doc)
 
 
 def _clear_auto_generated_remarks(invoice_doc, remarks_provided):
@@ -1120,6 +1106,9 @@ def update_invoice(data):
 
     # Return both the invoice doc and the updated data
     response = invoice_doc.as_dict()
+    # as_dict() drops is_stock_item (not a Sales Invoice Item field); put it
+    # back so the cart's cached copy of this doc can tell stock lines apart.
+    apply_sale_warehouse(response)
     response["conversion_rate"] = invoice_doc.conversion_rate
     response["plc_conversion_rate"] = invoice_doc.plc_conversion_rate
     response["exchange_rate_date"] = exchange_rate_date

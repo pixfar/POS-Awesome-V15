@@ -156,14 +156,36 @@ has_permission = {
 
 doc_events = {
     "Sales Invoice": {
-        "validate": "posawesome.posawesome.api.invoice.validate",
-        "before_submit": "posawesome.posawesome.api.invoice.before_submit",
+        # invoice_warehouse: keep every stock line on the sale's selected
+        # warehouse and clear it from non-stock lines, on every save/submit
+        # path (see posawesome.posawesome.utils.invoice_warehouse).
+        "before_validate": "posawesome.posawesome.utils.invoice_warehouse.capture_sale_warehouse",
+        "validate": [
+            "posawesome.posawesome.api.invoice.validate",
+            "posawesome.posawesome.utils.invoice_warehouse.enforce_sale_warehouse",
+        ],
+        "before_save": "posawesome.posawesome.utils.invoice_warehouse.enforce_sale_warehouse",
+        "before_submit": [
+            "posawesome.posawesome.api.invoice.before_submit",
+            "posawesome.posawesome.utils.invoice_warehouse.enforce_sale_warehouse",
+        ],
         "before_cancel": "posawesome.posawesome.api.invoice.before_cancel",
         "on_cancel": "posawesome.posawesome.api.invoice.on_cancel",
     },
     "POS Invoice": {
-        "validate": "posawesome.posawesome.api.invoice.validate",
-        "before_submit": "posawesome.posawesome.api.invoice.before_submit",
+        # invoice_warehouse: keep every stock line on the sale's selected
+        # warehouse and clear it from non-stock lines, on every save/submit
+        # path (see posawesome.posawesome.utils.invoice_warehouse).
+        "before_validate": "posawesome.posawesome.utils.invoice_warehouse.capture_sale_warehouse",
+        "validate": [
+            "posawesome.posawesome.api.invoice.validate",
+            "posawesome.posawesome.utils.invoice_warehouse.enforce_sale_warehouse",
+        ],
+        "before_save": "posawesome.posawesome.utils.invoice_warehouse.enforce_sale_warehouse",
+        "before_submit": [
+            "posawesome.posawesome.api.invoice.before_submit",
+            "posawesome.posawesome.utils.invoice_warehouse.enforce_sale_warehouse",
+        ],
         "before_cancel": "posawesome.posawesome.api.invoice.before_cancel",
         "on_cancel": "posawesome.posawesome.api.invoice.on_cancel",
     },

@@ -117,6 +117,8 @@ export default {
 			const symbol = this.currencySymbol(this.detail.currency);
 			return (this.detail.items || []).map((row) => ({
 				...row,
+				// Non-stock lines (service/labour) have no warehouse.
+				warehouse: row.warehouse || '—',
 				rate: `${symbol}${this.formatCurrency(row.rate)}`,
 				amount: `${symbol}${this.formatCurrency(row.amount)}`,
 			}));

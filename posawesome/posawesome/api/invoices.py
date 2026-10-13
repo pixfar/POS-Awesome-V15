@@ -6,6 +6,7 @@
 import frappe
 import time
 from frappe.utils import cint, flt
+from posawesome.posawesome.utils.invoice_warehouse import get_stock_item_flags
 from erpnext.selling.doctype.sales_order.sales_order import make_sales_invoice
 from posawesome.posawesome.api.invoice_processing.utils import (
     _get_return_validity_settings,
@@ -289,6 +290,12 @@ def get_sales_invoices_list(
     }
 
 
+def _single_line_warehouse(items):
+    """The one warehouse every stock line shares, or None when they differ."""
+    warehouses = {row["warehouse"] for row in items if row.get("warehouse")}
+    return warehouses.pop() if len(warehouses) == 1 else None
+
+
 @frappe.whitelist()
 def get_sales_invoice_detail(name, doctype="Sales Invoice"):
     """Full detail (header + items) for the Sales Invoice list's detail page."""
@@ -313,6 +320,9 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
         if item_codes
         else {}
     )
+    # Non-stock lines (service/labour charges) never touch a warehouse --
+    # older invoices still carry the POS Profile default on them, so hide it.
+    stock_flags = get_stock_item_flags(item_codes)
     total_weight = 0.0
     items = []
     for row in doc.items:
@@ -326,7 +336,8 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
                 "uom": row.uom,
                 "rate": flt(row.rate),
                 "amount": flt(row.amount),
-                "warehouse": row.get("warehouse"),
+                "warehouse": row.get("warehouse") if stock_flags.get(row.item_code, True) else None,
+                "is_stock_item": 1 if stock_flags.get(row.item_code, True) else 0,
                 "weight": flt(weight),
             }
         )
@@ -355,7 +366,7 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
         "currency": doc.currency,
         "company": doc.company,
         "pos_profile": doc.get("pos_profile"),
-        "warehouse": doc.get("set_warehouse"),
+        "warehouse": doc.get("set_warehouse") or _single_line_warehouse(items),
         "territory": doc.get("territory"),
         "custom_do_number": doc.get("custom_do_number"),
         "net_total": flt(doc.net_total),

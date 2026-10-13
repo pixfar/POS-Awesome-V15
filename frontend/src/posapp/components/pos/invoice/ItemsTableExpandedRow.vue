@@ -234,7 +234,8 @@
 						</div>
 					</div>
 					<div class="posa-form-row">
-						<div class="posa-form-field">
+						<!-- Non-stock items (service/labour) never use a warehouse. -->
+						<div v-if="!isNonStockFlag(item.is_stock_item)" class="posa-form-field">
 							<v-text-field
 								density="compact"
 								variant="outlined"
@@ -431,6 +432,7 @@
 
 <script setup lang="ts">
 import { getDisplayableBatchOptions } from "../../../composables/pos/shared/useBatchSerial";
+import { isNonStockFlag } from "../invoice_utils/warehouse";
 import type { CartItem, POSProfile, InvoiceDoc } from "../../../types/models";
 
 interface Props {

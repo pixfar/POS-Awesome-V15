@@ -4,7 +4,7 @@ import {
 	isOffline,
 } from "../../../../offline/index";
 import { _getPlcConversionRate } from "./currency";
-import { resolvePosWarehouse } from "./warehouse";
+import { isNonStockFlag, resolvePosWarehouse } from "./warehouse";
 
 declare const flt: (_value: unknown, _precision?: number) => number;
 declare const frappe: any;
@@ -292,10 +292,14 @@ export function get_invoice_doc(context: any) {
 	) {
 		doc.set_warehouse = sourceWarehouse;
 		if (Array.isArray(doc.items)) {
-			doc.items.forEach((row: { is_stock_item?: number; warehouse?: string }) => {
-				if (row?.is_stock_item) {
-					row.warehouse = sourceWarehouse;
+			// Stock lines follow the sale warehouse; known non-stock lines
+			// (service/labour) carry none. A missing flag is treated as stock
+			// -- the server re-checks against the Item master either way.
+			doc.items.forEach((row: { is_stock_item?: unknown; warehouse?: string | null }) => {
+				if (!row) {
+					return;
 				}
+				row.warehouse = isNonStockFlag(row.is_stock_item) ? null : sourceWarehouse;
 			});
 		}
 		if (Array.isArray(doc.packed_items)) {
