@@ -71,7 +71,7 @@
 													<v-list-item-subtitle class="purchase-item-option__meta">
 														<span class="purchase-item-option__code">{{ item.raw.item_code }}</span>
 														<span class="purchase-item-option__stock">
-															{{ __("UOM") }}: {{ item.raw.stock_uom || "" }}
+															{{ __("Stock") }}: {{ Number(item.raw.actual_qty || 0) }} · {{ item.raw.stock_uom || "" }}
 														</span>
 													</v-list-item-subtitle>
 												</v-list-item>
@@ -162,7 +162,7 @@
 												<v-list-item-subtitle class="purchase-item-option__meta">
 													<span class="purchase-item-option__code">{{ item.raw.item_code }}</span>
 													<span class="purchase-item-option__stock">
-														{{ __("UOM") }}: {{ item.raw.stock_uom || "" }}
+														{{ __("Stock") }}: {{ Number(item.raw.actual_qty || 0) }} · {{ item.raw.stock_uom || "" }}
 													</span>
 												</v-list-item-subtitle>
 											</v-list-item>
@@ -257,7 +257,7 @@
 				:md="selectorCols"
 				class="h-100 pa-0 border-s txn-col txn-col--selector"
 			>
-				<ItemsSelector context="bom" @add-item="onAddRawMaterial" />
+				<ItemsSelectorWithGroups context="bom" @add-item="onAddRawMaterial" />
 			</v-col>
 		</v-row>
 
@@ -321,13 +321,13 @@ import { useRouter } from 'vue-router';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import { useItemsStore } from '../../../stores/itemsStore';
-import ItemsSelector from '../items/ItemsSelector.vue';
+import ItemsSelectorWithGroups from '../items/ItemsSelectorWithGroups.vue';
 import { useCompactTransactionPanel } from '../../../composables/core/useCompactTransactionPanel';
 
 export default {
 	name: 'BomNew',
 	components: {
-		ItemsSelector,
+		ItemsSelectorWithGroups,
 	},
 	setup() {
 		const router = useRouter();
@@ -375,7 +375,7 @@ export default {
 			try {
 				const { message } = await frappe.call({
 					method: 'posawesome.posawesome.api.boms.search_bom_items',
-					args: { limit: 20 },
+					args: { limit: 500 },
 				});
 				manufactureDefaultResults.value = message || [];
 				if (!manufactureSearchQuery.value || manufactureSearchQuery.value.trim().length < 2) {
@@ -397,7 +397,7 @@ export default {
 				try {
 					const { message } = await frappe.call({
 						method: 'posawesome.posawesome.api.boms.search_bom_items',
-						args: { search_text: term.trim(), limit: 20 },
+						args: { search_text: term.trim(), limit: 500 },
 					});
 					manufactureSearchResults.value = message || [];
 				} catch {
@@ -413,7 +413,7 @@ export default {
 				const { message } = await frappe.call({
 					method: 'posawesome.posawesome.api.boms.search_bom_items',
 					args: {
-						limit: 20,
+						limit: 500,
 						stock_items_only: 1,
 						exclude_item_code: manufactureItem.item_code || undefined,
 					},
@@ -440,7 +440,7 @@ export default {
 						method: 'posawesome.posawesome.api.boms.search_bom_items',
 						args: {
 							search_text: term.trim(),
-							limit: 20,
+							limit: 500,
 							stock_items_only: 1,
 							exclude_item_code: manufactureItem.item_code || undefined,
 						},

@@ -162,7 +162,14 @@ def _build_search_plan(
             filters["item_code"] = resolved_item_code
 
     if item_group and item_group.upper() != "ALL":
-        filters["item_group"] = ["like", f"%{item_group}%"]
+        if frappe.db.get_value("Item Group", item_group, "is_group"):
+            # Parent group selected: include the group itself and all descendants.
+            groups = expand_item_groups([item_group])
+            if item_group not in groups:
+                groups.append(item_group)
+            filters["item_group"] = ["in", groups]
+        else:
+            filters["item_group"] = ["like", f"%{item_group}%"]
 
     if not posa_show_template_items:
         filters.update(HAS_VARIANTS_EXCLUSION)
@@ -666,7 +673,7 @@ def get_items(
 def get_items_groups():
     return frappe.db.sql(
         """select name from `tabItem Group`
-		where is_group = 0 order by name""",
+		where name != 'All Item Groups' order by name""",
         as_dict=1,
     )
 

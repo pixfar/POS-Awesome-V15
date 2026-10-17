@@ -23,8 +23,8 @@ export function useCompactTransactionPanel(defaultPanel: "invoice" | "selector" 
 		() => !isCompact.value || compactPanel.value === "selector",
 	);
 
-	const invoiceCols = computed(() => (isCompact.value ? 12 : 7));
-	const selectorCols = computed(() => (isCompact.value ? 12 : 5));
+	const invoiceCols = computed(() => (isCompact.value ? 12 : 6));
+	const selectorCols = computed(() => (isCompact.value ? 12 : 6));
 
 	const setPanel = (panel: "invoice" | "selector") => {
 		compactPanel.value = panel;

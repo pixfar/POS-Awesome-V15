@@ -89,7 +89,7 @@ def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_ite
 			exc=frappe.PermissionError,
 		)
 
-	limit = max(1, min(int(limit or 20), 50))
+	limit = max(1, min(int(limit or 20), 500))
 	conditions = ['item.disabled = 0']
 	values = {}
 
@@ -118,13 +118,17 @@ def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_ite
 			values['search'] = like_eng
 
 	where_clause = ' AND '.join(conditions)
-	return frappe.db.sql(
+	items = frappe.db.sql(
 		f"""
 		SELECT
 			item.name AS item_code,
 			item.item_name AS item_name,
 			item.item_group AS item_group,
 			item.stock_uom AS stock_uom,
+			COALESCE((
+				SELECT SUM(bin.actual_qty) FROM `tabBin` bin
+				WHERE bin.item_code = item.name
+			), 0) AS actual_qty,
 			item.custom_default_weigt_of_measure AS custom_default_weigt_of_measure
 		FROM `tabItem` item
 		WHERE {where_clause}
@@ -134,6 +138,7 @@ def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_ite
 		{**values, 'limit': limit},
 		as_dict=True,
 	)
+	return items
 
 
 @frappe.whitelist()

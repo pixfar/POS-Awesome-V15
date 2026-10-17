@@ -11,6 +11,34 @@ import frappe
 HAS_VARIANTS_EXCLUSION = {"has_variants": 0}
 
 
+def attach_actual_qty(items, warehouse=None):
+	"""Attach each row's on-hand qty (Bin.actual_qty) for ``warehouse`` as
+	``actual_qty``. Used by the item-search dropdowns so every transaction
+	screen can show live stock next to the item code. No warehouse, or an item
+	with no Bin row there, yields ``actual_qty = 0``.
+	"""
+	if not items:
+		return items
+	for row in items:
+		row["actual_qty"] = 0
+	if not warehouse:
+		return items
+
+	codes = [row.get("item_code") for row in items if row.get("item_code")]
+	if not codes:
+		return items
+
+	bins = frappe.get_all(
+		"Bin",
+		filters={"item_code": ["in", codes], "warehouse": warehouse},
+		fields=["item_code", "actual_qty"],
+	)
+	qty_map = {b["item_code"]: b["actual_qty"] for b in bins}
+	for row in items:
+		row["actual_qty"] = qty_map.get(row.get("item_code"), 0)
+	return items
+
+
 logger = logging.getLogger(__name__)
 
 

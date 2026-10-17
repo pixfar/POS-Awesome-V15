@@ -218,6 +218,7 @@ export function useItemSearch() {
 		{
 			searchTerm = "",
 			hideZeroRate = false,
+			hideZeroStock = false,
 			hideVariants = false,
 			onlyBarcode = false,
 			uomFilter = "ALL",
@@ -232,6 +233,7 @@ export function useItemSearch() {
 		if (
 			!needsLocalSearch &&
 			!hideZeroRate &&
+			!hideZeroStock &&
 			!hideVariants &&
 			!onlyBarcode &&
 			(!uomFilter || uomFilter === "ALL")
@@ -290,6 +292,11 @@ export function useItemSearch() {
 			// 2. Zero Rate Filter
 			if (hideZeroRate) {
 				if (resolveItemRate(item) <= 0) continue;
+			}
+
+			// 2b. Zero Stock Filter
+			if (hideZeroStock) {
+				if (Number(item.actual_qty ?? 0) <= 0) continue;
 			}
 
 			// 3. Variant Filter

@@ -38,6 +38,14 @@
 					hide-details
 					density="compact"
 					color="primary"
+					class="mb-2"
+				></v-switch>
+				<v-switch
+					v-model="form.hide_zero_stock_items"
+					:label="__('Filter out 0 Quantity Items')"
+					hide-details
+					density="compact"
+					color="primary"
 				></v-switch>
 				<v-switch
 					v-model="form.show_last_invoice_rate"
@@ -48,26 +56,6 @@
 					class="mb-2"
 				></v-switch>
 				<v-switch
-					v-model="form.enable_background_sync"
-					:label="__('Enable background sync')"
-					hide-details
-					density="compact"
-					color="primary"
-					class="mb-2"
-				></v-switch>
-				<v-text-field
-					v-model="form.background_sync_interval"
-					:label="__('Background sync interval (seconds)')"
-					type="number"
-					density="compact"
-					variant="outlined"
-					color="primary"
-					hide-details
-					class="mb-2 pos-themed-input"
-					:min="10"
-					:disabled="!form.enable_background_sync"
-				></v-text-field>
-				<v-switch
 					v-model="form.enable_custom_items_per_page"
 					:label="__('Custom items per page')"
 					hide-details
@@ -76,14 +64,6 @@
 					class="mb-2"
 				>
 				</v-switch>
-				<v-checkbox
-					v-model="form.force_server_items"
-					:label="__('Always fetch items from server (ignore local cache)')"
-					hide-details
-					density="compact"
-					color="primary"
-					class="mb-2"
-				></v-checkbox>
 				<v-text-field
 					v-if="form.enable_custom_items_per_page"
 					v-model="form.items_per_page"
@@ -131,6 +111,7 @@ const form = reactive({
 	new_line: false,
 	hide_qty_decimals: false,
 	hide_zero_rate_items: false,
+	hide_zero_stock_items: false,
 	show_last_invoice_rate: false,
 	enable_background_sync: false,
 	background_sync_interval: 30,

@@ -223,7 +223,7 @@ const onDragEnd = (event) => {
 
 .card-item-image-container {
 	position: relative;
-	height: 100px;
+	height: 76px;
 	flex-shrink: 0;
 	overflow: hidden;
 	background: #f9fafb;

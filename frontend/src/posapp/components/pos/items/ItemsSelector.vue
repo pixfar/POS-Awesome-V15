@@ -63,6 +63,7 @@
 						new_line,
 						hide_qty_decimals,
 						hide_zero_rate_items,
+						hide_zero_stock_items,
 						show_last_invoice_rate,
 						enable_background_sync,
 						background_sync_interval,
@@ -193,9 +194,7 @@
 			</div>
 		</v-card>
 		<ItemActionToolbar
-			v-model="item_group"
 			v-model:uom-filter="uom_filter"
-			:items-group="items_group"
 			v-model:items-view="items_view"
 			:pos-profile="pos_profile"
 			:active-price-list="active_price_list"
@@ -383,7 +382,7 @@ const search_input = ref("");
 const first_search = ref("");
 const uom_filter = ref("ALL");
 const items_view = ref("card");
-const itemsPerPage = ref(20);
+const itemsPerPage = ref(12);
 const clearingSearch = ref(false);
 const isDragging = ref(false);
 const new_line = ref(false);
@@ -403,6 +402,7 @@ const localStorageAvailable = ref(true);
 // Settings Refs
 const hide_qty_decimals = ref(false);
 const hide_zero_rate_items = ref(false);
+const hide_zero_stock_items = ref(false);
 const show_last_invoice_rate = ref(false);
 const enable_background_sync = ref(false);
 const background_sync_interval = ref(30);
@@ -414,6 +414,7 @@ const show_item_settings = ref(false);
 const temp_new_line = ref(false);
 const temp_hide_qty_decimals = ref(false);
 const temp_hide_zero_rate_items = ref(false);
+const temp_hide_zero_stock_items = ref(false);
 const temp_enable_custom_items_per_page = ref(false);
 const temp_items_per_page = ref(50);
 const temp_force_server_items = ref(false);
@@ -575,7 +576,7 @@ const advancePage = async () => {
 	}
 };
 
-watch([search_input, item_group, uom_filter, () => hide_zero_rate_items.value, () => showOnlyBarcodeItemsRef.value], () => {
+watch([search_input, item_group, uom_filter, () => hide_zero_rate_items.value, () => hide_zero_stock_items.value, () => showOnlyBarcodeItemsRef.value], () => {
 	currentPage.value = 1;
 });
 
@@ -587,6 +588,7 @@ const displayedItems = computed(() => {
 		searchTerm: term,
 		uomFilter: uom_filter.value,
 		hideZeroRate: hide_zero_rate_items.value,
+		hideZeroStock: hide_zero_stock_items.value,
 		hideVariants: pos_profile.value?.posa_hide_variants_items,
 		onlyBarcode: showOnlyBarcodeItemsRef.value,
 		limit: currentPage.value * pageSize.value,
@@ -659,6 +661,7 @@ const settingsContext = reactive({
 	new_line,
 	hide_qty_decimals,
 	hide_zero_rate_items,
+	hide_zero_stock_items,
 	show_last_invoice_rate,
 	enable_background_sync,
 	background_sync_interval,
@@ -667,6 +670,7 @@ const settingsContext = reactive({
 	temp_new_line,
 	temp_hide_qty_decimals,
 	temp_hide_zero_rate_items,
+	temp_hide_zero_stock_items,
 	temp_enable_custom_items_per_page,
 	temp_items_per_page,
 	temp_force_server_items,
@@ -1598,6 +1602,7 @@ defineExpose({
 	onQtyBlur,
 	hide_qty_decimals,
 	hide_zero_rate_items,
+	hide_zero_stock_items,
 	show_last_invoice_rate,
 	enable_background_sync,
 	background_sync_interval,
@@ -1606,6 +1611,7 @@ defineExpose({
 	scannerLocked,
 	temp_hide_qty_decimals,
 	temp_hide_zero_rate_items,
+	temp_hide_zero_stock_items,
 	temp_enable_custom_items_per_page,
 	temp_items_per_page,
 	temp_force_server_items,

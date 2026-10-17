@@ -1,7 +1,7 @@
 <template>
 	<div class="pa-0 h-100 invoice-shell txn-shell">
-		<v-row class="h-100 ma-0 justify-center">
-			<v-col cols="12" md="10" lg="8" class="h-100 pa-0">
+		<v-row class="h-100 ma-0">
+			<v-col cols="12" md="6" class="h-100 pa-0 txn-col txn-col--form">
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
@@ -23,7 +23,7 @@
 											hide-details
 											prepend-inner-icon="mdi-warehouse"
 											class="pos-themed-input"
-											@update:model-value="refreshStockQty"
+											@update:model-value="onWarehouseChange"
 										/>
 									</div>
 								</v-card>
@@ -83,7 +83,7 @@
 											<v-list-item v-bind="itemProps" :title="undefined">
 												<v-list-item-title>{{ item.raw.item_name }}</v-list-item-title>
 												<v-list-item-subtitle>
-													{{ item.raw.item_code }} · {{ item.raw.item_group }}
+													{{ item.raw.item_code }} · {{ __("Stock") }}: {{ formatFloat(item.raw.actual_qty || 0) }}
 												</v-list-item-subtitle>
 											</v-list-item>
 										</template>
@@ -205,6 +205,17 @@
 					</div>
 				</v-card>
 			</v-col>
+
+			<v-col
+				cols="12"
+				md="6"
+				class="h-100 pa-0 border-s txn-col txn-col--selector"
+			>
+				<ItemsSelectorWithGroups
+					:context="isIssue ? 'material_transfer' : 'purchase'"
+					@add-item="addItem"
+				/>
+			</v-col>
 		</v-row>
 	</div>
 </template>
@@ -217,8 +228,10 @@ import DateFilterField from '../shared/DateFilterField.vue';
 import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import { useToastStore } from '../../../stores/toastStore';
 import { useUIStore } from '../../../stores/uiStore.js';
+import { useItemsStore } from '../../../stores/itemsStore';
 import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import { stockEntryBasePath } from './stockEntryRoutes';
+import ItemsSelectorWithGroups from '../items/ItemsSelectorWithGroups.vue';
 
 const API = 'posawesome.posawesome.api.stock_entries';
 const ITEM_API = 'posawesome.posawesome.api.material_transfers';
@@ -227,7 +240,7 @@ const getTodayDate = () => frappe?.datetime?.nowdate?.() || new Date().toISOStri
 export default {
 	name: 'StockEntryNew',
 	mixins: [format],
-	components: { DateFilterField },
+	components: { DateFilterField, ItemsSelectorWithGroups },
 	props: {
 		purpose: { type: String, required: true },
 	},
@@ -235,6 +248,7 @@ export default {
 		const router = useRouter();
 		const toastStore = useToastStore();
 		const uiStore = useUIStore();
+		const itemsStore = useItemsStore();
 		const isIssue = computed(() => props.purpose === 'Material Issue');
 		const basePath = computed(() => stockEntryBasePath(props.purpose));
 
@@ -282,7 +296,11 @@ export default {
 				try {
 					const { message } = await frappe.call({
 						method: `${ITEM_API}.search_items`,
-						args: { search_text: term.trim(), limit: 20 },
+						args: {
+							search_text: term.trim(),
+							limit: 500,
+							warehouse: warehouse.value || null,
+						},
 					});
 					itemSearchResults.value = message || [];
 				} catch (e) {
@@ -291,6 +309,48 @@ export default {
 					itemSearchLoading.value = false;
 				}
 			}, 300);
+		};
+
+		// Mirror the other transaction screens: itemsStore.posProfile is only
+		// set by itemsStore.initialize() (normally run by the Sales shell).
+		// Landing here directly must initialize it too, else the catalog grid
+		// never loads.
+		const ensureItemsStoreInitialized = async (profile) => {
+			if (itemsStore.posProfile?.name) return;
+			let resolvedProfile = profile;
+			if (!resolvedProfile?.name) {
+				try {
+					const { message } = await frappe.call({
+						method: 'bsp_engineering.posawesome.profile.get_active_pos_profile',
+					});
+					if (message?.name) resolvedProfile = message;
+				} catch (error) {
+					console.error('Failed to resolve active POS Profile:', error);
+				}
+			}
+			if (!resolvedProfile?.name) return;
+			try {
+				await itemsStore.initialize(resolvedProfile);
+			} catch (error) {
+				console.error('Failed to initialize items store:', error);
+			}
+		};
+
+		const onWarehouseChange = async () => {
+			if (warehouse.value) {
+				itemsStore.setActiveSaleWarehouse(warehouse.value);
+				if (typeof itemsStore.refreshItems === 'function') {
+					try {
+						await itemsStore.refreshItems({
+							warehouse: warehouse.value,
+							forceServer: true,
+						});
+					} catch (e) {
+						console.error('Failed to refresh catalog for warehouse', e);
+					}
+				}
+			}
+			await refreshStockQty();
 		};
 
 		const addItem = (item) => {
@@ -346,12 +406,16 @@ export default {
 			}
 		};
 
-		onMounted(() => {
+		onMounted(async () => {
 			if (!isFundTransferManager()) {
 				router.replace(`${basePath.value}/list`);
 				return;
 			}
 			loadWarehouseOptions();
+			await ensureItemsStoreInitialized(uiStore.posProfile);
+			if (warehouse.value) {
+				itemsStore.setActiveSaleWarehouse(warehouse.value);
+			}
 		});
 
 		return {
@@ -370,6 +434,7 @@ export default {
 			totalQty,
 			canSubmit,
 			refreshStockQty,
+			onWarehouseChange,
 			handleItemSearch,
 			addItem,
 			submit,

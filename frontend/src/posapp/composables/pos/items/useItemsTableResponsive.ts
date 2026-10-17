@@ -71,6 +71,25 @@ export function getResponsiveVisibleHeaders(
 		}));
 	}
 
+	// Columns overflow the container: shrink them proportionally so the whole
+	// row fits without horizontal scrolling. Also shrink minWidth, otherwise the
+	// table keeps its intrinsic width and the overflow returns.
+	if (width > 0 && totalWidth > width) {
+		const scale = width / totalWidth;
+		const FLOOR = 44;
+		return visibleHeaders.map((header) => {
+			const scaledWidth = Math.max(
+				FLOOR,
+				Math.floor(Number(header.width) * scale),
+			);
+			return {
+				...header,
+				width: scaledWidth,
+				minWidth: Math.min(Number(header.minWidth) || scaledWidth, scaledWidth),
+			};
+		});
+	}
+
 	return visibleHeaders;
 }
 

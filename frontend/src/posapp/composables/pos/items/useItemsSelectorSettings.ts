@@ -24,6 +24,7 @@ export const useItemsSelectorSettings = ({
 		vm.temp_new_line = vm.new_line;
 		vm.temp_hide_qty_decimals = vm.hide_qty_decimals;
 		vm.temp_hide_zero_rate_items = vm.hide_zero_rate_items;
+		vm.temp_hide_zero_stock_items = vm.hide_zero_stock_items;
 		vm.temp_enable_custom_items_per_page = vm.enable_custom_items_per_page;
 		vm.temp_items_per_page = vm.items_per_page;
 		vm.temp_force_server_items = !!(
@@ -48,6 +49,7 @@ export const useItemsSelectorSettings = ({
 			new_line: vm.new_line,
 			hide_qty_decimals: vm.hide_qty_decimals,
 			hide_zero_rate_items: vm.hide_zero_rate_items,
+			hide_zero_stock_items: vm.hide_zero_stock_items,
 			show_last_invoice_rate: vm.show_last_invoice_rate,
 			enable_background_sync: vm.enable_background_sync,
 			background_sync_interval: vm.background_sync_interval,
@@ -88,6 +90,10 @@ export const useItemsSelectorSettings = ({
 		vm.hide_zero_rate_items = getValue(
 			"hide_zero_rate_items",
 			vm.temp_hide_zero_rate_items,
+		);
+		vm.hide_zero_stock_items = getValue(
+			"hide_zero_stock_items",
+			vm.temp_hide_zero_stock_items,
 		);
 		vm.show_last_invoice_rate = getValue(
 			"show_last_invoice_rate",
@@ -150,6 +156,9 @@ export const useItemsSelectorSettings = ({
 		}
 		if (typeof opts.hide_zero_rate_items === "boolean") {
 			vm.hide_zero_rate_items = opts.hide_zero_rate_items;
+		}
+		if (typeof opts.hide_zero_stock_items === "boolean") {
+			vm.hide_zero_stock_items = opts.hide_zero_stock_items;
 		}
 		if (typeof opts.show_last_invoice_rate === "boolean") {
 			vm.show_last_invoice_rate = opts.show_last_invoice_rate;

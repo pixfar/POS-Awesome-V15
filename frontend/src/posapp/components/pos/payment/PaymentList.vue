@@ -64,6 +64,19 @@
 					@update:model-value="handleSearchUpdate"
 				/>
 				<div class="pos-list-toolbar__filters">
+					<v-btn-toggle
+						v-model="partyTypeFilter"
+						mandatory
+						density="compact"
+						color="primary"
+						variant="outlined"
+						class="pos-list-view-toggle"
+						@update:model-value="resetAndLoad"
+					>
+						<v-btn value="all" size="small" class="text-none">{{ __("All") }}</v-btn>
+						<v-btn value="Customer" size="small" class="text-none">{{ __("Customer") }}</v-btn>
+						<v-btn value="Supplier" size="small" class="text-none">{{ __("Supplier") }}</v-btn>
+					</v-btn-toggle>
 					<v-switch
 						v-model="mineOnly"
 						density="compact"
@@ -466,6 +479,8 @@ export default {
 
 		const paymentTypeOptions = ['Receive', 'Pay'];
 		const paymentTypeFilter = ref(null);
+		// Quick party-type filter: 'all' (default) | 'Customer' | 'Supplier'.
+		const partyTypeFilter = ref('all');
 		const fromDate = ref('');
 		const toDate = ref('');
 		const warehouseFilter = ref(null);
@@ -559,6 +574,8 @@ export default {
 			} else if (supplierFilter.value) {
 				partyType = 'Supplier';
 				party = supplierFilter.value;
+			} else if (partyTypeFilter.value === 'Customer' || partyTypeFilter.value === 'Supplier') {
+				partyType = partyTypeFilter.value;
 			}
 			listLoading.value = true;
 			try {
@@ -691,6 +708,7 @@ export default {
 			customerFilter.value = null;
 			supplierFilter.value = null;
 			paymentTypeFilter.value = null;
+			partyTypeFilter.value = 'all';
 			fromDate.value = '';
 			toDate.value = '';
 			warehouseFilter.value = null;
@@ -741,6 +759,7 @@ export default {
 			totalAmount,
 			paymentTypeOptions,
 			paymentTypeFilter,
+			partyTypeFilter,
 			fromDate,
 			toDate,
 			warehouseFilter,

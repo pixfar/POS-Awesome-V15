@@ -19,6 +19,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_can_create,
 )
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
+from posawesome.posawesome.api.utils import attach_actual_qty
 
 
 def _parse_json(value):
@@ -302,8 +303,8 @@ def get_transfer_warehouses():
 
 
 @frappe.whitelist()
-def search_items(search_text=None, limit=20):
-	limit = max(1, min(int(limit or 20), 50))
+def search_items(search_text=None, limit=20, warehouse=None):
+	limit = max(1, min(int(limit or 20), 500))
 	filters = {'disabled': 0, 'has_variants': 0}
 	or_filters = None
 	if search_text and len(search_text.strip()) >= 2:
@@ -325,7 +326,7 @@ def search_items(search_text=None, limit=20):
 				['Item', 'item_name', 'like', like_ben],
 			])
 
-	return frappe.get_all(
+	items = frappe.get_all(
 		'Item',
 		filters=filters,
 		or_filters=or_filters,
@@ -340,6 +341,8 @@ def search_items(search_text=None, limit=20):
 		order_by='item_name asc',
 		limit_page_length=limit,
 	)
+	attach_actual_qty(items, warehouse)
+	return items
 
 
 @frappe.whitelist()

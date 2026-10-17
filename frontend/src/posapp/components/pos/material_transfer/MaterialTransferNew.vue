@@ -139,7 +139,16 @@
 										class="pos-themed-input purchase-item-search"
 										@update:search="handleItemSearchUpdate"
 										@update:model-value="handleSearchItemPicked"
-									/>
+									>
+										<template #item="{ props: itemProps, item }">
+											<v-list-item v-bind="itemProps" :title="undefined">
+												<v-list-item-title>{{ item.raw.item_name }}</v-list-item-title>
+												<v-list-item-subtitle>
+													{{ item.raw.item_code }} · {{ __("Stock") }}: {{ Number(item.raw.actual_qty || 0) }}
+												</v-list-item-subtitle>
+											</v-list-item>
+										</template>
+									</v-autocomplete>
 								</div>
 								<RequisitionItemsTable
 									:items="transferItems"
@@ -202,7 +211,7 @@
 				:md="selectorCols"
 				class="h-100 pa-0 border-s txn-col txn-col--selector"
 			>
-				<ItemsSelector context="material_transfer" @add-item="onAddItem" />
+				<ItemsSelectorWithGroups context="material_transfer" @add-item="onAddItem" />
 			</v-col>
 		</v-row>
 
@@ -271,7 +280,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { useMaterialTransfer } from '../../../composables/pos/material_transfer/useMaterialTransfer';
 import { useItemsStore } from '../../../stores/itemsStore';
 import { isPosWarehouseSwitcher } from '../../../utils/posWarehouseAccess';
-import ItemsSelector from '../items/ItemsSelector.vue';
+import ItemsSelectorWithGroups from '../items/ItemsSelectorWithGroups.vue';
 import RequisitionItemsTable from '../requisition/RequisitionItemsTable.vue';
 import { getOpeningStorage } from '../../../../offline/index';
 import { normalizeDateForBackend } from '../../../format';
@@ -284,7 +293,7 @@ export default {
 	name: 'MaterialTransferNew',
 	mixins: [format],
 	components: {
-		ItemsSelector,
+		ItemsSelectorWithGroups,
 		RequisitionItemsTable,
 		VueDatePicker,
 	},
@@ -495,7 +504,11 @@ export default {
 			try {
 				const { message } = await frappe.call({
 					method: 'posawesome.posawesome.api.material_transfers.search_items',
-					args: { search_text: searchText, limit: 20 },
+					args: {
+						search_text: searchText,
+						limit: 500,
+						warehouse: fromWarehouse.value || null,
+					},
 				});
 				itemSearchResults.value = message || [];
 			} catch {

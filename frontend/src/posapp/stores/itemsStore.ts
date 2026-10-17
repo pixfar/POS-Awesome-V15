@@ -195,6 +195,12 @@ export const useItemsStore = defineStore("items", () => {
 		return Boolean(value);
 	};
 
+	// Online-only mode: always read live data from the server, never serve items
+	// (and their stock figures) from the local IndexedDB cache, and never run the
+	// background catalog sync. This keeps stock realtime; the offline/local-cache
+	// path is intentionally disabled for this deployment.
+	const forceServerItems = computed(() => true);
+
 	const limitSearchEnabled = computed(() => {
 		const rawValue =
 			posProfile.value?.posa_use_limit_search ??
@@ -229,14 +235,14 @@ export const useItemsStore = defineStore("items", () => {
 	};
 
 	const shouldUseIndexedSearch = () => {
-		if (limitSearchEnabled.value) {
+		if (limitSearchEnabled.value || forceServerItems.value) {
 			return false;
 		}
 		return true;
 	};
 
 	const shouldPersistItems = () => {
-		if (limitSearchEnabled.value) {
+		if (limitSearchEnabled.value || forceServerItems.value) {
 			return false;
 		}
 		return true;
@@ -634,7 +640,8 @@ export const useItemsStore = defineStore("items", () => {
 				getCacheScope(),
 			);
 
-			const canReadFromCache = !forceServer && !limitSearchEnabled.value;
+			const canReadFromCache =
+				!forceServer && !limitSearchEnabled.value && !forceServerItems.value;
 
 			if (canReadFromCache) {
 				const cachedResult = await getCachedItems(cacheKey);
@@ -911,6 +918,27 @@ export const useItemsStore = defineStore("items", () => {
 				});
 
 				searchResults = Array.isArray(results) ? results : [];
+
+				// Local IndexedDB cache can be incomplete right after a group
+				// switch or before the background sync finishes, which made the
+				// item invisible until a manual reload. Fall back to the server
+				// automatically so no manual reload is ever required.
+				if (searchResults.length === 0 && term.length >= 2) {
+					await loadItems({
+						searchValue: term,
+						groupFilter: itemGroup.value,
+						forceServer: true,
+					});
+					const serverResults = performLocalSearch(
+						term,
+						items.value,
+						itemGroup.value,
+					);
+					if (serverResults.length) {
+						searchResults = serverResults;
+					}
+				}
+
 				cachedPagination.value.search = term;
 				cachedPagination.value.offset = searchResults.length;
 				cachedPagination.value.total = Math.max(
@@ -927,7 +955,7 @@ export const useItemsStore = defineStore("items", () => {
 					itemGroup.value,
 				);
 
-				if (searchResults.length === 0 && term.length >= 3) {
+				if (searchResults.length === 0 && term.length >= 2) {
 					await loadItems({
 						searchValue: term,
 						groupFilter: itemGroup.value,

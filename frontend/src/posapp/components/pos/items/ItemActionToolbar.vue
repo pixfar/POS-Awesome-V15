@@ -6,26 +6,6 @@
 		<div class="item-toolbar__filters">
 			<v-autocomplete
 				class="item-toolbar__field"
-				:items="itemsGroup"
-				:label="frappe._('Items Group')"
-				:placeholder="__('Search item group')"
-				density="compact"
-				variant="outlined"
-				hide-details
-				clearable
-				auto-select-first
-				:model-value="modelValue"
-				@update:model-value="onItemGroupUpdate"
-			>
-				<template #prepend-inner>
-					<v-icon size="18" class="item-toolbar__field-icon">
-						mdi-folder-outline
-					</v-icon>
-				</template>
-			</v-autocomplete>
-
-			<v-autocomplete
-				class="item-toolbar__field"
 				:items="uomsList"
 				:label="frappe._('UOM')"
 				:placeholder="__('Search UOM')"
@@ -95,9 +75,7 @@ import { ref, onMounted } from "vue";
 import itemService from "../../../services/itemService";
 
 defineProps({
-	modelValue: { type: String, default: "ALL" },
 	uomFilter: { type: String, default: "ALL" },
-	itemsGroup: { type: Array, default: () => [] },
 	itemsView: { type: String, default: "card" },
 	posProfile: { type: Object, required: true },
 	activePriceList: { type: String, default: "" },
@@ -107,16 +85,11 @@ defineProps({
 });
 
 const emit = defineEmits([
-	"update:modelValue",
 	"update:uomFilter",
 	"update:itemsView",
 	"open-offers",
 	"open-coupons",
 ]);
-
-const onItemGroupUpdate = (value) => {
-	emit("update:modelValue", value || "ALL");
-};
 
 const onUomUpdate = (value) => {
 	emit("update:uomFilter", value || "ALL");

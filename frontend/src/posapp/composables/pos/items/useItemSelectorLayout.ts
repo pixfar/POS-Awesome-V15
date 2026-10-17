@@ -72,10 +72,10 @@ export function useItemSelectorLayout(options: SelectorLayoutOptions = {}) {
 	// clip the extra line instead of the ellipsis doing it.
 	const cardRowHeight = computed(() => {
 		const cols = cardColumns.value;
-		if (cols >= 5) return 174;
-		if (cols === 4) return 196;
-		if (cols === 3) return 230;
-		return 245;
+		if (cols >= 5) return 150;
+		if (cols === 4) return 168;
+		if (cols === 3) return 200;
+		return 215;
 	});
 
 	const cardSlotHeight = computed(() => cardRowHeight.value + cardGap.value);

@@ -10,8 +10,7 @@ export const getCardColumns = (containerWidth: number): number => {
     if (containerWidth <= 250) return 1;
     if (containerWidth <= 420) return 2;
     if (containerWidth <= 620) return 3;
-    if (containerWidth <= 820) return 4;
-    return 5;
+    return 4;
 };
 
 /**

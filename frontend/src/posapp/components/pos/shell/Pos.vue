@@ -38,10 +38,10 @@
 		>
 			<v-col
 				v-show="!useCompactPosSwitcher || compactPanel === 'invoice'"
-				:xl="useCompactPosSwitcher ? 12 : 7"
-				:lg="useCompactPosSwitcher ? 12 : 7"
-				:md="useCompactPosSwitcher ? 12 : 7"
-				:sm="useCompactPosSwitcher ? 12 : 7"
+				:xl="useCompactPosSwitcher ? 12 : 6"
+				:lg="useCompactPosSwitcher ? 12 : 6"
+				:md="useCompactPosSwitcher ? 12 : 6"
+				:sm="useCompactPosSwitcher ? 12 : 6"
 				cols="12"
 				class="pos dynamic-col dynamic-col--invoice"
 			>
@@ -53,21 +53,33 @@
 
 			<v-col
 				v-show="(!useCompactPosSwitcher || compactPanel === 'selector') && activeView === 'items'"
-				:xl="useCompactPosSwitcher ? 12 : 5"
-				:lg="useCompactPosSwitcher ? 12 : 5"
-				:md="useCompactPosSwitcher ? 12 : 5"
-				:sm="useCompactPosSwitcher ? 12 : 5"
+				:xl="useCompactPosSwitcher ? 12 : 6"
+				:lg="useCompactPosSwitcher ? 12 : 6"
+				:md="useCompactPosSwitcher ? 12 : 6"
+				:sm="useCompactPosSwitcher ? 12 : 6"
 				cols="12"
 				class="pos dynamic-col dynamic-col--selector"
 			>
-				<ItemsSelector ref="itemsSelectorPanel" context="pos" />
+				<div class="selector-with-groups">
+					<ItemGroupSidebar
+						class="selector-group-col"
+						:model-value="itemsStore.itemGroup"
+						:items-group="itemsStore.itemGroups"
+						@update:model-value="itemsStore.filterByGroup($event)"
+					/>
+					<ItemsSelector
+						ref="itemsSelectorPanel"
+						context="pos"
+						class="selector-with-groups__main"
+					/>
+				</div>
 			</v-col>
 			<v-col
 				v-show="(!useCompactPosSwitcher || compactPanel === 'selector') && activeView === 'offers'"
-				:xl="useCompactPosSwitcher ? 12 : 5"
-				:lg="useCompactPosSwitcher ? 12 : 5"
-				:md="useCompactPosSwitcher ? 12 : 5"
-				:sm="useCompactPosSwitcher ? 12 : 5"
+				:xl="useCompactPosSwitcher ? 12 : 6"
+				:lg="useCompactPosSwitcher ? 12 : 6"
+				:md="useCompactPosSwitcher ? 12 : 6"
+				:sm="useCompactPosSwitcher ? 12 : 6"
 				cols="12"
 				class="pos dynamic-col dynamic-col--selector"
 			>
@@ -75,10 +87,10 @@
 			</v-col>
 			<v-col
 				v-show="(!useCompactPosSwitcher || compactPanel === 'selector') && activeView === 'coupons'"
-				:xl="useCompactPosSwitcher ? 12 : 5"
-				:lg="useCompactPosSwitcher ? 12 : 5"
-				:md="useCompactPosSwitcher ? 12 : 5"
-				:sm="useCompactPosSwitcher ? 12 : 5"
+				:xl="useCompactPosSwitcher ? 12 : 6"
+				:lg="useCompactPosSwitcher ? 12 : 6"
+				:md="useCompactPosSwitcher ? 12 : 6"
+				:sm="useCompactPosSwitcher ? 12 : 6"
 				cols="12"
 				class="pos dynamic-col dynamic-col--selector"
 			>
@@ -90,10 +102,10 @@
 					activeView === 'payment' &&
 					!usePaymentDialog
 				"
-				:xl="useCompactPosSwitcher ? 12 : 5"
-				:lg="useCompactPosSwitcher ? 12 : 5"
-				:md="useCompactPosSwitcher ? 12 : 5"
-				:sm="useCompactPosSwitcher ? 12 : 5"
+				:xl="useCompactPosSwitcher ? 12 : 6"
+				:lg="useCompactPosSwitcher ? 12 : 6"
+				:md="useCompactPosSwitcher ? 12 : 6"
+				:sm="useCompactPosSwitcher ? 12 : 6"
 				cols="12"
 				class="pos dynamic-col dynamic-col--selector"
 			>
@@ -188,6 +200,7 @@
 
 <script>
 import ItemsSelector from "../items/ItemsSelector.vue";
+import ItemGroupSidebar from "../items/ItemGroupSidebar.vue";
 import Invoice from "../Invoice.vue";
 import OpeningDialog from "../shift/OpeningDialog.vue";
 import Payments from "../Payments.vue";
@@ -629,6 +642,7 @@ export default {
 
 	components: {
 		ItemsSelector,
+		ItemGroupSidebar,
 		Invoice,
 		OpeningDialog,
 		Payments,
@@ -756,11 +770,46 @@ export default {
 }
 
 .dynamic-col--invoice > :deep(.invoice-shell),
-.dynamic-col--selector > :deep(.items-selector-shell) {
+.dynamic-col--selector > :deep(.items-selector-shell),
+.dynamic-col--selector > .selector-with-groups {
 	flex: 1 1 auto;
 	min-height: 0;
 	height: 100%;
 	overflow: hidden;
+}
+
+.selector-with-groups {
+	display: flex;
+	flex-direction: row;
+	gap: var(--dynamic-sm, 8px);
+	align-items: stretch;
+}
+
+.selector-group-col {
+	flex: 0 0 200px;
+	width: 200px;
+	max-width: 42%;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+	border-radius: 12px;
+	border: 1px solid rgba(17, 24, 39, 0.1);
+	background: #ffffff;
+}
+
+.selector-with-groups__main {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+}
+
+@media (max-width: 600px) {
+	.selector-group-col {
+		flex-basis: 132px;
+		width: 132px;
+	}
 }
 
 @media (max-width: 1099px) {

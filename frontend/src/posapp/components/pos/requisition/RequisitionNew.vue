@@ -133,10 +133,20 @@
 										class="pos-themed-input purchase-item-search"
 										@update:search="handleItemSearchUpdate"
 										@update:model-value="handleSearchItemPicked"
-									/>
+									>
+										<template #item="{ props: itemProps, item }">
+											<v-list-item v-bind="itemProps" :title="undefined">
+												<v-list-item-title>{{ item.raw.item_name }}</v-list-item-title>
+												<v-list-item-subtitle>
+													{{ item.raw.item_code }} · {{ __("Stock") }}: {{ Number(item.raw.actual_qty || 0) }}
+												</v-list-item-subtitle>
+											</v-list-item>
+										</template>
+									</v-autocomplete>
 								</div>
 								<RequisitionItemsTable
 									:items="requisitionItems"
+									:show-stock-qty="true"
 									@update-qty="({ item, value }) => updateItemQty(item, value)"
 									@remove-item="removeItem"
 								/>
@@ -195,7 +205,7 @@
 				:md="selectorCols"
 				class="h-100 pa-0 border-s txn-col txn-col--selector"
 			>
-				<ItemsSelector context="requisition" @add-item="onAddItem" />
+				<ItemsSelectorWithGroups context="requisition" @add-item="onAddItem" />
 			</v-col>
 		</v-row>
 
@@ -264,7 +274,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { useRequisition } from '../../../composables/pos/requisition/useRequisition';
 import { useItemsStore } from '../../../stores/itemsStore';
 import { isPosWarehouseSwitcher, isFundTransferManager } from '../../../utils/posWarehouseAccess';
-import ItemsSelector from '../items/ItemsSelector.vue';
+import ItemsSelectorWithGroups from '../items/ItemsSelectorWithGroups.vue';
 import RequisitionItemsTable from './RequisitionItemsTable.vue';
 import { getOpeningStorage } from '../../../../offline/index';
 import { normalizeDateForBackend } from '../../../format';
@@ -280,7 +290,7 @@ export default {
 	name: 'RequisitionNew',
 	mixins: [format],
 	components: {
-		ItemsSelector,
+		ItemsSelectorWithGroups,
 		RequisitionItemsTable,
 		VueDatePicker,
 	},
@@ -498,7 +508,11 @@ export default {
 			try {
 				const { message } = await frappe.call({
 					method: 'posawesome.posawesome.api.requisitions.search_items',
-					args: { search_text: searchText, limit: 20 },
+					args: {
+						search_text: searchText,
+						limit: 500,
+						warehouse: sourceWarehouse.value || null,
+					},
 				});
 				itemSearchResults.value = message || [];
 			} catch {

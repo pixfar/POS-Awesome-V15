@@ -331,7 +331,7 @@
 				:md="selectorCols"
 				class="h-100 pa-0 border-s txn-col txn-col--selector"
 			>
-				<ItemsSelector context="purchase" @add-item="onAddItem" />
+				<ItemsSelectorWithGroups context="purchase" @add-item="onAddItem" />
 			</v-col>
 		</v-row>
 
@@ -452,7 +452,7 @@ import { getOpeningStorage } from "../../../../offline/index";
 import { useItemsStore } from "../../../stores/itemsStore";
 import { useToastStore } from "../../../stores/toastStore";
 import { usePurchaseOrder } from "../../../composables/pos/payments/usePurchaseOrder";
-import ItemsSelector from "../items/ItemsSelector.vue";
+import ItemsSelectorWithGroups from '../items/ItemsSelectorWithGroups.vue';
 import PurchasePaymentDialog from "./PurchasePaymentDialog.vue";
 import SupplierDialog from "../dialogs/purchase/SupplierDialog.vue";
 import PurchaseCompleteDialog from "./PurchaseCompleteDialog.vue";
@@ -470,7 +470,7 @@ import PurchaseDraftsDialog from "./PurchaseDraftsDialog.vue";
 export default {
 	mixins: [format],
 	components: {
-		ItemsSelector,
+		ItemsSelectorWithGroups,
 		PurchasePaymentDialog,
 		SupplierDialog,
 		PurchaseCompleteDialog,
@@ -608,7 +608,7 @@ export default {
 			try {
 				const { message } = await frappe.call({
 					method: "posawesome.posawesome.api.purchase_invoices.search_suppliers",
-					args: { search_text: searchText, limit: 20 },
+					args: { search_text: searchText, limit: 500 },
 				});
 				supplierOptions.value = Array.isArray(message) ? message : [];
 				if (supplier.value) {
@@ -755,7 +755,7 @@ export default {
 					method: "posawesome.posawesome.api.purchase_invoices.search_items",
 					args: {
 						search_text: searchText,
-						limit: 20,
+						limit: 500,
 						warehouse: warehouse.value,
 					},
 				});
