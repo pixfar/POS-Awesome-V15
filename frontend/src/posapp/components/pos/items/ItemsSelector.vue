@@ -699,6 +699,15 @@ const itemsSelectorSearch = useItemsSelectorSearch({
 	runLimitSearch: (term) => itemsIntegration.searchItems(term),
 	clearHighlightedItem: () => itemSelection.clearHighlightedItem(),
 });
+// Trigger a debounced catalog search as the user types -- not only on Enter --
+// so results aren't limited to items already loaded locally. Essential now that
+// the full catalog is never pre-cached (online-only mode).
+watch(first_search, (term) => {
+	if (String(term ?? "").trim().length >= 2) {
+		itemsSelectorSearch.search_onchange();
+	}
+});
+
 const itemsSelectorSettings = useItemsSelectorSettings({ getVM: () => settingsContext, itemSync });
 const itemsSelectorFocus = useItemsSelectorFocus({
 	getVM: () => vmInstance?.proxy,

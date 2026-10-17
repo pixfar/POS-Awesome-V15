@@ -73,7 +73,7 @@
 					:min="fromDate"
 					@update:model-value="loadRecords"
 				/>
-				<v-select
+				<v-autocomplete
 					v-model="warehouseFilter"
 					:items="warehouseOptions"
 					item-title="warehouse_name"

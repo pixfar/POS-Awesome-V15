@@ -314,6 +314,7 @@
 
 <script>
 import { ref, reactive, computed, onMounted } from "vue";
+import { sortItemGroupsBanglaFirst } from '../../../utils/itemGroupSort';
 import { useRouter } from "vue-router";
 import { useToastStore } from "../../../stores/toastStore";
 import DateFilterField from "../shared/DateFilterField.vue";
@@ -501,7 +502,7 @@ export default {
 		const loadFilterOptions = async () => {
 			try {
 				const { message } = await frappe.call({ method: `${API}.get_filter_options` });
-				filterOptions.item_groups = message?.item_groups || [];
+				filterOptions.item_groups = sortItemGroupsBanglaFirst(message?.item_groups || []);
 				filterOptions.production_groups = message?.production_groups || [];
 			} catch (e) {
 				console.error("Failed to load filter options", e);

@@ -848,6 +848,16 @@ export const useItemsStore = defineStore("items", () => {
 				return clearLimitSearchResults({ preserveItems: true });
 			}
 
+				// Online-only: a prior server search replaced items.value with just
+				// the matches, so reload the group's catalog from the server when the
+				// search is cleared instead of leaving the stale search set visible.
+				if (forceServerItems.value && previousTerm.length >= 2) {
+					await loadItems({
+						groupFilter: itemGroup.value,
+						forceServer: true,
+					});
+				}
+
 			if (!cachedPagination.value.enabled) {
 				filteredItems.value = filterItemsByGroup(
 					items.value,
@@ -944,6 +954,19 @@ export const useItemsStore = defineStore("items", () => {
 				cachedPagination.value.total = Math.max(
 					cachedPagination.value.total,
 					searchResults.length,
+				);
+			} else if (forceServerItems.value && term.length >= 2) {
+				// Online-only mode: always query the server for the term so the
+				// results are the full set of matches, not just whatever items
+				// happen to be loaded locally.
+				await loadItems({
+					searchValue: term,
+					groupFilter: itemGroup.value,
+					forceServer: true,
+				});
+				searchResults = filterItemsByGroup(
+					performLocalSearch(term, items.value, itemGroup.value),
+					itemGroup.value,
 				);
 			} else {
 				const sourceItems = canRefineSearch

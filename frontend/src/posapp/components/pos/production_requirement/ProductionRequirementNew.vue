@@ -505,6 +505,7 @@
 
 <script>
 import { ref, reactive, computed, onMounted, watch } from "vue";
+import { sortItemGroupsBanglaFirst } from '../../../utils/itemGroupSort';
 import { useRoute, useRouter } from "vue-router";
 import VueDatePicker from "@vuepic/vue-datepicker";
 import { useUIStore } from "../../../stores/uiStore.js";
@@ -682,7 +683,7 @@ export default {
 		const loadFilterOptions = async () => {
 			try {
 				const { message } = await frappe.call({ method: `${API}.get_filter_options` });
-				filterOptions.item_groups = message?.item_groups || [];
+				filterOptions.item_groups = sortItemGroupsBanglaFirst(message?.item_groups || []);
 				filterOptions.production_groups = message?.production_groups || [];
 			} catch (e) {
 				console.error("Failed to load filter options", e);

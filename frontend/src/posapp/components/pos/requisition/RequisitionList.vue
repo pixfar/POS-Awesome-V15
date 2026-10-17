@@ -123,7 +123,7 @@
 					@update:search="handleItemSearchUpdate"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-select
+				<v-autocomplete
 					v-model="itemGroupFilter"
 					:items="itemGroupOptions"
 					item-title="name"
@@ -136,7 +136,7 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-select
+				<v-autocomplete
 					v-model="warehouseFilter"
 					:items="warehouseOptions"
 					item-title="warehouse_name"
@@ -309,6 +309,7 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue';
+import { sortItemGroupsBanglaFirst } from '../../../utils/itemGroupSort';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
@@ -517,7 +518,7 @@ export default {
 						limit_page_length: 200,
 					},
 				});
-				itemGroupOptions.value = message || [];
+				itemGroupOptions.value = sortItemGroupsBanglaFirst(message || []);
 			} catch (e) {
 				console.error('Failed to load item groups', e);
 			}

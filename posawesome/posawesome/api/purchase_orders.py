@@ -1119,7 +1119,7 @@ def get_purchase_invoices_list(
             doctype,
             filters=filters,
             or_filters=or_filters,
-            fields=["name"],
+            fields=[f"`tab{doctype}`.name as name"],
             distinct=True,
             ignore_permissions=True,
             limit_page_length=0,
@@ -1133,8 +1133,11 @@ def get_purchase_invoices_list(
             doctype,
             filters=status_filters,
             or_filters=or_filters,
-            fields=["status", "count(name) as count"],
-            group_by="status",
+            fields=[
+                f"`tab{doctype}`.status as status",
+                f"count(distinct `tab{doctype}`.name) as count",
+            ],
+            group_by=f"`tab{doctype}`.status",
             ignore_permissions=True,
             limit_page_length=0,
         )
