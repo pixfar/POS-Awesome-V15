@@ -19,7 +19,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_can_create,
 )
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
-from posawesome.posawesome.api.utils import attach_actual_qty
+from posawesome.posawesome.api.utils import attach_actual_qty, attach_user_full_names
 
 
 def _parse_json(value):
@@ -211,6 +211,10 @@ def get_material_transfers_list(
 		row['total_weight'] = weight_by_parent.get(row['name'], 0.0)
 
 	transfers = [_enrich_list_row(row) for row in rows]
+	attach_user_full_names(
+		transfers,
+		{'owner': 'owner_name', 'modified_by': 'modified_by_name'},
+	)
 
 	return {
 		'transfers': transfers,
@@ -272,6 +276,8 @@ def get_material_transfer_detail(transfer):
 		'notes': doc.notes,
 		'stock_entry': doc.get('stock_entry'),
 		'created_by': owner_name,
+		'last_modified_by': frappe.db.get_value('User', doc.modified_by, 'full_name') or doc.modified_by,
+		'modified': doc.modified,
 		'creation': doc.creation,
 		'amended_from': doc.get('amended_from'),
 		'total_qty': flt(sum(flt(row.qty) for row in doc.items)),

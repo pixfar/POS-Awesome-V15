@@ -1225,6 +1225,9 @@ def get_purchase_invoice_detail(name):
         "outstanding_amount": flt(doc.outstanding_amount),
         "remarks": doc.get("remarks"),
         "owner": owner_name,
+        "created_by": owner_name,
+        "last_modified_by": frappe.db.get_value("User", doc.modified_by, "full_name") or doc.modified_by,
+        "modified": doc.modified,
         "taxes": [
             {
                 "description": row.description,

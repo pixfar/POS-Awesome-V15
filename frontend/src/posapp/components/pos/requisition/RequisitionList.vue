@@ -202,6 +202,15 @@
 							{{ displayStatus(item) }}
 						</v-chip>
 					</template>
+					<template #item.notes="{ item }">
+						<span class="pos-list-cell-truncate" :title="item.notes">{{ item.notes || '—' }}</span>
+					</template>
+					<template #item.owner_name="{ item }">
+						<span class="pos-list-cell-truncate pos-list-cell-truncate--wide" :title="item.owner_name">{{ item.owner_name || '—' }}</span>
+					</template>
+					<template #item.modified_by_name="{ item }">
+						<span class="pos-list-cell-truncate pos-list-cell-truncate--wide" :title="item.modified_by_name">{{ item.modified_by_name || '—' }}</span>
+					</template>
 					<template #item.actions="{ item }">
 						<div class="d-flex justify-end">
 							<RowActionsMenu
@@ -404,8 +413,8 @@ export default {
 			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'transfer_status', sortable: true },
 			{ title: __('Remarks'), key: 'notes', sortable: false },
-			{ title: __('Created By'), key: 'owner', sortable: true },
-			{ title: __('Last Modified By'), key: 'modified_by', sortable: true },
+			{ title: __('Created By'), key: 'owner_name', sortable: true },
+			{ title: __('Last Modified By'), key: 'modified_by_name', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '180px' },
 		];
 

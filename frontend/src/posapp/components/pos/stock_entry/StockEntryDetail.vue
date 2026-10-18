@@ -68,6 +68,7 @@ export default {
 			},
 			{ label: __('Company'), value: detail.value.company },
 			{ label: __('Created By'), value: detail.value.created_by },
+		{ label: __('Last Modified By'), value: detail.value.last_modified_by },
 			{ label: __('Created On'), value: formatDisplayDateTime(detail.value.creation) },
 			{ label: __('Remarks'), value: detail.value.remarks },
 		]);

@@ -59,7 +59,8 @@ export default {
 					label: this.__('Update Stock'),
 					value: this.detail.update_stock ? this.__('Yes') : this.__('No'),
 				},
-				{ label: this.__('Created By'), value: this.detail.owner },
+				{ label: this.__('Created By'), value: this.detail.created_by || this.detail.owner },
+			{ label: this.__('Last Modified By'), value: this.detail.last_modified_by },
 			];
 			if (this.detail.custom_do_number) {
 				fields.push({ label: this.__('DO Number'), value: this.detail.custom_do_number });

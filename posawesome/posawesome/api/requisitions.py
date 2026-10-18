@@ -15,7 +15,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_can_create,
 )
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
-from posawesome.posawesome.api.utils import attach_actual_qty
+from posawesome.posawesome.api.utils import attach_actual_qty, attach_user_full_names
 
 ALLOWED_STATUS_TRANSITIONS = {
 	'Sent': {'Seen', 'Rejected'},
@@ -219,6 +219,10 @@ def get_requisitions_list(
 		row['total_weight'] = weight_by_parent.get(row['name'], 0.0)
 
 	requisitions = [_enrich_list_row(row) for row in rows]
+	attach_user_full_names(
+		requisitions,
+		{'owner': 'owner_name', 'modified_by': 'modified_by_name'},
+	)
 
 	return {
 		'requisitions': requisitions,
@@ -278,6 +282,8 @@ def get_requisition_detail(requisition):
 		'transfer_status': doc.transfer_status,
 		'notes': doc.notes,
 		'created_by': owner_name,
+		'last_modified_by': frappe.db.get_value('User', doc.modified_by, 'full_name') or doc.modified_by,
+		'modified': doc.modified,
 		'creation': doc.creation,
 		'amended_from': doc.get('amended_from'),
 		'total_required_qty': flt(sum(flt(row.required_qty) for row in doc.items)),

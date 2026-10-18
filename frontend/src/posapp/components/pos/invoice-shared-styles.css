@@ -925,6 +925,19 @@
 	vertical-align: bottom;
 }
 
+.pos-list-cell-truncate--wide {
+	max-width: 260px;
+}
+
+/* Keep each cell on a single line -- Invoice no / Date / Time no longer wrap;
+   there is plenty of horizontal room. Remarks/notes still truncate with an
+   ellipsis (and a hover tooltip) via .pos-list-cell-truncate. */
+.pos-list-table :deep(td),
+.pos-list-table :deep(th) {
+	white-space: nowrap;
+	vertical-align: middle;
+}
+
 .pos-list-empty {
 	display: flex;
 	flex-direction: column;

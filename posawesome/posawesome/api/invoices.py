@@ -384,6 +384,9 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
         "return_against": doc.get("return_against"),
         "remarks": doc.get("remarks"),
         "owner": owner_name,
+        "created_by": owner_name,
+        "last_modified_by": frappe.db.get_value("User", doc.modified_by, "full_name") or doc.modified_by,
+        "modified": doc.modified,
         "payments": [
             {
                 "mode_of_payment": row.mode_of_payment,

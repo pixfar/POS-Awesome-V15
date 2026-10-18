@@ -254,6 +254,8 @@ def get_stock_entry_detail(name):
 		'docstatus': doc.docstatus,
 		'status': _status(doc.docstatus),
 		'created_by': frappe.db.get_value('User', doc.owner, 'full_name') or doc.owner,
+		'last_modified_by': frappe.db.get_value('User', doc.modified_by, 'full_name') or doc.modified_by,
+		'modified': doc.modified,
 		'creation': doc.creation,
 		'total_qty': flt(sum(flt(row.qty) for row in doc.items)),
 		'total_value': flt(doc.total_outgoing_value if is_issue else doc.total_incoming_value),

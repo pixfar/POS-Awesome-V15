@@ -200,7 +200,18 @@
 					item-value="name"
 					v-model:expanded="expandedRows"
 					class="pos-list-table sales-invoice-list-table"
+					@click:row="(_, row) => openInvoiceDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
 					<template #expanded-row="{ columns, item }">
 						<tr class="pos-list-expanded-row">
 							<td :colspan="columns.length">

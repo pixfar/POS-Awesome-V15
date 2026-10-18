@@ -495,7 +495,12 @@ export const useItemsStore = defineStore("items", () => {
 
 	const loadCachedItems = async () => {
 		try {
-			if (limitSearchEnabled.value) {
+			// Online-only mode (or limit search) must never seed the catalog from
+			// the local IndexedDB cache -- stale rows left over from a previous
+			// (offline-capable) session would otherwise show instead of the live
+			// catalog, and would differ per entry screen. Force a fresh server
+			// load instead.
+			if (limitSearchEnabled.value || forceServerItems.value) {
 				resetCachedPagination({ enabled: false, total: 0 });
 				setItems([], { totalCount: 0 });
 				itemsLoaded.value = false;

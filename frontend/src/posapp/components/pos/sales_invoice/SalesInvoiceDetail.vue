@@ -86,6 +86,8 @@ export default {
 					value: this.detail.is_return ? this.__('Yes') : this.__('No'),
 				},
 				{ label: this.__('POS Profile'), value: this.detail.pos_profile },
+				{ label: this.__('Created By'), value: this.detail.created_by || this.detail.owner },
+				{ label: this.__('Last Modified By'), value: this.detail.last_modified_by },
 				{ label: this.__('Cashier'), value: this.detail.owner },
 				{ label: this.__('Warehouse'), value: this.detail.warehouse },
 				{ label: this.__('Territory'), value: this.detail.territory },

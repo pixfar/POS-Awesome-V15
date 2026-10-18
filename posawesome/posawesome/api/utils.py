@@ -11,6 +11,42 @@ import frappe
 HAS_VARIANTS_EXCLUSION = {"has_variants": 0}
 
 
+def attach_user_full_names(rows, mapping):
+	"""Attach each user field's full name to the rows.
+
+	``mapping`` maps a source field holding a user id (e.g. ``owner``) to the
+	target field for its full name (e.g. ``owner_name``). Used by the list pages
+	so columns show the person's name instead of their login email.
+	"""
+	if not rows:
+		return rows
+	user_ids = set()
+	for row in rows:
+		for src in mapping:
+			value = row.get(src)
+			if value:
+				user_ids.add(value)
+	if not user_ids:
+		for row in rows:
+			for src, target in mapping.items():
+				row[target] = row.get(src)
+		return rows
+
+	name_by_user = dict(
+		frappe.get_all(
+			"User",
+			filters={"name": ["in", list(user_ids)]},
+			fields=["name", "full_name"],
+			as_list=True,
+		)
+	)
+	for row in rows:
+		for src, target in mapping.items():
+			uid = row.get(src)
+			row[target] = name_by_user.get(uid) or uid
+	return rows
+
+
 def attach_actual_qty(items, warehouse=None):
 	"""Attach each row's on-hand qty (Bin.actual_qty) for ``warehouse`` as
 	``actual_qty``. Used by the item-search dropdowns so every transaction
