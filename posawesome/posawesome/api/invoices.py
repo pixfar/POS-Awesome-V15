@@ -42,6 +42,7 @@ from posawesome.posawesome.api.invoice_processing.returns import (
 from posawesome.posawesome.api.invoice_processing.fulfillment import (
     get_delivery_statuses,
     get_sales_invoice_for_delivery,
+    sales_invoice_names_for_delivery_status,
 )
 from posawesome.posawesome.api.invoice_processing.payment import _create_change_payment_entries
 from posawesome.posawesome.api.payment_processing.creation import refund_payments_for_return
@@ -130,6 +131,7 @@ def get_sales_invoices_list(
     do_number=None,
     remarks=None,
     search=None,
+    delivery_status=None,
 ):
     """Paginated, filterable list of submitted sales invoices for the Invoice List page."""
     profile = (
@@ -167,6 +169,11 @@ def get_sales_invoices_list(
         filters.append([doctype, "customer", "=", customer])
     if warehouse:
         filters.append([doctype, "set_warehouse", "=", warehouse])
+    if delivery_status and doctype == "Sales Invoice":
+        delivered_names = sales_invoice_names_for_delivery_status(
+            profile.get("company"), delivery_status
+        )
+        filters.append([doctype, "name", "in", delivered_names or ["__none__"]])
 
     has_do_number = frappe.db.has_column(doctype, "custom_do_number")
     if do_number and has_do_number:

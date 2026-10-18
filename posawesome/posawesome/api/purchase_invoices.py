@@ -58,7 +58,9 @@ def get_purchase_invoices_list(
 	supplier=None,
 	warehouse=None,
 	do_number=None,
+	remarks=None,
 	search=None,
+	receipt_status=None,
 ):
 	return po.get_purchase_invoices_list(
 		pos_profile,
@@ -73,7 +75,9 @@ def get_purchase_invoices_list(
 		supplier=supplier,
 		warehouse=warehouse,
 		do_number=do_number,
+		remarks=remarks,
 		search=search,
+		receipt_status=receipt_status,
 	)
 
 

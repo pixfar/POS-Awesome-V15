@@ -1001,6 +1001,7 @@ def get_purchase_invoices_list(
     do_number=None,
     remarks=None,
     search=None,
+    receipt_status=None,
 ):
     """Paginated, filterable list of purchase invoices for the Invoice List page.
 
@@ -1032,6 +1033,11 @@ def get_purchase_invoices_list(
         filters.append([doctype, "supplier", "=", supplier])
     if warehouse:
         filters.append([doctype, "set_warehouse", "=", warehouse])
+    if receipt_status:
+        received_names = purchase_invoice_names_for_receipt_status(
+            profile.get("company"), receipt_status
+        )
+        filters.append([doctype, "name", "in", received_names or ["__none__"]])
 
     has_do_number = frappe.db.has_column(doctype, "custom_do_number")
     if do_number and has_do_number:
@@ -1243,6 +1249,49 @@ def get_purchase_invoice_detail(name):
 NOT_RECEIVED = "Not Received"
 PARTLY_RECEIVED = "Partly Received"
 RECEIVED = "Received"
+
+
+def purchase_invoice_names_for_receipt_status(company, receipt_status):
+    """Submitted, non-return Purchase Invoice names whose receipt status matches.
+
+    Mirrors get_receipt_statuses, including update_stock invoices, which are
+    Received even though received_qty stays 0.
+    """
+    if receipt_status not in (NOT_RECEIVED, PARTLY_RECEIVED, RECEIVED) or not company:
+        return []
+
+    rows = frappe.db.sql(
+        """
+        SELECT pi.name,
+               IFNULL(pi.update_stock, 0) AS update_stock,
+               COALESCE(SUM(pii.qty), 0) AS total_qty,
+               COALESCE(SUM(pii.received_qty), 0) AS total_received
+        FROM `tabPurchase Invoice` pi
+        INNER JOIN `tabPurchase Invoice Item` pii ON pii.parent = pi.name
+        WHERE pi.docstatus = 1
+          AND IFNULL(pi.is_return, 0) = 0
+          AND pi.company = %(company)s
+        GROUP BY pi.name, pi.update_stock
+        """,
+        {"company": company},
+        as_dict=True,
+    )
+    names = []
+    for row in rows:
+        if cint(row.update_stock):
+            status = RECEIVED
+        else:
+            total_qty = flt(row.total_qty)
+            total_received = flt(row.total_received)
+            if total_received <= 0.0001:
+                status = NOT_RECEIVED
+            elif total_received + 0.0001 < total_qty:
+                status = PARTLY_RECEIVED
+            else:
+                status = RECEIVED
+        if status == receipt_status:
+            names.append(row.name)
+    return names
 
 
 def get_receipt_statuses(names):

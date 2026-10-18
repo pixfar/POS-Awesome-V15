@@ -47,6 +47,49 @@ def get_delivery_statuses(names):
     return statuses
 
 
+def sales_invoice_names_for_delivery_status(company, delivery_status):
+    """Submitted, non-return Sales Invoice names whose delivery status matches.
+
+    Mirrors get_delivery_statuses, including update_stock invoices, which are
+    Delivered even though delivered_qty stays 0.
+    """
+    if delivery_status not in (NOT_DELIVERED, PARTLY_DELIVERED, DELIVERED) or not company:
+        return []
+
+    rows = frappe.db.sql(
+        """
+        SELECT si.name,
+               IFNULL(si.update_stock, 0) AS update_stock,
+               COALESCE(SUM(sii.qty), 0) AS total_qty,
+               COALESCE(SUM(sii.delivered_qty), 0) AS total_delivered
+        FROM `tabSales Invoice` si
+        INNER JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
+        WHERE si.docstatus = 1
+          AND IFNULL(si.is_return, 0) = 0
+          AND si.company = %(company)s
+        GROUP BY si.name, si.update_stock
+        """,
+        {"company": company},
+        as_dict=True,
+    )
+    names = []
+    for row in rows:
+        if cint(row.update_stock):
+            status = DELIVERED
+        else:
+            total_qty = flt(row.total_qty)
+            total_delivered = flt(row.total_delivered)
+            if total_delivered <= 0.0001:
+                status = NOT_DELIVERED
+            elif total_delivered + 0.0001 < total_qty:
+                status = PARTLY_DELIVERED
+            else:
+                status = DELIVERED
+        if status == delivery_status:
+            names.append(row.name)
+    return names
+
+
 @frappe.whitelist()
 def get_sales_invoice_for_delivery(invoice_name):
     """Sales Invoice items with remaining (undelivered) quantity."""

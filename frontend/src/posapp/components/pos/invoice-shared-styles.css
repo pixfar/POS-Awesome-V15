@@ -1003,6 +1003,65 @@
 	text-overflow: ellipsis;
 }
 
+/* Sales and Purchase invoice lists have many columns. Fixed widths keep
+   Outstanding and Remarks from collapsing into each other, and a narrower
+   DO Number leaves room for them. */
+.sales-invoice-list-table :deep(table),
+.purchase-invoice-list-table :deep(table) {
+	table-layout: fixed;
+}
+
+.sales-invoice-list-table :deep(th),
+.sales-invoice-list-table :deep(td),
+.purchase-invoice-list-table :deep(th),
+.purchase-invoice-list-table :deep(td) {
+	padding: 6px 4px !important;
+}
+
+.sales-invoice-list-table :deep(thead th:first-child),
+.sales-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:first-child),
+.purchase-invoice-list-table :deep(thead th:first-child),
+.purchase-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:first-child) {
+	width: 152px;
+	max-width: 168px !important;
+	padding-left: 14px !important;
+}
+
+.sales-invoice-list-table :deep(thead th:nth-child(4)),
+.sales-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:nth-child(4)),
+.purchase-invoice-list-table :deep(thead th:nth-child(4)),
+.purchase-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:nth-child(4)) {
+	width: 120px !important;
+	max-width: 140px !important;
+}
+
+.sales-invoice-list-table :deep(thead th:nth-child(7)),
+.sales-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:nth-child(7)),
+.purchase-invoice-list-table :deep(thead th:nth-child(7)),
+.purchase-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:nth-child(7)) {
+	width: 76px;
+	max-width: 76px;
+}
+
+.sales-invoice-list-table :deep(thead th:nth-child(12)),
+.sales-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:nth-child(12)),
+.purchase-invoice-list-table :deep(thead th:nth-child(12)),
+.purchase-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:nth-child(12)),
+.sales-invoice-list-table :deep(thead th:nth-child(13)),
+.sales-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:nth-child(13)),
+.purchase-invoice-list-table :deep(thead th:nth-child(13)),
+.purchase-invoice-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:nth-child(13)) {
+	width: 96px;
+	min-width: 84px;
+	max-width: 120px;
+}
+
+.sales-invoice-list-table :deep(.pos-list-cell-truncate),
+.purchase-invoice-list-table :deep(.pos-list-cell-truncate) {
+	display: block;
+	max-width: 100%;
+}
+
 .pos-list-empty {
 	display: flex;
 	flex-direction: column;

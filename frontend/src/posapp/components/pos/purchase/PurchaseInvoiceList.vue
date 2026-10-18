@@ -32,8 +32,8 @@
 					<strong class="pos-list-stat__value">{{ paidCount }}</strong>
 				</div>
 				<div class="pos-list-stat pos-list-stat--warning">
-					<span class="pos-list-stat__label">{{ __("Unpaid") }}</span>
-					<strong class="pos-list-stat__value">{{ unpaidCount }}</strong>
+					<span class="pos-list-stat__label">{{ __("Overdue") }}</span>
+					<strong class="pos-list-stat__value">{{ overdueCount }}</strong>
 				</div>
 			</div>
 
@@ -77,6 +77,17 @@
 					v-model="statusFilter"
 					:items="statusOptions"
 					:label="__('Status')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="resetAndLoad"
+				/>
+				<v-select
+					v-model="receiptStatusFilter"
+					:items="receiptStatusOptions"
+					:label="__('Receipt Status')"
 					density="compact"
 					variant="outlined"
 					hide-details
@@ -492,14 +503,8 @@ import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
-const UNPAID_STATUSES = [
-	'Unpaid',
-	'Unpaid and Discounted',
-	'Partly Paid',
-	'Partly Paid and Discounted',
-	'Overdue',
-	'Overdue and Discounted',
-];
+const OVERDUE_STATUSES = ['Overdue', 'Overdue and Discounted'];
+const RETIRED_STATUS_FILTERS = ['Unpaid', 'Unpaid and Discounted'];
 
 export default {
 	name: 'PurchaseInvoiceList',
@@ -685,8 +690,6 @@ export default {
 
 		const statusOptions = [
 			'Draft',
-			'Unpaid',
-			'Unpaid and Discounted',
 			'Partly Paid',
 			'Partly Paid and Discounted',
 			'Overdue',
@@ -695,7 +698,9 @@ export default {
 			'Debit Note Issued',
 			'Cancelled',
 		];
+		const receiptStatusOptions = ['Not Received', 'Partly Received', 'Received'];
 		const statusFilter = ref(null);
+		const receiptStatusFilter = ref(null);
 		const fromDate = ref('');
 		const toDate = ref('');
 		const itemCodeFilter = ref(null);
@@ -723,6 +728,7 @@ export default {
 			{
 				searchQuery,
 				statusFilter,
+				receiptStatusFilter,
 				fromDate,
 				toDate,
 				itemCodeFilter,
@@ -739,26 +745,27 @@ export default {
 		);
 
 		const listHeaders = [
-			{ title: __('Invoice'), key: 'name', sortable: true },
-			{ title: __('Date'), key: 'posting_date', sortable: true },
-			{ title: __('Time'), key: 'creation_ampm', sortable: false },
-			{ title: __('Supplier'), key: 'supplier', sortable: true },
-			{ title: __('Status'), key: 'status', sortable: true },
-			{ title: __('Receipt Status'), key: 'receipt_status', sortable: true },
-			{ title: __('DO Number'), key: 'custom_do_number', sortable: true },
-			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
-			{ title: __('Grand Total'), key: 'grand_total', sortable: true, align: 'end' },
-			{ title: __('Discount'), key: 'discount_amount', sortable: true, align: 'end' },
-			{ title: __('Total Paid'), key: 'paid_amount', sortable: true, align: 'end' },
-			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
-			{ title: __('Remarks'), key: 'remarks', sortable: false },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
+			{ title: __('Invoice'), key: 'name', sortable: true, width: '152px' },
+			{ title: __('Date'), key: 'posting_date', sortable: true, width: '86px' },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false, width: '70px' },
+			{ title: __('Supplier'), key: 'supplier', sortable: true, width: '120px', maxWidth: '140px' },
+			{ title: __('Status'), key: 'status', sortable: true, width: '78px' },
+			{ title: __('Receipt Status'), key: 'receipt_status', sortable: true, width: '104px' },
+			{ title: __('DO Number'), key: 'custom_do_number', sortable: true, width: '76px', maxWidth: '76px' },
+			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end', width: '62px' },
+			{ title: __('Grand Total'), key: 'grand_total', sortable: true, align: 'end', width: '104px' },
+			{ title: __('Discount'), key: 'discount_amount', sortable: true, align: 'end', width: '76px' },
+			{ title: __('Total Paid'), key: 'paid_amount', sortable: true, align: 'end', width: '92px' },
+			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end', width: '100px' },
+			{ title: __('Remarks'), key: 'remarks', sortable: false, width: '96px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '44px' },
 		];
 
 		const hasActiveFilters = computed(() =>
 			Boolean(
 				searchQuery.value ||
 					statusFilter.value ||
+					receiptStatusFilter.value ||
 					fromDate.value ||
 					toDate.value ||
 					itemCodeFilter.value ||
@@ -788,8 +795,8 @@ export default {
 		});
 
 		const paidCount = computed(() => statusCounts.value['Paid'] || 0);
-		const unpaidCount = computed(() =>
-			UNPAID_STATUSES.reduce((sum, key) => sum + (statusCounts.value[key] || 0), 0),
+		const overdueCount = computed(() =>
+			OVERDUE_STATUSES.reduce((sum, key) => sum + (statusCounts.value[key] || 0), 0),
 		);
 
 		const formatDisplayDate = (value) => {
@@ -830,6 +837,7 @@ export default {
 						page_length: pageSize.value,
 						mine_only: mineOnly.value ? 1 : 0,
 						status: statusFilter.value || undefined,
+						receipt_status: receiptStatusFilter.value || undefined,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
 						item_code: itemCodeFilter.value || undefined,
@@ -946,6 +954,7 @@ export default {
 		const clearFilters = () => {
 			searchQuery.value = '';
 			statusFilter.value = null;
+			receiptStatusFilter.value = null;
 			fromDate.value = '';
 			toDate.value = '';
 			itemCodeFilter.value = null;
@@ -1001,6 +1010,9 @@ export default {
 
 		onMounted(() => {
 			loadSavedFilters();
+			if (RETIRED_STATUS_FILTERS.includes(statusFilter.value)) {
+				statusFilter.value = null;
+			}
 			loadItemGroups();
 			loadWarehouses();
 			loadInvoices();
@@ -1033,7 +1045,9 @@ export default {
 			pageNumbers,
 			hasMore,
 			statusOptions,
+			receiptStatusOptions,
 			statusFilter,
+			receiptStatusFilter,
 			fromDate,
 			toDate,
 			itemCodeFilter,
@@ -1053,7 +1067,7 @@ export default {
 			hasActiveFilters,
 			paginationLabel,
 			paidCount,
-			unpaidCount,
+			overdueCount,
 			loadInvoices,
 			resetAndLoad,
 			handleSearchUpdate,
