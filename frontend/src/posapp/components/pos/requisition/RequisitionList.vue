@@ -173,8 +173,34 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table requisition-list-table"
+					show-expand
+					:expand-on-click="false"
+					item-value="name"
+					v-model:expanded="expandedRows"
 					@click:row="(_, row) => openRequisitionDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
+					<template #expanded-row="{ columns, item }">
+						<tr class="pos-list-expanded-row">
+							<td :colspan="columns.length">
+								<InvoiceExpandedDetail
+									variant="requisition"
+									:detail="detailCache[item.name]"
+									:loading="!!detailLoading[item.name]"
+									:format-currency="formatCurrency"
+								/>
+							</td>
+						</tr>
+					</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -325,6 +351,8 @@ import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
+import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
@@ -347,7 +375,7 @@ const CONFIRM_COLOR_BY_STATUS = {
 
 export default {
 	name: 'RequisitionList',
-	components: { DateFilterField, ConfirmActionDialog, RowActionsMenu },
+	components: { DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -415,7 +443,7 @@ export default {
 			{ title: __('Remarks'), key: 'notes', sortable: false },
 			{ title: __('Created By'), key: 'owner_name', sortable: true },
 			{ title: __('Last Modified By'), key: 'modified_by_name', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '180px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const hasActiveFilters = computed(() =>
@@ -738,7 +766,15 @@ export default {
 			loadRequisitions();
 		});
 
+		const { expandedRows, detailCache, detailLoading } = useExpandedRowDetail(
+			'posawesome.posawesome.api.requisitions.get_requisition_detail',
+			'requisition',
+		);
+
 		return {
+			expandedRows,
+			detailCache,
+			detailLoading,
 			requisitionList,
 			listLoading,
 			mineOnly,

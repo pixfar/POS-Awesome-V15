@@ -17,6 +17,9 @@ from posawesome.posawesome.api.payment_processing.utils import get_pos_change_ac
 
 DEFAULT_MODE_OF_PAYMENT = 'Cash'
 DEFAULT_PAYABLE_ACCOUNT = 'Creditors - BSP'
+DEFAULT_EXPENSE_ACCOUNT = 'Operating Expenses - BSP'
+MAX_EXPENSE_IMAGES = 3
+_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic', '.heif')
 
 
 def _parse_json(value):
@@ -104,6 +107,44 @@ def get_expense_claim_types():
 
 
 @frappe.whitelist()
+def create_expense_claim_type(expense_type):
+	"""Create an Expense Claim Type for System Manager / BSP Admin.
+
+	The accounts row is always Operating Expenses - BSP for that account's
+	company, matching the Expense Claim Type screen in Desk.
+	"""
+	if not is_privileged_invoice_viewer():
+		frappe.throw(
+			_('Only a System Manager or BSP Admin can create an Expense Claim Type.'),
+			exc=frappe.PermissionError,
+		)
+
+	name = (expense_type or '').strip()
+	if not name:
+		frappe.throw(_('Expense Claim Type is required.'))
+
+	if frappe.db.exists('Expense Claim Type', name):
+		return {'name': name, 'exists': True}
+
+	company = frappe.db.get_value('Account', DEFAULT_EXPENSE_ACCOUNT, 'company')
+	if not company:
+		frappe.throw(
+			_('Default account {0} was not found.').format(DEFAULT_EXPENSE_ACCOUNT),
+			title=_('Account Not Found'),
+		)
+
+	doc = frappe.new_doc('Expense Claim Type')
+	doc.expense_type = name
+	doc.append('accounts', {
+		'company': company,
+		'default_account': DEFAULT_EXPENSE_ACCOUNT,
+	})
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
+	return {'name': doc.name, 'default_account': DEFAULT_EXPENSE_ACCOUNT}
+
+
+@frappe.whitelist()
 def create_expense_claim(data):
 	"""Create and submit an Expense Claim for the logged-in POS user's Employee record."""
 	ensure_can_create(_('create an Expense'))
@@ -171,6 +212,7 @@ def create_expense_claim(data):
 
 	doc.insert(ignore_permissions=True)
 	doc.submit()
+	_attach_expense_images(doc, data.get('attachments'))
 
 	# Server re-verifies System Manager / BSP Admin before honoring this --
 	# never trust the client alone, same gate as Purchase Invoice's own
@@ -229,9 +271,69 @@ def _pay_expense_claim(doc, override_account=None):
 	return pe
 
 
+def _is_image_filename(name):
+	return (name or '').lower().split('?')[0].endswith(_IMAGE_EXTENSIONS)
+
+
+def _attach_expense_images(doc, file_urls):
+	"""Link images uploaded before the claim existed, same as a deposit receipt.
+
+	Only unattached files owned by the current user are accepted, and a claim
+	can hold at most three images.
+	"""
+	urls = []
+	for url in file_urls or []:
+		url = (url or '').strip()
+		if url and url not in urls:
+			urls.append(url)
+	if not urls:
+		return
+	if len(urls) > MAX_EXPENSE_IMAGES:
+		frappe.throw(_('You can attach at most {0} images.').format(MAX_EXPENSE_IMAGES))
+
+	for url in urls:
+		if not _is_image_filename(url):
+			frappe.throw(_('Only image files can be attached.'))
+		file_name = frappe.db.get_value(
+			'File',
+			{'file_url': url, 'owner': frappe.session.user},
+			'name',
+		)
+		if not file_name:
+			frappe.throw(_('Attachment could not be found.'))
+		file_doc = frappe.get_doc('File', file_name)
+		if file_doc.attached_to_name and not (
+			file_doc.attached_to_doctype == 'Expense Claim' and file_doc.attached_to_name == doc.name
+		):
+			frappe.throw(_('Attachment is already used on another document.'))
+		if not _is_image_filename(file_doc.file_name or file_doc.file_url):
+			frappe.throw(_('Only image files can be attached.'))
+		file_doc.attached_to_doctype = 'Expense Claim'
+		file_doc.attached_to_name = doc.name
+		file_doc.flags.ignore_permissions = True
+		file_doc.save(ignore_permissions=True)
+
+
+def _expense_claim_images(name):
+	files = frappe.get_all(
+		'File',
+		filters={'attached_to_doctype': 'Expense Claim', 'attached_to_name': name},
+		fields=['file_url', 'file_name'],
+		order_by='creation asc',
+		ignore_permissions=True,
+	)
+	return [row for row in files if _is_image_filename(row.file_name or row.file_url)]
+
+
 @frappe.whitelist()
 def get_expense_claims_list(
-	page_start=0, page_length=20, from_date=None, to_date=None, search=None, warehouse=None
+	page_start=0,
+	page_length=20,
+	from_date=None,
+	to_date=None,
+	search=None,
+	warehouse=None,
+	expense_type=None,
 ):
 	"""Paginated list of Expense Claims -- all of them for System Manager,
 	otherwise only the logged-in user's own."""
@@ -245,6 +347,14 @@ def get_expense_claims_list(
 
 	if warehouse:
 		filters['custom_warehouse'] = warehouse
+
+	if expense_type:
+		parents = frappe.get_all(
+			'Expense Claim Detail',
+			filters={'expense_type': expense_type, 'parenttype': 'Expense Claim'},
+			pluck='parent',
+		)
+		filters['name'] = ['in', parents or ['__none__']]
 
 	if from_date and to_date:
 		filters['posting_date'] = ['between', [from_date, to_date]]
@@ -284,6 +394,7 @@ def get_expense_claims_list(
 		page_length=page_length,
 		ignore_permissions=True,
 	)
+	_attach_expense_types(rows)
 
 	total = frappe.get_all(
 		'Expense Claim',
@@ -298,6 +409,27 @@ def get_expense_claims_list(
 		'total': total,
 		'has_more': (page_start + page_length) < total,
 	}
+
+
+def _attach_expense_types(rows):
+	"""Comma-separated Expense Claim Types on each list row."""
+	if not rows:
+		return
+	details = frappe.get_all(
+		'Expense Claim Detail',
+		filters={'parent': ['in', [row.name for row in rows]], 'parenttype': 'Expense Claim'},
+		fields=['parent', 'expense_type'],
+		ignore_permissions=True,
+	)
+	by_parent = {}
+	for detail in details:
+		if not detail.expense_type:
+			continue
+		types = by_parent.setdefault(detail.parent, [])
+		if detail.expense_type not in types:
+			types.append(detail.expense_type)
+	for row in rows:
+		row['expense_types'] = ', '.join(by_parent.get(row.name) or [])
 
 
 @frappe.whitelist()
@@ -324,6 +456,7 @@ def get_expense_claim_detail(expense_claim):
 		'total_claimed_amount': flt(doc.total_claimed_amount),
 		'total_sanctioned_amount': flt(doc.total_sanctioned_amount),
 		'grand_total': flt(doc.grand_total),
+		'attachments': _expense_claim_images(doc.name),
 		'expenses': [
 			{
 				'expense_date': row.expense_date,

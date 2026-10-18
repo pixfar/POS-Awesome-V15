@@ -167,10 +167,11 @@
 									:items-per-page="-1"
 									:no-data-text="__('No outstanding invoices')"
 									:row-props="({ item }) => ({
-										class: isInvoiceSelected(item) ? 'selected-invoice-row' : '',
+										class: invoiceRowClass(item),
 										style: 'cursor:pointer',
 									})"
 									@click:row="(_, row) => handleInvoiceClick(row.item)"
+									item-value="_row_key"
 									class="payment-invoices-table"
 								>
 									<template #item.sel="{ item }">
@@ -201,6 +202,7 @@
 								<div v-if="invoicesLoadingMore" class="text-center py-2 text-caption">
 									<v-progress-circular indeterminate size="16" width="2" />
 								</div>
+								<div ref="invoicesSentinel" class="payment-scroll-sentinel" />
 								</div>
 							</v-card>
 
@@ -263,6 +265,7 @@
 								<div v-if="historyLoadingMore" class="text-center py-2 text-caption">
 									<v-progress-circular indeterminate size="16" width="2" />
 								</div>
+								<div ref="historySentinel" class="payment-scroll-sentinel" />
 								</div>
 							</v-card>
 
@@ -300,7 +303,7 @@
 				</v-card>
 			</v-col>
 
-			<!-- RIGHT: Summary · Payment methods · Submit -->
+			<!-- RIGHT: clicked invoice · payment form -->
 			<v-col
 				v-show="showSelectorPanel"
 				cols="12"
@@ -308,12 +311,55 @@
 				class="h-100 pa-0 border-s txn-col txn-col--selector"
 			>
 				<v-card class="h-100 d-flex flex-column pos-themed-card payment-side-card" flat>
-					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
-						<div class="invoice-sections payment-side-sections">
+					<div class="payment-side-body">
+						<section
+							class="payment-invoice-preview"
+							:class="{ 'payment-invoice-preview--empty': !previewInvoice }"
+						>
+							<template v-if="previewInvoice">
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">{{ previewInvoice.voucher_no }}</h3>
+									<span class="text-caption text-medium-emphasis">
+										{{ previewInvoice.party_name || previewInvoice.party }}
+									</span>
+								</div>
+								<div v-if="previewLoading" class="payment-preview-status">
+									<v-progress-circular indeterminate size="22" color="primary" />
+									<span>{{ __("Loading invoice...") }}</span>
+								</div>
+								<div v-else-if="previewError" class="payment-preview-status text-error">
+									{{ previewError }}
+								</div>
+								<InvoiceExpandedDetail
+									v-else-if="previewDetail"
+									:detail="previewDetail"
+									variant="invoice"
+									:currency-symbol="currencySymbol(previewDetail.currency)"
+									:format-currency="formatAmt"
+								/>
+								<div v-else class="payment-preview-fallback">
+									<div>
+										<strong>{{ __("Date") }}:</strong>
+										{{ previewInvoice.posting_date || "—" }}
+									</div>
+									<div>
+										<strong>{{ __("Due Date") }}:</strong>
+										{{ previewInvoice.due_date || "—" }}
+									</div>
+									<div>
+										<strong>{{ __("Outstanding") }}:</strong>
+										{{ currencySymbol(previewInvoice.currency) }}{{ formatAmt(previewInvoice.outstanding_amount) }}
+									</div>
+								</div>
+							</template>
+							<span v-else>{{ __("Click an invoice to see its details") }}</span>
+						</section>
 
-						<!-- Summary -->
-						<v-card flat class="invoice-section-card pos-themed-card">
-							<div class="invoice-section-heading">
+						<v-card flat class="invoice-section-card pos-themed-card payment-form-card">
+							<div class="payment-form-scroll">
+							<div class="payment-form-top">
+							<div>
+							<div class="invoice-section-heading payment-form-heading">
 								<h3 class="invoice-section-heading__title">{{ __("Summary") }}</h3>
 							</div>
 							<div class="payment-summary-list">
@@ -335,7 +381,6 @@
 										{{ currencySymbol() }}{{ formatAmt(total_payment_methods) }}
 									</strong>
 								</div>
-								<v-divider class="my-1" />
 								<div
 									class="payment-summary-row"
 									:class="paymentDiff === 0
@@ -350,160 +395,151 @@
 									</strong>
 								</div>
 							</div>
-						</v-card>
+							</div>
 
-						<!-- Payment methods -->
-						<v-card flat class="invoice-section-card pos-themed-card">
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Payment Methods") }}</h3>
+							<div class="payment-form-methods">
+								<h3 class="payment-form-section__title">{{ __("Payment Methods") }}</h3>
+								<div v-if="!payment_methods.length" class="text-caption text-medium-emphasis">
+									{{ __("Enable payment methods in POS Profile settings") }}
+								</div>
+								<div v-else class="payment-methods-list">
+									<div
+										v-for="method in payment_methods"
+										:key="method.mode_of_payment"
+										class="payment-method-entry"
+									>
+										<span class="payment-method-entry__name">
+											<v-icon size="16">{{ paymentMethodIcon(method.mode_of_payment) }}</v-icon>
+											{{ __(method.mode_of_payment) }}
+										</span>
+										<v-text-field
+											v-model.number="method.amount"
+											type="number"
+											density="compact"
+											variant="outlined"
+											hide-details
+											min="0"
+											placeholder="0"
+											class="pos-themed-input"
+										/>
+									</div>
+								</div>
 							</div>
-							<div v-if="!payment_methods.length" class="text-caption text-medium-emphasis payment-methods-list">
-								{{ __("Enable payment methods in POS Profile settings") }}
 							</div>
-							<div v-else class="payment-methods-list">
-								<div
-									v-for="method in payment_methods"
-									:key="method.mode_of_payment"
-									class="payment-method-entry"
-								>
-									<v-text-field
-										v-model.number="method.amount"
-										:label="__(method.mode_of_payment)"
-										type="number"
+
+							<div v-if="partyType === 'Supplier'" class="payment-form-section">
+								<h3 class="payment-form-section__title">{{ __("Bank / Cheque Details") }}</h3>
+								<div class="cheque-details-grid">
+									<v-autocomplete
+										v-model="cheque.bank_name"
+										:items="bankOptions"
+										item-title="name"
+										item-value="name"
+										:label="__('Bank')"
+										:loading="bankLoading"
 										density="compact"
 										variant="outlined"
 										hide-details
-										min="0"
+										clearable
+										prepend-inner-icon="mdi-bank-outline"
 										class="pos-themed-input"
-										:prepend-inner-icon="paymentMethodIcon(method.mode_of_payment)"
 									/>
+									<v-text-field
+										v-model="cheque.cheque_no"
+										:label="__('Check Number')"
+										density="compact"
+										variant="outlined"
+										hide-details
+										clearable
+										prepend-inner-icon="mdi-checkbook"
+										class="pos-themed-input"
+									/>
+									<v-autocomplete
+										v-model="cheque.payee"
+										:items="payeeOptions"
+										item-title="full_name"
+										item-value="name"
+										:label="__('Payee')"
+										:loading="payeeLoading"
+										no-filter
+										density="compact"
+										variant="outlined"
+										hide-details
+										clearable
+										prepend-inner-icon="mdi-account-outline"
+										class="pos-themed-input"
+										@update:search="onPayeeSearch"
+									>
+										<template #item="{ props: itemProps, item }">
+											<v-list-item v-bind="itemProps" :subtitle="item.raw.name" />
+										</template>
+									</v-autocomplete>
+									<v-file-input
+										v-model="chequeFile"
+										:label="__('Upload Check (Optional)')"
+										accept="image/*,.pdf"
+										density="compact"
+										variant="outlined"
+										hide-details
+										prepend-icon=""
+										prepend-inner-icon="mdi-paperclip"
+										:loading="chequeUploading"
+										class="pos-themed-input"
+										@update:model-value="onChequeFileSelected"
+									/>
+								</div>
+								<p v-if="cheque.cheque_image" class="text-caption text-success mt-2 mb-0">
+									<v-icon size="16" color="success">mdi-check-circle-outline</v-icon>
+									{{ __("Check image uploaded") }}
+								</p>
+							</div>
+
+							</div>
+							<div class="payment-form-section payment-form-footer">
+								<div class="payment-submit-panel__summary">
+									<div class="payment-submit-panel__row">
+										<span>{{ __("Entered Amount") }}</span>
+										<strong>{{ currencySymbol() }}{{ formatAmt(total_payment_methods) }}</strong>
+									</div>
+									<div
+										class="payment-submit-panel__row"
+										:class="paymentDiff === 0
+											? 'payment-submit-panel__row--clear'
+											: paymentDiff > 0
+												? 'payment-submit-panel__row--excess'
+												: 'payment-submit-panel__row--short'"
+									>
+										<span>{{ paymentDiff >= 0 ? __("Excess") : __("Shortfall") }}</span>
+										<strong>{{ currencySymbol() }}{{ formatAmt(Math.abs(paymentDiff)) }}</strong>
+									</div>
+								</div>
+								<div class="payment-submit-actions">
+									<v-btn
+										size="large"
+										color="primary"
+										:loading="isSubmitting"
+										:disabled="isSubmitting || !canSubmit"
+										class="text-none payment-submit-panel__btn"
+										prepend-icon="mdi-check-circle"
+										@click="handleSubmit(false)"
+									>
+										{{ __("Submit Payment") }}
+									</v-btn>
+									<v-btn
+										size="large"
+										color="success"
+										variant="tonal"
+										:loading="isSubmitting"
+										:disabled="isSubmitting || !canSubmit"
+										class="text-none payment-submit-panel__btn"
+										prepend-icon="mdi-printer"
+										@click="handleSubmit(true)"
+									>
+										{{ __("Submit & Print") }}
+									</v-btn>
 								</div>
 							</div>
 						</v-card>
-
-						<!-- Bank / cheque details (Supplier only). No amount of its own:
-						     the amounts are the Payment Methods above; these details are
-						     stored on the Payment Entry (cheque no = Reference No). -->
-						<v-card
-							v-if="partyType === 'Supplier'"
-							flat
-							class="invoice-section-card pos-themed-card"
-						>
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Bank / Cheque Details") }}</h3>
-							</div>
-							<div class="cheque-details-grid">
-								<v-autocomplete
-									v-model="cheque.bank_name"
-									:items="bankOptions"
-									item-title="name"
-									item-value="name"
-									:label="__('Bank')"
-									:loading="bankLoading"
-									density="compact"
-									variant="outlined"
-									hide-details
-									clearable
-									prepend-inner-icon="mdi-bank-outline"
-									class="pos-themed-input"
-								/>
-								<v-text-field
-									v-model="cheque.cheque_no"
-									:label="__('Check Number')"
-									density="compact"
-									variant="outlined"
-									hide-details
-									clearable
-									prepend-inner-icon="mdi-checkbook"
-									class="pos-themed-input"
-								/>
-								<v-autocomplete
-									v-model="cheque.payee"
-									:items="payeeOptions"
-									item-title="full_name"
-									item-value="name"
-									:label="__('Payee')"
-									:loading="payeeLoading"
-									no-filter
-									density="compact"
-									variant="outlined"
-									hide-details
-									clearable
-									prepend-inner-icon="mdi-account-outline"
-									class="pos-themed-input"
-									@update:search="onPayeeSearch"
-								>
-									<template #item="{ props: itemProps, item }">
-										<v-list-item v-bind="itemProps" :subtitle="item.raw.name" />
-									</template>
-								</v-autocomplete>
-								<v-file-input
-									v-model="chequeFile"
-									:label="__('Upload Check (Optional)')"
-									accept="image/*,.pdf"
-									density="compact"
-									variant="outlined"
-									hide-details
-									prepend-icon=""
-									prepend-inner-icon="mdi-paperclip"
-									:loading="chequeUploading"
-									class="pos-themed-input"
-									@update:model-value="onChequeFileSelected"
-								/>
-							</div>
-							<p v-if="cheque.cheque_image" class="text-caption text-success mt-2 mb-0">
-								<v-icon size="16" color="success">mdi-check-circle-outline</v-icon>
-								{{ __("Check image uploaded") }}
-							</p>
-						</v-card>
-
-						</div>
-					</v-card-text>
-
-					<!-- Submit panel -->
-					<div class="payment-submit-panel">
-						<div class="payment-submit-panel__summary">
-							<div class="payment-submit-panel__row">
-								<span>{{ __("Entered Amount") }}</span>
-								<strong>{{ currencySymbol() }}{{ formatAmt(total_payment_methods) }}</strong>
-							</div>
-							<div
-								class="payment-submit-panel__row"
-								:class="paymentDiff === 0
-									? 'payment-submit-panel__row--clear'
-									: paymentDiff > 0
-										? 'payment-submit-panel__row--excess'
-										: 'payment-submit-panel__row--short'"
-							>
-								<span>{{ paymentDiff >= 0 ? __("Excess") : __("Shortfall") }}</span>
-								<strong>{{ currencySymbol() }}{{ formatAmt(Math.abs(paymentDiff)) }}</strong>
-							</div>
-						</div>
-						<v-btn
-							block
-							size="large"
-							color="primary"
-							:loading="isSubmitting"
-							:disabled="isSubmitting || !canSubmit"
-							class="text-none payment-submit-panel__btn"
-							prepend-icon="mdi-check-circle"
-							@click="handleSubmit(false)"
-						>
-							{{ __("Submit Payment") }}
-						</v-btn>
-						<v-btn
-							block
-							size="large"
-							color="success"
-							variant="tonal"
-							:loading="isSubmitting"
-							:disabled="isSubmitting || !canSubmit"
-							class="text-none payment-submit-panel__btn"
-							prepend-icon="mdi-printer"
-							@click="handleSubmit(true)"
-						>
-							{{ __("Submit & Print") }}
-						</v-btn>
 					</div>
 				</v-card>
 			</v-col>
@@ -613,6 +649,7 @@ import { ONLINE_ONLY_MODE } from "../../../config/runtime";
 import { useRouter } from "vue-router";
 import { isFundTransferManager } from "../../../utils/posWarehouseAccess";
 import { uploadFile } from "../../../utils/uploadFile";
+import InvoiceExpandedDetail from "../shared/InvoiceExpandedDetail.vue";
 
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
@@ -628,7 +665,7 @@ const fmtDisplayDate = (date) => {
 export default {
 	name: "PaymentView",
 	mixins: [format],
-	components: { Customer, VueDatePicker },
+	components: { Customer, VueDatePicker, InvoiceExpandedDetail },
 
 	props: {
 		partyType: {
@@ -692,6 +729,13 @@ export default {
 		const historyLoadingMore = ref(false);
 		const invoicesScrollRef = ref(null);
 		const historyScrollRef = ref(null);
+		const invoicesSentinel = ref(null);
+		const historySentinel = ref(null);
+		const previewInvoice = ref(null);
+		const previewDetail = ref(null);
+		const previewLoading = ref(false);
+		const previewError = ref("");
+		const previewCache = new Map();
 
 		// ── Format helpers ───────────────────────────────────────────
 		const formatAmt = (val) => {
@@ -740,19 +784,24 @@ export default {
 			(typeof frappe !== "undefined" && frappe.defaults?.get_default?.("company")) ||
 			"";
 
-		// Rows are keyed by (voucher_type, voucher_no) -- an invoice and a
-		// Journal Entry due never collide, but two responses for the same
-		// page can (see outstandingFetchSeq below), so merging by key rather
-		// than blindly concatenating is what actually keeps "load more"
-		// duplicate-proof.
+		// One Journal Entry often carries a line per customer (opening
+		// balances). Those rows share voucher_no and only differ by party,
+		// so the key has to include party or "load more" throws the next
+		// page away and the list stays stuck on the first screen.
+		const invoiceRowKey = (row) =>
+			`${row?.voucher_type || ""}::${row?.voucher_no || ""}::${row?.party || ""}`;
+
+		const withRowKey = (row) => ({ ...row, _row_key: invoiceRowKey(row) });
+
 		const mergeInvoiceRows = (existingRows, newRows) => {
-			const seen = new Set(existingRows.map((row) => `${row.voucher_type}::${row.voucher_no}`));
-			const deduped = newRows.filter((row) => {
-				const key = `${row.voucher_type}::${row.voucher_no}`;
-				if (seen.has(key)) return false;
+			const seen = new Set(existingRows.map(invoiceRowKey));
+			const deduped = [];
+			for (const row of newRows) {
+				const key = invoiceRowKey(row);
+				if (seen.has(key)) continue;
 				seen.add(key);
-				return true;
-			});
+				deduped.push(withRowKey(row));
+			}
 			return [...existingRows, ...deduped];
 		};
 
@@ -769,7 +818,12 @@ export default {
 
 		const fetchOutstandingInvoices = async ({ append = false } = {}) => {
 			if (append) {
-				if (!invoicesHasMore.value || invoicesLoadingMore.value || invoices_loading.value) return;
+				if (
+					!outstanding_invoices.value.length ||
+					!invoicesHasMore.value ||
+					invoicesLoadingMore.value ||
+					invoices_loading.value
+				) return;
 				invoicesLoadingMore.value = true;
 			} else {
 				invoices_loading.value = true;
@@ -799,7 +853,7 @@ export default {
 					const rows = Array.isArray(payload.invoices) ? payload.invoices : [];
 					outstanding_invoices.value = append
 						? mergeInvoiceRows(outstanding_invoices.value, rows)
-						: rows;
+						: rows.map(withRowKey);
 					invoicesHasMore.value = Boolean(payload.has_more);
 					invoicesTotal.value = Number(payload.total) || 0;
 					partyOutstanding.value = 0;
@@ -832,11 +886,11 @@ export default {
 				const rows = Array.isArray(invResult.message) ? invResult.message : [];
 				outstanding_invoices.value = append
 					? mergeInvoiceRows(outstanding_invoices.value, rows)
-					: rows;
+					: rows.map(withRowKey);
 				invoicesHasMore.value = rows.length >= PAGE_SIZE;
 				partyOutstanding.value = outResult?.message?.outstanding || 0;
 				invoicesTotal.value = Number(outResult?.message?.count) || 0;
-				if (partyName.value) {
+				if (!append && partyName.value) {
 					setDefaultPaymentAmount(partyOutstanding.value);
 				}
 			} catch (e) {
@@ -996,7 +1050,70 @@ export default {
 		};
 
 		// ── Invoice click ────────────────────────────────────────────
+		const clearInvoicePreview = () => {
+			previewInvoice.value = null;
+			previewDetail.value = null;
+			previewError.value = "";
+			previewLoading.value = false;
+		};
+
+		const loadInvoicePreview = async (item) => {
+			if (!item?.voucher_no) return;
+			previewInvoice.value = item;
+			previewError.value = "";
+			const type = item.voucher_type || (
+				props.partyType === "Supplier" ? "Purchase Invoice" : "Sales Invoice"
+			);
+			if (type === "Journal Entry") {
+				previewDetail.value = null;
+				previewLoading.value = false;
+				return;
+			}
+			const key = `${type}:${item.voucher_no}`;
+			if (previewCache.has(key)) {
+				previewDetail.value = previewCache.get(key);
+				previewLoading.value = false;
+				return;
+			}
+			previewDetail.value = null;
+			previewLoading.value = true;
+			try {
+				const method = type === "Purchase Invoice"
+					? "posawesome.posawesome.api.purchase_invoices.get_purchase_invoice_detail"
+					: "posawesome.posawesome.api.invoices.get_sales_invoice_detail";
+				const { message } = await frappe.call({
+					method,
+					args: { name: item.voucher_no },
+				});
+				previewCache.set(key, message || null);
+				if (previewInvoice.value?.voucher_no === item.voucher_no) {
+					previewDetail.value = message || null;
+				}
+			} catch (e) {
+				if (previewInvoice.value?.voucher_no === item.voucher_no) {
+					previewError.value = e?.message || __("Could not load invoice details");
+				}
+			} finally {
+				if (previewInvoice.value?.voucher_no === item.voucher_no) {
+					previewLoading.value = false;
+				}
+			}
+		};
+
+		const invoiceRowClass = (item) => {
+			const classes = [];
+			if (isInvoiceSelected(item)) classes.push("selected-invoice-row");
+			if (
+				previewInvoice.value &&
+				invoiceRowKey(previewInvoice.value) === invoiceRowKey(item)
+			) {
+				classes.push("preview-invoice-row");
+			}
+			return classes.join(" ");
+		};
+
 		const handleInvoiceClick = (item) => {
+			loadInvoicePreview(item);
 			if (!partyName.value && item.party) {
 				if (props.partyType === "Customer") {
 					customersStore.setSelectedCustomer(item.party);
@@ -1086,11 +1203,19 @@ export default {
 		// ── Payment history ──────────────────────────────────────────
 		const fetchPaymentHistory = async ({ append = false } = {}) => {
 			if (!partyName.value) {
-				paymentHistory.value = [];
+				if (!append) {
+					paymentHistory.value = [];
+					historyHasMore.value = false;
+				}
 				return;
 			}
 			if (append) {
-				if (!historyHasMore.value || historyLoadingMore.value) return;
+				if (
+					!paymentHistory.value.length ||
+					!historyHasMore.value ||
+					historyLoadingMore.value ||
+					historyLoading.value
+				) return;
 				historyLoadingMore.value = true;
 			} else {
 				historyLoading.value = true;
@@ -1132,20 +1257,140 @@ export default {
 				partyName.value ? fetchPaymentHistory() : Promise.resolve(),
 			]);
 			if (autoAllocate.value) autoSelectInvoicesForAmount();
+			await nextTick();
+			fillInvoicePane();
+			fillHistoryPane();
+		};
+
+		// Vuetify's table wrapper is overflow:auto. When that node is the one
+		// with a scrollbar, scroll events stay on it and never reach the
+		// parent div. Use whichever element is actually scrolling.
+		const listScroller = (root) => {
+			if (!root) return null;
+			const wrapper = root.querySelector?.(".v-table__wrapper");
+			if (wrapper && wrapper.scrollHeight > wrapper.clientHeight + 4) return wrapper;
+			return root;
+		};
+
+		const isNearBottom = (el) =>
+			!!el && el.scrollHeight - el.scrollTop - el.clientHeight <= 96;
+
+		const isNearListEnd = (root) => {
+			const el = listScroller(root);
+			if (!el) return false;
+			if (el.scrollHeight <= el.clientHeight + 4) return true;
+			return isNearBottom(el);
+		};
+
+		let fillingInvoices = false;
+		let fillingHistory = false;
+
+		const fillInvoicePane = async () => {
+			if (fillingInvoices) return;
+			fillingInvoices = true;
+			try {
+				let passes = 0;
+				while (
+					passes < 6 &&
+					invoicesHasMore.value &&
+					outstanding_invoices.value.length &&
+					!invoices_loading.value &&
+					!invoicesLoadingMore.value &&
+					isNearListEnd(invoicesScrollRef.value)
+				) {
+					const before = outstanding_invoices.value.length;
+					await fetchOutstandingInvoices({ append: true });
+					if (outstanding_invoices.value.length === before) break;
+					passes += 1;
+					await nextTick();
+				}
+			} finally {
+				fillingInvoices = false;
+			}
+		};
+
+		const fillHistoryPane = async () => {
+			if (fillingHistory || !partyName.value) return;
+			fillingHistory = true;
+			try {
+				let passes = 0;
+				while (
+					passes < 6 &&
+					historyHasMore.value &&
+					paymentHistory.value.length &&
+					!historyLoading.value &&
+					!historyLoadingMore.value &&
+					isNearListEnd(historyScrollRef.value)
+				) {
+					const before = paymentHistory.value.length;
+					await fetchPaymentHistory({ append: true });
+					if (paymentHistory.value.length === before) break;
+					passes += 1;
+					await nextTick();
+				}
+			} finally {
+				fillingHistory = false;
+			}
 		};
 
 		const onInvoicesScroll = (event) => {
 			const el = event.target;
-			if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
-				fetchOutstandingInvoices({ append: true });
+			if (!el || el.nodeType !== 1) return;
+			if (isNearBottom(el)) {
+				fetchOutstandingInvoices({ append: true }).then(() => fillInvoicePane());
 			}
 		};
 
 		const onHistoryScroll = (event) => {
 			const el = event.target;
-			if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
-				fetchPaymentHistory({ append: true });
+			if (!el || el.nodeType !== 1) return;
+			if (isNearBottom(el)) {
+				fetchPaymentHistory({ append: true }).then(() => fillHistoryPane());
 			}
+		};
+
+		let invoicesObserver = null;
+		let historyObserver = null;
+		let unbindInvoiceScroll = null;
+		let unbindHistoryScroll = null;
+
+		const bindInfiniteScroll = () => {
+			invoicesObserver?.disconnect();
+			historyObserver?.disconnect();
+			unbindInvoiceScroll?.();
+			unbindHistoryScroll?.();
+			unbindInvoiceScroll = null;
+			unbindHistoryScroll = null;
+
+			const listen = (root, handler) => {
+				if (!root) return null;
+				root.addEventListener("scroll", handler, true);
+				return () => root.removeEventListener("scroll", handler, true);
+			};
+			unbindInvoiceScroll = listen(invoicesScrollRef.value, onInvoicesScroll);
+			unbindHistoryScroll = listen(historyScrollRef.value, onHistoryScroll);
+
+			if (typeof IntersectionObserver === "undefined") return;
+			// Sentinel sits in the outer pane, so the observer root has to be
+			// that pane. The capture scroll listener above covers the case
+			// where Vuetify's inner wrapper is the element that scrolls.
+			const observe = (sentinel, root, load) => {
+				if (!sentinel || !root) return null;
+				const observer = new IntersectionObserver(
+					(entries) => {
+						if (entries.some((entry) => entry.isIntersecting)) load();
+					},
+					{ root, rootMargin: "80px" },
+				);
+				observer.observe(sentinel);
+				return observer;
+			};
+			invoicesObserver = observe(invoicesSentinel.value, invoicesScrollRef.value, () => {
+				fetchOutstandingInvoices({ append: true }).then(() => fillInvoicePane());
+			});
+			historyObserver = observe(historySentinel.value, historyScrollRef.value, () => {
+				fetchPaymentHistory({ append: true }).then(() => fillHistoryPane());
+			});
 		};
 
 		// ── Opening shift ────────────────────────────────────────────
@@ -1177,8 +1422,8 @@ export default {
 					if (rd) setOpeningStorage(rd);
 					get_pos_profiles();
 					// Re-fetch invoices now that company is resolved
-					fetchOutstandingInvoices();
-					if (partyName.value) fetchPaymentHistory();
+					fetchOutstandingInvoices().then(() => fillInvoicePane());
+					if (partyName.value) fetchPaymentHistory().then(() => fillHistoryPane());
 				} else {
 					clearOpeningStorage();
 				}
@@ -1411,6 +1656,9 @@ export default {
 		watch(partyName, async (val, old) => {
 			if (val === old) return;
 			clearSelections();
+			if (previewInvoice.value?.party && previewInvoice.value.party !== val) {
+				clearInvoicePreview();
+			}
 			partyOutstanding.value = 0;
 			paymentHistory.value = [];
 			resetPaymentMethodAmounts();
@@ -1422,6 +1670,9 @@ export default {
 				val ? fetchPaymentHistory() : Promise.resolve(),
 			]);
 			if (autoAllocate.value) autoSelectInvoicesForAmount();
+			await nextTick();
+			fillInvoicePane();
+			fillHistoryPane();
 		});
 
 		// Customer and Supplier pages share this same component instance --
@@ -1437,11 +1688,15 @@ export default {
 				partySearchText.value = "";
 				partyOptions.value = [];
 				clearSelections();
+				clearInvoicePreview();
+				previewCache.clear();
 				partyOutstanding.value = 0;
 				paymentHistory.value = [];
 				resetPaymentMethodAmounts();
 				resetCheque();
 				await fetchOutstandingInvoices();
+				await nextTick();
+				fillInvoicePane();
 				if (props.partyType === "Supplier") {
 					onPartySearch("");
 					loadBanks();
@@ -1475,12 +1730,19 @@ export default {
 				proxy.eventBus.on("network-online", syncPending);
 				proxy.eventBus.on("server-online", syncPending);
 			}
-			fetchOutstandingInvoices();
-			if (partyName.value) fetchPaymentHistory();
-			nextTick(checkOpeningEntry);
+			fetchOutstandingInvoices().then(() => fillInvoicePane());
+			if (partyName.value) fetchPaymentHistory().then(() => fillHistoryPane());
+			nextTick(() => {
+				bindInfiniteScroll();
+				checkOpeningEntry();
+			});
 		});
 
 		onBeforeUnmount(() => {
+			invoicesObserver?.disconnect();
+			historyObserver?.disconnect();
+			unbindInvoiceScroll?.();
+			unbindHistoryScroll?.();
 			if (proxy?.eventBus) {
 				proxy.eventBus.off("network-online", syncPending);
 				proxy.eventBus.off("server-online", syncPending);
@@ -1577,6 +1839,11 @@ export default {
 			isInvoiceSelected,
 			clearSelections,
 			handleInvoiceClick,
+			invoiceRowClass,
+			previewInvoice,
+			previewDetail,
+			previewLoading,
+			previewError,
 			onPartySearch,
 			onSupplierSelected,
 			handleSubmit,
@@ -1655,10 +1922,113 @@ export default {
 	flex: 1 1 auto;
 	min-height: 0;
 	gap: var(--dynamic-sm);
+	overflow: hidden;
 }
 
-.payment-side-sections {
+.payment-tables-stack > .payment-table-card {
+	flex: 1 1 0;
 	min-height: 0;
+	overflow: hidden;
+}
+
+.payment-side-body {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	height: 100%;
+	min-height: 0;
+	padding: 12px;
+}
+
+.payment-invoice-preview {
+	flex: 1 1 auto;
+	min-height: 180px;
+	overflow: auto;
+	border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+	border-radius: 14px;
+	background: var(--pos-card-bg, #fff);
+}
+
+.payment-invoice-preview--empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--pos-text-secondary, #6b7280);
+	font-size: 0.9rem;
+	text-align: center;
+	padding: 16px;
+}
+
+.payment-preview-status,
+.payment-preview-fallback {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px 14px;
+	font-size: 0.85rem;
+}
+
+.payment-preview-fallback {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+}
+
+.payment-form-card {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: visible;
+}
+
+.payment-form-scroll {
+	overflow: visible;
+	min-height: 0;
+}
+
+.payment-form-top {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: 8px 12px;
+	align-items: start;
+}
+
+.payment-form-heading {
+	padding: 10px 14px 0;
+}
+
+.payment-form-methods {
+	padding: 10px 14px 8px 0;
+}
+
+.payment-form-section {
+	padding: 12px 14px;
+	border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+}
+
+.payment-form-section__title {
+	margin: 0 0 10px;
+	font-size: 0.95rem;
+	font-weight: 600;
+}
+
+.payment-form-footer {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	flex-shrink: 0;
+	background: var(--pos-card-bg, #fff);
+}
+
+.payment-submit-actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px;
+}
+
+.payment-invoices-table :deep(tr.preview-invoice-row:not(.selected-invoice-row)) {
+	background: color-mix(in srgb, var(--pos-primary, #0097a7) 6%, transparent);
 }
 
 .invoice-section-heading--toolbar {
@@ -1735,14 +2105,20 @@ export default {
    silently capped at the first page. */
 .payment-invoices-table :deep(.v-table__wrapper),
 .payment-history-table :deep(.v-table__wrapper) {
-	overflow: visible;
+	overflow: visible !important;
+	max-height: none !important;
+	height: auto !important;
+}
+
+.payment-scroll-sentinel {
+	height: 1px;
 }
 
 .payment-summary-list {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
-	padding: 4px 14px 16px;
+	gap: 6px;
+	padding: 8px 14px 10px;
 }
 
 .payment-summary-row {
@@ -1765,12 +2141,25 @@ export default {
 .payment-methods-list {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 4px 14px 16px;
+	gap: 6px;
+	padding: 0;
 }
 
 .payment-method-entry {
+	display: grid;
+	grid-template-columns: minmax(72px, 38%) minmax(0, 1fr);
+	align-items: center;
+	gap: 6px;
 	width: 100%;
+}
+
+.payment-method-entry__name {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.78rem;
+	font-weight: 600;
+	line-height: 1.15;
 }
 
 .payment-submit-panel {
@@ -1824,6 +2213,17 @@ export default {
 	border-radius: 10px !important;
 }
 
+@media (max-width: 900px) {
+	.payment-form-top {
+		grid-template-columns: 1fr;
+	}
+
+	.payment-form-methods {
+		padding: 0 14px 8px;
+		border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+	}
+}
+
 @media (max-width: 768px) {
 	.payment-top-grid {
 		grid-template-columns: 1fr;
@@ -1834,12 +2234,16 @@ export default {
 	}
 
 	.payment-tables-stack {
-		flex: 0 0 auto;
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow: visible;
 	}
 
+	.payment-tables-stack > .payment-table-card,
 	.payment-table-card--split {
-		flex: 0 0 auto;
-		min-height: 280px;
+		flex: 1 1 auto;
+		min-height: 220px;
+		max-height: 420px;
 	}
 }
 

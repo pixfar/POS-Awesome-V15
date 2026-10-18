@@ -88,6 +88,19 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
+				<v-autocomplete
+					v-model="expenseTypeFilter"
+					:items="expenseTypeOptions"
+					item-title="name"
+					item-value="name"
+					:label="__('Expense Type')"
+					density="compact"
+					variant="outlined"
+					hide-details
+					clearable
+					class="pos-themed-input pos-list-filter-field"
+					@update:model-value="resetAndLoad"
+				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
 				</v-btn>
@@ -102,8 +115,34 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table"
+					show-expand
+					:expand-on-click="false"
+					item-value="name"
+					v-model:expanded="expandedRows"
 					@click:row="(_, row) => openExpenseDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
+					<template #expanded-row="{ columns, item }">
+						<tr class="pos-list-expanded-row">
+							<td :colspan="columns.length">
+								<InvoiceExpandedDetail
+									variant="expense"
+									:detail="detailCache[item.name]"
+									:loading="!!detailLoading[item.name]"
+									:format-currency="formatCurrency"
+								/>
+							</td>
+						</tr>
+					</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -115,6 +154,9 @@
 					</template>
 					<template #item.remark="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.remark">{{ item.remark || "—" }}</span>
+					</template>
+					<template #item.expense_types="{ item }">
+						<span class="pos-list-cell-truncate" :title="item.expense_types">{{ item.expense_types || "—" }}</span>
 					</template>
 					<template #item.grand_total="{ item }">
 						{{ formatCurrency(item.grand_total) }}
@@ -181,11 +223,13 @@ import DateFilterField from '../shared/DateFilterField.vue';
 import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
+import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { useToastStore } from '../../../stores/toastStore';
 
 export default {
 	name: 'ExpenseList',
-	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog },
+	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -306,6 +350,8 @@ export default {
 		const fromDate = ref('');
 		const toDate = ref('');
 		const warehouseFilter = ref(null);
+		const expenseTypeFilter = ref(null);
+		const expenseTypeOptions = ref([]);
 		const { warehouseOptions, loadWarehouseOptions } = useWarehouseFilterOptions();
 
 		const listHeaders = [
@@ -315,13 +361,20 @@ export default {
 			{ title: __('Date'), key: 'posting_date', sortable: true },
 			{ title: __('Time'), key: 'creation_ampm', sortable: false },
 			{ title: __('Remark'), key: 'remark', sortable: false },
+			{ title: __('Expense Type'), key: 'expense_types', sortable: false },
 			{ title: __('Amount'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'status', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const hasActiveFilters = computed(() =>
-			Boolean(searchQuery.value || fromDate.value || toDate.value || warehouseFilter.value),
+			Boolean(
+				searchQuery.value ||
+					fromDate.value ||
+					toDate.value ||
+					warehouseFilter.value ||
+					expenseTypeFilter.value,
+			),
 		);
 
 		// Cancelled claims (docstatus 2) stay in the list for the audit trail
@@ -363,6 +416,7 @@ export default {
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
+						expense_type: expenseTypeFilter.value || undefined,
 						search: searchQuery.value || undefined,
 					},
 				});
@@ -385,11 +439,23 @@ export default {
 			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
+		const loadExpenseTypes = async () => {
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.expense_claims.get_expense_claim_types',
+				});
+				expenseTypeOptions.value = message || [];
+			} catch (e) {
+				console.error('Failed to load expense claim types', e);
+			}
+		};
+
 		const clearFilters = () => {
 			searchQuery.value = '';
 			fromDate.value = '';
 			toDate.value = '';
 			warehouseFilter.value = null;
+			expenseTypeFilter.value = null;
 			resetAndLoad();
 		};
 
@@ -403,10 +469,19 @@ export default {
 
 		onMounted(() => {
 			loadWarehouseOptions();
+			loadExpenseTypes();
 			loadExpenseClaims();
 		});
 
+		const { expandedRows, detailCache, detailLoading } = useExpandedRowDetail(
+			'posawesome.posawesome.api.expense_claims.get_expense_claim_detail',
+			'expense_claim',
+		);
+
 		return {
+			expandedRows,
+			detailCache,
+			detailLoading,
 			expenseList,
 			listLoading,
 			searchQuery,
@@ -416,6 +491,8 @@ export default {
 			toDate,
 			warehouseFilter,
 			warehouseOptions,
+			expenseTypeFilter,
+			expenseTypeOptions,
 			hasActiveFilters,
 			totalClaimed,
 			loadExpenseClaims,

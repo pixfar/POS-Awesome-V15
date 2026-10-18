@@ -132,8 +132,34 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table"
+					show-expand
+					:expand-on-click="false"
+					item-value="name"
+					v-model:expanded="expandedRows"
 					@click:row="(_, row) => openTransferDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
+					<template #expanded-row="{ columns, item }">
+						<tr class="pos-list-expanded-row">
+							<td :colspan="columns.length">
+								<InvoiceExpandedDetail
+									variant="fund_transfer"
+									:detail="detailCache[item.name]"
+									:loading="!!detailLoading[item.name]"
+									:format-currency="formatCurrency"
+								/>
+							</td>
+						</tr>
+					</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -207,12 +233,14 @@ import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
+import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { useToastStore } from '../../../stores/toastStore';
 import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 
 export default {
 	name: 'FundTransferList',
-	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog },
+	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -338,7 +366,7 @@ export default {
 			{ title: __('Mode of Payment'), key: 'mode_of_payment', sortable: true },
 			{ title: __('Amount'), key: 'amount', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'docstatus', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const hasActiveFilters = computed(() =>
@@ -430,7 +458,14 @@ export default {
 			loadTransfers();
 		});
 
+		const { expandedRows, detailCache, detailLoading } = useExpandedRowDetail(
+			'posawesome.posawesome.api.fund_transfer.get_fund_transfer_detail',
+		);
+
 		return {
+			expandedRows,
+			detailCache,
+			detailLoading,
 			transferList,
 			listLoading,
 			searchQuery,

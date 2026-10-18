@@ -151,8 +151,34 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table production-plan-list-table"
+					show-expand
+					:expand-on-click="false"
+					item-value="name"
+					v-model:expanded="expandedRows"
 					@click:row="(_, row) => openPlanDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
+					<template #expanded-row="{ columns, item }">
+						<tr class="pos-list-expanded-row">
+							<td :colspan="columns.length">
+								<InvoiceExpandedDetail
+									variant="production_plan"
+									:detail="detailCache[item.name]"
+									:loading="!!detailLoading[item.name]"
+									:format-currency="formatCurrency"
+								/>
+							</td>
+						</tr>
+					</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -292,6 +318,8 @@ import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
+import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
@@ -308,7 +336,7 @@ const ACTION_CONFIRM_MESSAGES = {
 
 export default {
 	name: 'ProductionPlanList',
-	components: { DateFilterField, ConfirmActionDialog, RowActionsMenu },
+	components: { DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -364,7 +392,7 @@ export default {
 			{ title: __('Planned Qty'), key: 'total_planned_qty', sortable: true, align: 'end' },
 			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'workflow_state', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '260px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const hasActiveFilters = computed(() =>
@@ -647,7 +675,14 @@ export default {
 			loadPlans();
 		});
 
+		const { expandedRows, detailCache, detailLoading } = useExpandedRowDetail(
+			'posawesome.posawesome.api.production_plans.get_production_plan_detail',
+		);
+
 		return {
+			expandedRows,
+			detailCache,
+			detailLoading,
 			planList,
 			listLoading,
 			searchQuery,

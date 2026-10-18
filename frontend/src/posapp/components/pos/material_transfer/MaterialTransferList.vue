@@ -183,8 +183,34 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table material-transfer-list-table"
+					show-expand
+					:expand-on-click="false"
+					item-value="name"
+					v-model:expanded="expandedRows"
 					@click:row="(_, row) => openTransferDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
+					<template #expanded-row="{ columns, item }">
+						<tr class="pos-list-expanded-row">
+							<td :colspan="columns.length">
+								<InvoiceExpandedDetail
+									variant="material_transfer"
+									:detail="detailCache[item.name]"
+									:loading="!!detailLoading[item.name]"
+									:format-currency="formatCurrency"
+								/>
+							</td>
+						</tr>
+					</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -375,6 +401,8 @@ import ConfirmReceiptDialog from '../requisition/ConfirmReceiptDialog.vue';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
+import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
@@ -386,6 +414,7 @@ export default {
 		DateFilterField,
 		ConfirmActionDialog,
 		RowActionsMenu,
+		InvoiceExpandedDetail,
 	},
 	setup() {
 		const router = useRouter();
@@ -461,7 +490,7 @@ export default {
 			{ title: __('Remarks'), key: 'notes', sortable: false },
 			{ title: __('Created By'), key: 'owner_name', sortable: true },
 			{ title: __('Last Modified By'), key: 'modified_by_name', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '220px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const hasActiveFilters = computed(() =>
@@ -775,7 +804,15 @@ export default {
 			loadTransfers();
 		});
 
+		const { expandedRows, detailCache, detailLoading } = useExpandedRowDetail(
+			'posawesome.posawesome.api.material_transfers.get_material_transfer_detail',
+			'transfer',
+		);
+
 		return {
+			expandedRows,
+			detailCache,
+			detailLoading,
 			transferList,
 			listLoading,
 			mineOnly,

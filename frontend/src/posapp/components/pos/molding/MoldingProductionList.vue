@@ -87,8 +87,34 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table"
+					show-expand
+					:expand-on-click="false"
+					item-value="name"
+					v-model:expanded="expandedRows"
 					@click:row="(_, row) => openDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
+					<template #expanded-row="{ columns, item }">
+						<tr class="pos-list-expanded-row">
+							<td :colspan="columns.length">
+								<InvoiceExpandedDetail
+									variant="production"
+									:detail="detailCache[item.name]"
+									:loading="!!detailLoading[item.name]"
+									:format-currency="formatCurrency"
+								/>
+							</td>
+						</tr>
+					</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -152,6 +178,8 @@ import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
+import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { useToastStore } from '../../../stores/toastStore';
 import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import { formatDisplayDate, docStatusColor } from '../shared/docStatusUtils';
@@ -160,7 +188,7 @@ const API = 'posawesome.posawesome.api.molding';
 
 export default {
 	name: 'MoldingProductionList',
-	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog },
+	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -185,7 +213,7 @@ export default {
 			{ title: __('Rate / KG'), key: 'rate_per_kg', sortable: true, align: 'end' },
 			{ title: __('Total Wage'), key: 'total_wage', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'status', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '100px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const hasActiveFilters = computed(() => Boolean(searchQuery.value || fromDate.value || toDate.value));
@@ -280,7 +308,14 @@ export default {
 
 		onMounted(loadRecords);
 
+		const { expandedRows, detailCache, detailLoading } = useExpandedRowDetail(
+			'posawesome.posawesome.api.molding.get_daily_production_detail',
+		);
+
 		return {
+			expandedRows,
+			detailCache,
+			detailLoading,
 			canManage,
 			records,
 			total,

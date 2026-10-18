@@ -122,8 +122,34 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table"
+					show-expand
+					:expand-on-click="false"
+					item-value="name"
+					v-model:expanded="expandedRows"
 					@click:row="(_, row) => openBomDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
+					<template #expanded-row="{ columns, item }">
+						<tr class="pos-list-expanded-row">
+							<td :colspan="columns.length">
+								<InvoiceExpandedDetail
+									variant="bom"
+									:detail="detailCache[item.name]"
+									:loading="!!detailLoading[item.name]"
+									:format-currency="formatCurrency"
+								/>
+							</td>
+						</tr>
+					</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -263,7 +289,10 @@
 <script>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
+import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
@@ -271,7 +300,8 @@ import { useListFilterPersistence } from '../../../composables/useListFilterPers
 
 export default {
 	name: 'BomList',
-	components: { RowActionsMenu, ConfirmActionDialog },
+	components: { RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
+	mixins: [format],
 	setup() {
 		const router = useRouter();
 		const toastStore = useToastStore();
@@ -421,7 +451,7 @@ export default {
 			{ title: __('Active'), key: 'is_active', sortable: true },
 			{ title: __('Default'), key: 'is_default', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const activeCount = computed(() => bomList.value.filter((row) => row.is_active).length);
@@ -549,7 +579,14 @@ export default {
 			loadBoms();
 		});
 
+		const { expandedRows, detailCache, detailLoading } = useExpandedRowDetail(
+			'posawesome.posawesome.api.boms.get_bom_detail',
+		);
+
 		return {
+			expandedRows,
+			detailCache,
+			detailLoading,
 			bomList,
 			listLoading,
 			searchQuery,

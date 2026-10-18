@@ -157,16 +157,34 @@
 										<tr v-for="(row, index) in expenseRows" :key="row.key">
 											<td>{{ index + 1 }}</td>
 											<td>
-												<v-select
+												<v-autocomplete
 													v-model="row.expense_type"
+													v-model:search="row.typeSearch"
 													:items="expenseTypeOptions"
 													item-title="name"
 													item-value="name"
+													:label="__('Expense Claim Type')"
 													density="compact"
 													variant="outlined"
 													hide-details
+													clearable
 													class="pos-themed-input"
-												/>
+												>
+													<template v-if="canCreateExpenseType" #append-item>
+														<div v-if="canOfferNewType(row)" class="expense-type-create">
+															<v-btn
+																block
+																color="primary"
+																variant="flat"
+																size="small"
+																prepend-icon="mdi-plus"
+																@mousedown.prevent="openCreateType(row)"
+															>
+																{{ __('Create "{0}"', [row.typeSearch.trim()]) }}
+															</v-btn>
+														</div>
+													</template>
+												</v-autocomplete>
 											</td>
 											<td>
 												<v-text-field
@@ -221,6 +239,54 @@
 								</div>
 							</v-card>
 
+							<v-card flat class="invoice-section-card pos-themed-card">
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">{{ __("Attachments") }}</h3>
+									<span class="text-caption text-medium-emphasis">
+										{{ attachmentItems.length }}/{{ maxExpenseImages }}
+									</span>
+								</div>
+								<div class="sale-options-body">
+									<v-file-input
+										v-model="attachmentFiles"
+										:label="__('Attach Images')"
+										density="compact"
+										variant="outlined"
+										color="primary"
+										hide-details
+										multiple
+										chips
+										prepend-icon=""
+										prepend-inner-icon="mdi-paperclip"
+										accept="image/*"
+										:loading="attachmentUploading"
+										:disabled="attachmentUploading || attachmentItems.length >= maxExpenseImages"
+										class="pos-themed-input"
+										@update:model-value="handleAttachmentsSelected"
+									/>
+									<p class="text-caption text-medium-emphasis mt-2 mb-0">
+										{{ __("Upload up to {0} images.", [maxExpenseImages]) }}
+									</p>
+									<div v-if="attachmentItems.length" class="expense-attachments">
+										<div
+											v-for="item in attachmentItems"
+											:key="item.url"
+											class="expense-attachments__item"
+										>
+											<img :src="item.preview || item.url" :alt="item.name" />
+											<v-btn
+												icon="mdi-close"
+												size="x-small"
+												variant="flat"
+												color="error"
+												class="expense-attachments__remove"
+												@click="removeAttachment(item)"
+											/>
+										</div>
+									</div>
+								</div>
+							</v-card>
+
 							<v-alert v-if="errorMessage" type="error" density="compact">
 								{{ errorMessage }}
 							</v-alert>
@@ -238,7 +304,7 @@
 						</div>
 						<v-btn
 							:loading="submitLoading"
-							:disabled="submitLoading || !totalAmount"
+							:disabled="submitLoading || attachmentUploading || !totalAmount"
 							size="large"
 							color="primary"
 							class="text-none purchase-pay-btn"
@@ -251,6 +317,40 @@
 				</v-card>
 			</v-col>
 		</v-row>
+
+		<v-dialog v-model="createTypeDialog" max-width="440">
+			<v-card class="pos-themed-card">
+				<v-card-title>{{ __("New Expense Claim Type") }}</v-card-title>
+				<v-card-text>
+					<v-text-field
+						v-model="newTypeName"
+						:label="__('Expense Claim Type')"
+						density="compact"
+						variant="outlined"
+						hide-details
+						autofocus
+						class="pos-themed-input"
+						@keyup.enter="submitNewType"
+					/>
+					<p class="text-caption mt-3 mb-0">
+						{{ __("Default Account") }}: {{ defaultExpenseAccount }}
+					</p>
+				</v-card-text>
+				<v-card-actions>
+					<v-spacer />
+					<v-btn variant="text" @click="createTypeDialog = false">{{ __("Cancel") }}</v-btn>
+					<v-btn
+						color="primary"
+						variant="flat"
+						:loading="createTypeLoading"
+						:disabled="!newTypeName.trim()"
+						@click="submitNewType"
+					>
+						{{ __("Create") }}
+					</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
 	</div>
 </template>
 
@@ -261,6 +361,7 @@ import format from '../../../format';
 import { useUIStore } from '../../../stores/uiStore.js';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import { useToastStore } from '../../../stores/toastStore';
+import { uploadFile } from '../../../utils/uploadFile';
 import { isPosWarehouseSwitcher, isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import { useWarehouseAccountSync } from '../../../composables/pos/shared/useWarehouseAccountSync';
 import DateFilterField from '../shared/DateFilterField.vue';
@@ -269,9 +370,13 @@ const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
 
 let rowKeySeed = 0;
+const DEFAULT_EXPENSE_ACCOUNT = 'Operating Expenses - BSP';
+const MAX_EXPENSE_IMAGES = 3;
+
 const makeRow = () => ({
 	key: `expense-row-${++rowKeySeed}`,
 	expense_type: null,
+	typeSearch: '',
 	description: '',
 	amount: null,
 	sanctioned_amount: null,
@@ -329,8 +434,18 @@ export default {
 		});
 
 		const expenseTypeOptions = ref([]);
+		const canCreateExpenseType = computed(() => isFundTransferManager());
+		const createTypeDialog = ref(false);
+		const newTypeName = ref('');
+		const createTypeRow = ref(null);
+		const createTypeLoading = ref(false);
+		const defaultExpenseAccount = DEFAULT_EXPENSE_ACCOUNT;
 		const expenseDate = ref(getTodayDate());
 		const remark = ref('');
+		const maxExpenseImages = MAX_EXPENSE_IMAGES;
+		const attachmentFiles = ref(null);
+		const attachmentItems = ref([]);
+		const attachmentUploading = ref(false);
 		const expenseRows = ref([makeRow()]);
 		const submitLoading = ref(false);
 		const errorMessage = ref('');
@@ -410,6 +525,54 @@ export default {
 				expenseTypeOptions.value = message || [];
 			} catch (e) {
 				console.error('Failed to load expense claim types', e);
+			}
+		};
+
+		const canOfferNewType = (row) => {
+			const term = (row.typeSearch || '').trim();
+			if (!term) return false;
+			return !expenseTypeOptions.value.some(
+				(option) => String(option.name).toLowerCase() === term.toLowerCase(),
+			);
+		};
+
+		const openCreateType = (row) => {
+			createTypeRow.value = row;
+			newTypeName.value = (row.typeSearch || '').trim();
+			createTypeDialog.value = true;
+		};
+
+		const submitNewType = async () => {
+			const name = newTypeName.value.trim();
+			if (!name || createTypeLoading.value) return;
+			createTypeLoading.value = true;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.expense_claims.create_expense_claim_type',
+					args: { expense_type: name },
+				});
+				const created = message?.name || name;
+				if (!expenseTypeOptions.value.some((option) => option.name === created)) {
+					expenseTypeOptions.value = [...expenseTypeOptions.value, { name: created }].sort((a, b) =>
+						String(a.name).localeCompare(String(b.name)),
+					);
+				}
+				if (createTypeRow.value) {
+					createTypeRow.value.expense_type = created;
+					createTypeRow.value.typeSearch = '';
+				}
+				createTypeDialog.value = false;
+				toastStore.show({
+					title: __('Expense Claim Type {0} created', [created]),
+					color: 'success',
+				});
+			} catch (e) {
+				toastStore.show({
+					title: e?.message || __('Could not create Expense Claim Type'),
+					color: 'error',
+				});
+			} finally {
+				createTypeLoading.value = false;
 			}
 		};
 
@@ -499,10 +662,65 @@ export default {
 			}
 		};
 
+		const clearAttachmentPreviews = () => {
+			for (const item of attachmentItems.value) {
+				if (item.preview) URL.revokeObjectURL(item.preview);
+			}
+			attachmentItems.value = [];
+			attachmentFiles.value = null;
+		};
+
+		const handleAttachmentsSelected = async (files) => {
+			const selected = (Array.isArray(files) ? files : files ? [files] : []).filter(Boolean);
+			if (!selected.length) return;
+			attachmentFiles.value = null;
+
+			const room = maxExpenseImages - attachmentItems.value.length;
+			if (room <= 0) {
+				errorMessage.value = __('You can attach at most {0} images.', [maxExpenseImages]);
+				return;
+			}
+
+			const images = selected.filter((file) => String(file.type || '').startsWith('image/'));
+			if (!images.length || images.length !== selected.length) {
+				errorMessage.value = __('Only image files can be attached.');
+				if (!images.length) return;
+			} else {
+				errorMessage.value = '';
+			}
+
+			const incoming = images.slice(0, room);
+			if (images.length > room) {
+				errorMessage.value = __('You can attach at most {0} images.', [maxExpenseImages]);
+			}
+
+			attachmentUploading.value = true;
+			try {
+				for (const file of incoming) {
+					const url = await uploadFile(file);
+					attachmentItems.value.push({
+						url,
+						name: file.name,
+						preview: URL.createObjectURL(file),
+					});
+				}
+			} catch (e) {
+				errorMessage.value = e?.message || __('Failed to upload image');
+			} finally {
+				attachmentUploading.value = false;
+			}
+		};
+
+		const removeAttachment = (item) => {
+			if (item.preview) URL.revokeObjectURL(item.preview);
+			attachmentItems.value = attachmentItems.value.filter((row) => row.url !== item.url);
+		};
+
 		const resetForm = () => {
 			expenseDate.value = getTodayDate();
 			remark.value = '';
 			expenseRows.value = [makeRow()];
+			clearAttachmentPreviews();
 		};
 
 		const submitExpenseClaim = async () => {
@@ -519,6 +737,10 @@ export default {
 			}
 			if (canSelectEmployee.value && !selectedEmployee.value) {
 				errorMessage.value = __('Select an Employee.');
+				return;
+			}
+			if (attachmentUploading.value) {
+				errorMessage.value = __('Wait for the images to finish uploading.');
 				return;
 			}
 
@@ -543,6 +765,7 @@ export default {
 								amount: row.amount,
 								sanctioned_amount: row.sanctioned_amount,
 							})),
+							attachments: attachmentItems.value.map((item) => item.url),
 						},
 					},
 					freeze: true,
@@ -633,8 +856,22 @@ export default {
 			warehouseLoading,
 			warehouse,
 			expenseTypeOptions,
+			canCreateExpenseType,
+			canOfferNewType,
+			openCreateType,
+			submitNewType,
+			createTypeDialog,
+			newTypeName,
+			createTypeLoading,
+			defaultExpenseAccount,
 			expenseDate,
 			remark,
+			maxExpenseImages,
+			attachmentFiles,
+			attachmentItems,
+			attachmentUploading,
+			handleAttachmentsSelected,
+			removeAttachment,
 			expenseRows,
 			totalAmount,
 			submitLoading,
@@ -655,5 +892,41 @@ export default {
 	vertical-align: middle;
 	padding-top: 6px;
 	padding-bottom: 6px;
+}
+
+.expense-type-create {
+	padding: 8px 10px 10px;
+	background: #e6f4f6;
+	border-top: 1px solid rgba(0, 151, 167, 0.18);
+}
+
+.expense-attachments {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 12px;
+}
+
+.expense-attachments__item {
+	position: relative;
+	width: 88px;
+	height: 88px;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 1px solid rgba(0, 151, 167, 0.28);
+	background: #f4fbfb;
+}
+
+.expense-attachments__item img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.expense-attachments__remove {
+	position: absolute;
+	top: 4px;
+	right: 4px;
 }
 </style>

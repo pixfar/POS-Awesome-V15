@@ -14,7 +14,22 @@
 		:totals="totals"
 		:actions="actions"
 		@back="goBack"
-	/>
+	>
+		<div v-if="detail.attachments && detail.attachments.length" class="expense-detail-images">
+			<h3 class="expense-detail-images__title">{{ __("Attachments") }}</h3>
+			<div class="expense-detail-images__row">
+				<a
+					v-for="file in detail.attachments"
+					:key="file.file_url"
+					:href="file.file_url"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					<img :src="file.file_url" :alt="file.file_name || __('Attachment')" />
+				</a>
+			</div>
+		</div>
+	</DocumentDetailView>
 </template>
 
 <script>
@@ -141,3 +156,30 @@ export default {
 	},
 };
 </script>
+
+<style scoped>
+.expense-detail-images {
+	margin-top: 16px;
+}
+
+.expense-detail-images__title {
+	margin: 0 0 8px;
+	font-size: 0.95rem;
+	font-weight: 600;
+}
+
+.expense-detail-images__row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.expense-detail-images__row img {
+	width: 96px;
+	height: 96px;
+	object-fit: cover;
+	border-radius: 8px;
+	border: 1px solid rgba(17, 24, 39, 0.12);
+	display: block;
+}
+</style>

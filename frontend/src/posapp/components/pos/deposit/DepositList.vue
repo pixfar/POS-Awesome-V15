@@ -102,8 +102,34 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table"
+					show-expand
+					:expand-on-click="false"
+					item-value="name"
+					v-model:expanded="expandedRows"
 					@click:row="(_, row) => openDepositDetail(row.item)"
 				>
+					<template #item.data-table-expand="{ internalItem, isExpanded, toggleExpand }">
+						<v-btn
+							:icon="isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+							size="small"
+							variant="text"
+							density="comfortable"
+							:aria-label="__('Toggle details')"
+							@click.stop="toggleExpand(internalItem)"
+						/>
+					</template>
+					<template #expanded-row="{ columns, item }">
+						<tr class="pos-list-expanded-row">
+							<td :colspan="columns.length">
+								<InvoiceExpandedDetail
+									variant="deposit"
+									:detail="detailCache[item.name]"
+									:loading="!!detailLoading[item.name]"
+									:format-currency="formatCurrency"
+								/>
+							</td>
+						</tr>
+					</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -178,11 +204,13 @@ import DateFilterField from '../shared/DateFilterField.vue';
 import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
+import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { useToastStore } from '../../../stores/toastStore';
 
 export default {
 	name: 'DepositList',
-	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog },
+	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -314,7 +342,7 @@ export default {
 			{ title: __('Bank Name'), key: 'bank_name', sortable: true },
 			{ title: __('Amount'), key: 'amount', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'docstatus', sortable: true },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const hasActiveFilters = computed(() =>
@@ -401,7 +429,14 @@ export default {
 			loadDeposits();
 		});
 
+		const { expandedRows, detailCache, detailLoading } = useExpandedRowDetail(
+			'posawesome.posawesome.api.bsp_daily_deposit.get_daily_deposit_detail',
+		);
+
 		return {
+			expandedRows,
+			detailCache,
+			detailLoading,
 			depositList,
 			listLoading,
 			searchQuery,

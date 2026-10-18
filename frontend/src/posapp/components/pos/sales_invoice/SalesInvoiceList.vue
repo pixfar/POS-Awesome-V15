@@ -771,7 +771,7 @@ export default {
 			{ title: __('Total Paid'), key: 'paid_amount', sortable: true, align: 'end' },
 			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
 			{ title: __('Remarks'), key: 'remarks', sortable: false },
-			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
+			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
 		const hasActiveFilters = computed(() =>
