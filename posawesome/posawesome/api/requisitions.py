@@ -18,6 +18,7 @@ from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 from posawesome.posawesome.api.utils import attach_actual_qty, attach_user_full_names
 
 ALLOWED_STATUS_TRANSITIONS = {
+	'Draft': {'Sent'},
 	'Sent': {'Seen', 'Rejected'},
 	'Seen': {'Completed', 'Rejected'},
 }
@@ -73,20 +74,19 @@ def _fill_requisition(doc, data, items):
 
 
 def can_edit_requisition(doc, user=None):
-	"""A Requisition stays editable while it is still a Draft in "Sent" --
-	i.e. until the receiving side marks it "Seen" (which submits it). Only
-	the person who raised it, or a System Manager, may edit it."""
+	"""A Requisition stays editable only while it is Draft. Sending it locks
+	the document; Seen and later steps happen after that. Only the person
+	who raised it, or a System Manager, may edit or send it."""
 	user = user or frappe.session.user
-	if doc.docstatus != 0 or doc.transfer_status != 'Sent':
+	if doc.docstatus != 0 or doc.transfer_status != 'Draft':
 		return False
 	return user in (doc.requested_by, doc.owner) or is_system_manager(user)
 
 
 @frappe.whitelist()
 def create_requisition(data):
-	"""Create a requisition from POS. It is saved as a Draft with status
-	"Sent" (not submitted), so the requester can still correct it until it
-	is marked "Seen" -- see set_requisition_status."""
+	"""Create a requisition from POS. It is saved as Draft (not submitted),
+	so the requester can still correct it until they mark it Sent."""
 	ensure_can_create(_('create a Requisition'))
 	data = _parse_json(data)
 	if not data:
@@ -95,7 +95,7 @@ def create_requisition(data):
 	items = _validate_requisition_payload(data)
 	doc = frappe.new_doc('Requisition')
 	_fill_requisition(doc, data, items)
-	doc.transfer_status = 'Sent'
+	doc.transfer_status = 'Draft'
 	doc.insert()
 
 	return {
@@ -106,7 +106,7 @@ def create_requisition(data):
 
 @frappe.whitelist()
 def update_requisition(requisition, data):
-	"""Edit a requisition that is still Draft / "Sent"."""
+	"""Edit a requisition that is still Draft."""
 	ensure_can_create(_('edit a Requisition'))
 	data = _parse_json(data)
 	if not data:
@@ -115,7 +115,7 @@ def update_requisition(requisition, data):
 	doc = frappe.get_doc('Requisition', requisition)
 	if not can_edit_requisition(doc):
 		frappe.throw(
-			_('Requisition {0} can no longer be edited (it has been seen or you did not raise it).').format(
+			_('Requisition {0} can no longer be edited (it has been sent, or you did not raise it).').format(
 				doc.name
 			),
 			title=_('Not Editable'),
@@ -131,7 +131,7 @@ def update_requisition(requisition, data):
 def _enrich_list_row(row):
 	row['can_edit'] = (
 		row.get('docstatus') == 0
-		and row.get('transfer_status') == 'Sent'
+		and row.get('transfer_status') == 'Draft'
 		and (
 			frappe.session.user in (row.get('requested_by'), row.get('owner'))
 			or bool(is_system_manager())
@@ -180,6 +180,13 @@ def get_requisitions_list(
 		include_draft=True,
 	)
 
+	if status == 'Cancelled':
+		extra_filters = {'docstatus': 2}
+	elif status:
+		extra_filters = {'transfer_status': status}
+	else:
+		extra_filters = None
+
 	rows, total = get_warehouse_doc_list_rows(
 		'Requisition',
 		'source_warehouse',
@@ -200,7 +207,7 @@ def get_requisitions_list(
 		],
 		page_start=page_start,
 		page_length=page_length,
-		extra_filters={'transfer_status': status} if status else None,
+		extra_filters=extra_filters,
 		**shared_filter_args,
 	)
 
@@ -299,8 +306,33 @@ def get_requisition_detail(requisition):
 
 @frappe.whitelist()
 def set_requisition_status(requisition, status):
-	"""Transition a submitted Requisition through Sent -> Seen -> Completed,
-	or Reject it from either Sent or Seen (see ALLOWED_STATUS_TRANSITIONS)."""
+	"""Move a Requisition through Draft -> Sent -> Seen -> Completed, or
+	Reject it from Sent or Seen (see ALLOWED_STATUS_TRANSITIONS).
+
+	The requester (or a System Manager) sends their own Draft. That locks
+	editing. Seen, Completed, and Rejected stay limited to System Manager.
+	Marking Seen or Rejected from Sent submits the document."""
+	doc = frappe.get_doc('Requisition', requisition)
+	current = doc.transfer_status
+	allowed_next = ALLOWED_STATUS_TRANSITIONS.get(current, set())
+	if status not in allowed_next:
+		frappe.throw(
+			_('Requisition {0} cannot move from {1} to {2}.').format(
+				doc.name, current, status
+			),
+			title=_('Invalid Status Change'),
+		)
+
+	if current == 'Draft' and status == 'Sent':
+		if not can_edit_requisition(doc):
+			frappe.throw(
+				_('Only the person who raised this requisition can send it.'),
+				title=_('Not Allowed'),
+				exc=frappe.PermissionError,
+			)
+		doc.db_set('transfer_status', 'Sent', update_modified=False)
+		return {'name': doc.name, 'transfer_status': 'Sent'}
+
 	if not is_system_manager():
 		frappe.throw(
 			_('Only a System Manager can update the Requisition status.'),
@@ -308,27 +340,14 @@ def set_requisition_status(requisition, status):
 			exc=frappe.PermissionError,
 		)
 
-	if status not in ('Seen', 'Completed', 'Rejected'):
-		frappe.throw(_('Invalid status {0}.').format(status))
-
-	doc = frappe.get_doc('Requisition', requisition)
-	allowed_next = ALLOWED_STATUS_TRANSITIONS.get(doc.transfer_status, set())
-	if doc.docstatus == 0 and doc.transfer_status == 'Sent' and status in allowed_next:
-		# Draft until now so the requester could still edit it -- lock it in
-		# ("Seen" or "Rejected") by submitting. on_submit resets the status
-		# to "Sent"; the db_set below then records the real one.
+	if doc.docstatus == 0 and current == 'Sent' and status in allowed_next:
+		# Still unsubmitted so the requester could edit until they sent it.
+		# Lock it in ("Seen" or "Rejected") by submitting. on_submit resets
+		# the status to "Sent"; the db_set below then records the real one.
 		doc.flags.ignore_permissions = True
 		doc.submit()
 	elif doc.docstatus != 1:
 		frappe.throw(_('Submit the Requisition before updating its status.'))
-
-	if status not in allowed_next:
-		frappe.throw(
-			_('Requisition {0} cannot move from {1} to {2}.').format(
-				doc.name, doc.transfer_status, status
-			),
-			title=_('Invalid Status Change'),
-		)
 
 	doc.db_set('transfer_status', status, update_modified=False)
 	return {'name': doc.name, 'transfer_status': status}

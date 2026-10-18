@@ -49,7 +49,7 @@
    "reqd": 1
   },
   {
-   "default": "Sent",
+   "default": "Draft",
    "depends_on": "eval:!doc.__islocal",
    "fieldname": "transfer_status",
    "fieldtype": "Select",
@@ -57,7 +57,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Sent\nSeen\nCompleted\nRejected",
+   "options": "Draft\nSent\nSeen\nCompleted\nRejected",
    "read_only": 1
   },
   {

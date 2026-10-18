@@ -7,8 +7,8 @@
 			:subtitle="__('Requisition')"
 			:loading="loading"
 			:not-found="notFound"
-			:status="detail.transfer_status"
-			:status-color="statusColor(detail.transfer_status)"
+			:status="displayStatus"
+			:status-color="statusColor(rawStatus)"
 			:meta-fields="metaFields"
 			:item-columns="itemColumns"
 			:items="itemRows"
@@ -38,12 +38,14 @@ import DocumentDetailView from '../shared/DocumentDetailView.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 
 const STATUS_CONFIRM_MESSAGES = {
+	Sent: __('Mark this requisition as Sent? It can no longer be edited after this.'),
 	Seen: __('Mark this requisition as Seen? This lets the requester know it is being processed.'),
 	Completed: __('Mark this requisition as Completed? This confirms the stock transfer is complete.'),
 	Rejected: __('Reject this requisition? This cannot be undone.'),
 };
 
 const CONFIRM_COLOR_BY_STATUS = {
+	Sent: 'warning',
 	Seen: 'primary',
 	Completed: 'success',
 	Rejected: 'error',
@@ -124,8 +126,22 @@ export default {
 			];
 		});
 
+		const rawStatus = computed(() => {
+			if (detail.value.docstatus === 2) return 'Cancelled';
+			return detail.value.transfer_status;
+		});
+
+		const displayStatus = computed(() => (rawStatus.value ? __(rawStatus.value) : ''));
+
 		const statusColor = (status) => {
-			const map = { Sent: 'orange', Seen: 'blue', Completed: 'green', Rejected: 'deep-purple' };
+			const map = {
+				Draft: 'grey',
+				Sent: 'orange',
+				Seen: 'blue',
+				Completed: 'green',
+				Rejected: 'deep-purple',
+				Cancelled: 'red',
+			};
 			return map[status] || 'grey';
 		};
 
@@ -153,6 +169,7 @@ export default {
 			const status = pendingAction.value;
 			actionLoading.value = true;
 			const freezeMessages = {
+				Sent: __('Sending...'),
 				Seen: __('Marking as seen...'),
 				Completed: __('Marking as completed...'),
 				Rejected: __('Marking as rejected...'),
@@ -182,13 +199,19 @@ export default {
 
 		const actions = computed(() => {
 			const list = [];
-			// Still a Draft in "Sent" -- the requester can fix mistakes until
-			// it is marked Seen (which submits it).
+			// Draft stays editable. Sending locks it; Seen and later are
+			// handled by a System Manager.
 			if (detail.value.can_edit) {
 				list.push({
 					label: __('Edit'),
 					color: 'primary',
 					onClick: () => router.push(`/requisitions/${encodeURIComponent(detail.value.name)}/edit`),
+				});
+				list.push({
+					label: __('Send'),
+					color: 'warning',
+					loading: actionLoading.value,
+					onClick: () => requestUpdateStatus('Sent'),
 				});
 			}
 			if (detail.value.can_manage_status) {
@@ -254,6 +277,8 @@ export default {
 			itemRows,
 			totals,
 			actions,
+			rawStatus,
+			displayStatus,
 			statusColor,
 			confirmColorForStatus,
 			confirmDialogOpen,

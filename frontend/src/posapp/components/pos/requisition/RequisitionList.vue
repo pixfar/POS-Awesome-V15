@@ -27,6 +27,10 @@
 					<span class="pos-list-stat__label">{{ __("Total") }}</span>
 					<strong class="pos-list-stat__value">{{ total }}</strong>
 				</div>
+				<div class="pos-list-stat">
+					<span class="pos-list-stat__label">{{ __("Draft") }}</span>
+					<strong class="pos-list-stat__value">{{ statusCounts.Draft || 0 }}</strong>
+				</div>
 				<div class="pos-list-stat pos-list-stat--warning">
 					<span class="pos-list-stat__label">{{ __("Sent") }}</span>
 					<strong class="pos-list-stat__value">{{ statusCounts.Sent || 0 }}</strong>
@@ -84,6 +88,8 @@
 				<v-select
 					v-model="statusFilter"
 					:items="statusOptions"
+					item-title="title"
+					item-value="value"
 					:label="__('Status')"
 					density="compact"
 					variant="outlined"
@@ -224,7 +230,7 @@
 						<span class="pos-list-cell-muted">{{ Number(item.total_weight || 0).toFixed(2) }}</span>
 					</template>
 					<template #item.transfer_status="{ item }">
-						<v-chip size="small" variant="tonal" :color="statusColor(displayStatus(item))">
+						<v-chip size="small" variant="tonal" :color="statusColor(rawStatus(item))">
 							{{ displayStatus(item) }}
 						</v-chip>
 					</template>
@@ -357,6 +363,7 @@ import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemS
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 
 const STATUS_CONFIRM_MESSAGES = {
+	Sent: __('Mark this requisition as Sent? It can no longer be edited after this.'),
 	Seen: __('Mark this requisition as Seen? This lets the requester know it is being processed.'),
 	Completed: __('Mark this requisition as Completed? This confirms the stock transfer is complete.'),
 	Rejected: __('Reject this requisition? This cannot be undone.'),
@@ -366,6 +373,7 @@ const STATUS_CONFIRM_MESSAGES = {
 
 // Confirm-dialog accent color per target status.
 const CONFIRM_COLOR_BY_STATUS = {
+	Sent: 'warning',
 	Seen: 'primary',
 	Completed: 'success',
 	Rejected: 'error',
@@ -398,7 +406,14 @@ export default {
 		const hasMore = ref(false);
 		const statusCounts = ref({});
 
-		const statusOptions = ['Sent', 'Seen', 'Completed', 'Rejected'];
+		const statusOptions = computed(() => [
+			{ title: __('Draft'), value: 'Draft' },
+			{ title: __('Sent'), value: 'Sent' },
+			{ title: __('Seen'), value: 'Seen' },
+			{ title: __('Completed'), value: 'Completed' },
+			{ title: __('Rejected'), value: 'Rejected' },
+			{ title: __('Cancelled'), value: 'Cancelled' },
+		]);
 		const statusFilter = ref(null);
 		const fromDate = ref('');
 		const toDate = ref('');
@@ -615,19 +630,25 @@ export default {
 
 		const confirmColorForStatus = (status) => CONFIRM_COLOR_BY_STATUS[status] || 'error';
 
-		// A Requisition can be cancelled (docstatus=2) independently of its
-		// transfer_status label (Sent/Seen/Completed/Rejected never changes on
-		// cancel) -- show the real docstatus-derived state so a cancelled row
-		// doesn't misleadingly still read "Sent" in orange.
-		const displayStatus = (item) => {
-			if (item.docstatus === 2) return __('Cancelled');
-			if (item.docstatus === 0) return __('Draft');
+		// Cancelled is docstatus, not a transfer_status value. Draft and Sent
+		// are both unsubmitted, so the chip has to follow transfer_status.
+		const rawStatus = (item) => {
+			if (item.docstatus === 2) return 'Cancelled';
 			return item.transfer_status;
 		};
+
+		const displayStatus = (item) => __(rawStatus(item));
 
 		const rowActions = (item) => [
 			{ key: 'view', label: __('View'), icon: 'mdi-eye-outline' },
 			{ key: 'edit', label: __('Edit'), icon: 'mdi-pencil-outline', show: !!item.can_edit },
+			{
+				key: 'sent',
+				label: __('Send'),
+				icon: 'mdi-send-outline',
+				color: 'warning',
+				show: !!item.can_edit,
+			},
 			{
 				key: 'seen',
 				label: __('Mark as Seen'),
@@ -672,6 +693,8 @@ export default {
 				openRequisitionDetail(item);
 			} else if (key === 'edit') {
 				router.push(`/requisitions/${encodeURIComponent(item.name)}/edit`);
+			} else if (key === 'sent') {
+				requestUpdateStatus(item.name, 'Sent');
 			} else if (key === 'seen') {
 				requestUpdateStatus(item.name, 'Seen');
 			} else if (key === 'completed') {
@@ -730,6 +753,7 @@ export default {
 					toastStore.show({ title: __('Requisition {0} deleted', [requisition]), color: 'success' });
 				} else {
 					const freezeMessages = {
+						Sent: __('Sending...'),
 						Seen: __('Marking as seen...'),
 						Completed: __('Marking as completed...'),
 						Rejected: __('Marking as rejected...'),
@@ -811,6 +835,7 @@ export default {
 			formatDisplayDate,
 			statusColor,
 			confirmColorForStatus,
+			rawStatus,
 			displayStatus,
 			rowActions,
 			handleRowAction,

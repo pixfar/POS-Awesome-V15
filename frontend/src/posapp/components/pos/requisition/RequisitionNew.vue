@@ -306,7 +306,7 @@ export default {
 	setup() {
 		const router = useRouter();
 		const route = useRoute();
-		// /requisitions/<name>/edit -- same form, filled from a Draft "Sent" requisition.
+		// /requisitions/<name>/edit -- same form, filled from a Draft requisition.
 		const editName = computed(() => (route.params.name ? String(route.params.name) : null));
 		const editLoading = ref(false);
 		const uiStore = useUIStore();
