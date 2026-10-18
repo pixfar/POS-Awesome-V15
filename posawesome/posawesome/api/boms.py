@@ -80,7 +80,7 @@ def get_default_wip_warehouse():
 
 
 @frappe.whitelist()
-def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_item_code=None):
+def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_item_code=None, page_start=0):
 	"""Item search for the BOM creation form: the item to manufacture (any item) or a
 	raw material row (stock items only)."""
 	if not is_system_manager():
@@ -90,6 +90,7 @@ def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_ite
 		)
 
 	limit = max(1, min(int(limit or 20), 500))
+	page_start = max(0, int(page_start or 0))
 	conditions = ['item.disabled = 0']
 	values = {}
 
@@ -133,9 +134,9 @@ def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_ite
 		FROM `tabItem` item
 		WHERE {where_clause}
 		ORDER BY item.item_name ASC
-		LIMIT %(limit)s
+		LIMIT %(limit)s OFFSET %(page_start)s
 		""",
-		{**values, 'limit': limit},
+		{**values, 'limit': limit, 'page_start': page_start},
 		as_dict=True,
 	)
 	return items

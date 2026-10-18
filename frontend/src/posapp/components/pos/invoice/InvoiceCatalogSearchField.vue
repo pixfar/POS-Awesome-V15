@@ -115,6 +115,12 @@ const catalogItems = computed(() => {
 	if (term.length < 2) {
 		return [];
 	}
+	// Prefer the full match list (every result, scrollable) over the paginated
+	// card page, so the dropdown can scroll through all matches.
+	const matches = readRef(catalogSearch.value?.catalogMatches);
+	if (Array.isArray(matches) && matches.length) {
+		return matches;
+	}
 	return readRef(catalogSearch.value?.displayedItems) || [];
 });
 const isLoading = computed(() => !!readRef(catalogSearch.value?.isLoading));

@@ -260,6 +260,15 @@
 												</v-list-item-subtitle>
 											</v-list-item>
 										</template>
+										<template #append-item>
+											<div
+												v-if="itemSearchHasMore"
+												v-intersect="onItemSearchIntersect"
+												class="pa-2 text-center text-caption text-medium-emphasis"
+											>
+												{{ __("Loading more...") }}
+											</div>
+										</template>
 									</v-autocomplete>
 								</div>
 								<PurchaseItemsTable
@@ -594,6 +603,9 @@ export default {
 		const selectedSearchItemCode = ref(null);
 		const itemSearchResults = ref([]);
 		const itemSearchLoading = ref(false);
+		const itemSearchHasMore = ref(false);
+		const ITEM_SEARCH_PAGE = 50;
+		let itemSearchTerm = "";
 
 		const supplierSearchTimeout = ref(null);
 		const itemSearchTimeout = ref(null);
@@ -748,24 +760,51 @@ export default {
 			supplierDialog.value = false;
 		};
 
+		const fetchItemPage = async (pageStart) => {
+			const { message } = await frappe.call({
+				method: "posawesome.posawesome.api.purchase_invoices.search_items",
+				args: {
+					search_text: itemSearchTerm,
+					limit: ITEM_SEARCH_PAGE,
+					page_start: pageStart,
+				},
+			});
+			return Array.isArray(message) ? message : [];
+		};
+
 		const searchItems = async (searchText = "") => {
+			itemSearchTerm = String(searchText || "").trim();
 			itemSearchLoading.value = true;
 			try {
-				const { message } = await frappe.call({
-					method: "posawesome.posawesome.api.purchase_invoices.search_items",
-					args: {
-						search_text: searchText,
-						limit: 500,
-						warehouse: warehouse.value,
-					},
-				});
-				itemSearchResults.value = Array.isArray(message) ? message : [];
+				const rows = await fetchItemPage(0);
+				itemSearchResults.value = rows;
+				itemSearchHasMore.value = rows.length >= ITEM_SEARCH_PAGE;
 			} catch (error) {
 				console.error("Failed to fetch purchase items:", error);
 				itemSearchResults.value = [];
 			} finally {
 				itemSearchLoading.value = false;
 			}
+		};
+
+		const loadMoreItems = async () => {
+			if (itemSearchLoading.value || !itemSearchHasMore.value || itemSearchTerm.length < 2) return;
+			itemSearchLoading.value = true;
+			try {
+				const rows = await fetchItemPage(itemSearchResults.value.length);
+				itemSearchResults.value = [...itemSearchResults.value, ...rows];
+				itemSearchHasMore.value = rows.length >= ITEM_SEARCH_PAGE;
+			} catch (error) {
+				console.error("Failed to load more purchase items:", error);
+			} finally {
+				itemSearchLoading.value = false;
+			}
+		};
+
+		const onItemSearchIntersect = (a) => {
+			const isIntersecting =
+				typeof a === "boolean" ? a : Array.isArray(a) && !!a[0]?.isIntersecting;
+			if (isIntersecting) loadMoreItems();
 		};
 
 		const handleItemSearchUpdate = (term) => {
@@ -1286,6 +1325,8 @@ export default {
 			selectedSearchItemCode,
 			itemSearchResults,
 			itemSearchLoading,
+			itemSearchHasMore,
+			onItemSearchIntersect,
 			handleItemSearchUpdate,
 			handleSearchItemPicked,
 			openPaymentDialog,

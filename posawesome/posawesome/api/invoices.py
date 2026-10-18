@@ -205,6 +205,8 @@ def get_sales_invoices_list(
         f"`tab{doctype}`.posting_date as posting_date",
         f"`tab{doctype}`.posting_time as posting_time",
         f"`tab{doctype}`.grand_total as grand_total",
+        f"`tab{doctype}`.discount_amount as discount_amount",
+        f"`tab{doctype}`.paid_amount as paid_amount",
         f"`tab{doctype}`.outstanding_amount as outstanding_amount",
         f"`tab{doctype}`.status as status",
         f"`tab{doctype}`.currency as currency",

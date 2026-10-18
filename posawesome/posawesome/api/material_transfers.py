@@ -181,7 +181,10 @@ def get_material_transfers_list(
 			'transfer_status',
 			'custom_do_number',
 			'docstatus',
+			'owner',
 			'modified',
+			'modified_by',
+			'notes',
 			'creation',
 		],
 		page_start=page_start,
@@ -303,8 +306,9 @@ def get_transfer_warehouses():
 
 
 @frappe.whitelist()
-def search_items(search_text=None, limit=20, warehouse=None):
+def search_items(search_text=None, limit=20, warehouse=None, page_start=0):
 	limit = max(1, min(int(limit or 20), 500))
+	page_start = max(0, int(page_start or 0))
 	filters = {'disabled': 0, 'has_variants': 0}
 	or_filters = None
 	if search_text and len(search_text.strip()) >= 2:
@@ -339,6 +343,7 @@ def search_items(search_text=None, limit=20, warehouse=None):
 			'custom_default_weigt_of_measure',
 		],
 		order_by='item_name asc',
+		limit_start=page_start,
 		limit_page_length=limit,
 	)
 	attach_actual_qty(items, warehouse)

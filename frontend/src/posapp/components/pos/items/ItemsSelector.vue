@@ -502,9 +502,39 @@ const pageSize = computed(() =>
 const currentPage = ref(1);
 const isLoadingMorePages = ref(false);
 
-const totalKnownItems = computed(() =>
-	Math.max(totalItemCount.value || 0, filteredItems.value.length),
-);
+const hasActiveSearch = computed(() => {
+	const term = String(search_input.value || first_search.value || "").trim();
+	return term.length >= 2;
+});
+// All items visible after the SAME client-side filters that `displayedItems`
+// applies (search term, uom, zero-stock/rate, etc.). The store's `filteredItems`
+// still holds the whole loaded catalog, so the match filtering happens here.
+// Used to size the card pager and to feed the invoice search dropdown every
+// match (infinite scroll), not just one page.
+const filteredMatches = computed(() => {
+	const baseItems = Array.isArray(filteredItems.value) ? filteredItems.value : [];
+	const rawTerm = first_search.value || search_input.value;
+	const term = (typeof rawTerm === "string" ? rawTerm : "").trim().toLowerCase();
+	return filterAndPaginate(baseItems, {
+		searchTerm: term,
+		uomFilter: uom_filter.value,
+		hideZeroRate: hide_zero_rate_items.value,
+		hideZeroStock: hide_zero_stock_items.value,
+		hideVariants: pos_profile.value?.posa_hide_variants_items,
+		onlyBarcode: showOnlyBarcodeItemsRef.value,
+		limit: baseItems.length || 1,
+	});
+});
+const filteredResultCount = computed(() => filteredMatches.value.length);
+const totalKnownItems = computed(() => {
+	// While searching, the page count must reflect the number of matched items
+	// only -- not the full catalog count -- otherwise the pager shows phantom
+	// pages (e.g. "Page 1 of 101") with no data on them.
+	if (hasActiveSearch.value) {
+		return filteredResultCount.value;
+	}
+	return Math.max(totalItemCount.value || 0, filteredResultCount.value);
+});
 const totalPages = computed(() =>
 	Math.max(1, Math.ceil(totalKnownItems.value / (pageSize.value || 1))),
 );
@@ -1463,6 +1493,7 @@ const invoiceCatalogSearchApi = computed<PosCatalogSearchApi | null>(() => {
 		qtyInput: debounce_qty,
 		posProfile: pos_profile,
 		displayedItems,
+		catalogMatches: filteredMatches,
 		isLoading: isLoadingOrSyncing,
 		scannerLocked,
 		enableBackgroundSync: enable_background_sync,

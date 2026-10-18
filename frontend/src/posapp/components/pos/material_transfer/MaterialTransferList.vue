@@ -449,6 +449,9 @@ export default {
 			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'transfer_status', sortable: true },
 			{ title: __('DO Number'), key: 'custom_do_number', sortable: true },
+			{ title: __('Remarks'), key: 'notes', sortable: false },
+			{ title: __('Created By'), key: 'owner', sortable: true },
+			{ title: __('Last Modified By'), key: 'modified_by', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '220px' },
 		];
 

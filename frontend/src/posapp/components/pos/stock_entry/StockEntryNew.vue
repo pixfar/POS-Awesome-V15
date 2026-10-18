@@ -87,6 +87,15 @@
 												</v-list-item-subtitle>
 											</v-list-item>
 										</template>
+										<template #append-item>
+											<div
+												v-if="itemSearchHasMore"
+												v-intersect="onItemSearchIntersect"
+												class="pa-2 text-center text-caption text-medium-emphasis"
+											>
+												{{ __("Loading more...") }}
+											</div>
+										</template>
 									</v-autocomplete>
 								</div>
 
@@ -264,7 +273,10 @@ export default {
 		const itemSearchQuery = ref('');
 		const itemSearchResults = ref([]);
 		const itemSearchLoading = ref(false);
+		const itemSearchHasMore = ref(false);
+		const ITEM_SEARCH_PAGE = 50;
 		let itemSearchTimeout = null;
+		let itemSearchTerm = '';
 
 		const totalQty = computed(() => rows.value.reduce((sum, row) => sum + (Number(row.qty) || 0), 0));
 		const canSubmit = computed(
@@ -288,27 +300,60 @@ export default {
 			}
 		};
 
+		const fetchItemPage = async (pageStart) => {
+			const { message } = await frappe.call({
+				method: `${ITEM_API}.search_items`,
+				args: {
+					search_text: itemSearchTerm,
+					limit: ITEM_SEARCH_PAGE,
+					page_start: pageStart,
+					warehouse: warehouse.value || null,
+				},
+			});
+			return Array.isArray(message) ? message : [];
+		};
+
 		const handleItemSearch = (term) => {
 			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
-			if (!term || term.trim().length < 2) return;
+			const trimmed = String(term || '').trim();
+			if (trimmed.length < 2) {
+				itemSearchResults.value = [];
+				itemSearchHasMore.value = false;
+				return;
+			}
 			itemSearchTimeout = setTimeout(async () => {
+				itemSearchTerm = trimmed;
 				itemSearchLoading.value = true;
 				try {
-					const { message } = await frappe.call({
-						method: `${ITEM_API}.search_items`,
-						args: {
-							search_text: term.trim(),
-							limit: 500,
-							warehouse: warehouse.value || null,
-						},
-					});
-					itemSearchResults.value = message || [];
+					const rows = await fetchItemPage(0);
+					itemSearchResults.value = rows;
+					itemSearchHasMore.value = rows.length >= ITEM_SEARCH_PAGE;
 				} catch (e) {
 					console.error('Failed to search items', e);
 				} finally {
 					itemSearchLoading.value = false;
 				}
 			}, 300);
+		};
+
+		const loadMoreItems = async () => {
+			if (itemSearchLoading.value || !itemSearchHasMore.value || itemSearchTerm.length < 2) return;
+			itemSearchLoading.value = true;
+			try {
+				const rows = await fetchItemPage(itemSearchResults.value.length);
+				itemSearchResults.value = [...itemSearchResults.value, ...rows];
+				itemSearchHasMore.value = rows.length >= ITEM_SEARCH_PAGE;
+			} catch (e) {
+				console.error('Failed to load more items', e);
+			} finally {
+				itemSearchLoading.value = false;
+			}
+		};
+
+		const onItemSearchIntersect = (a) => {
+			const isIntersecting =
+				typeof a === 'boolean' ? a : Array.isArray(a) && !!a[0]?.isIntersecting;
+			if (isIntersecting) loadMoreItems();
 		};
 
 		// Mirror the other transaction screens: itemsStore.posProfile is only
@@ -431,6 +476,8 @@ export default {
 			itemSearchQuery,
 			itemSearchResults,
 			itemSearchLoading,
+			itemSearchHasMore,
+			onItemSearchIntersect,
 			totalQty,
 			canSubmit,
 			refreshStockQty,

@@ -114,8 +114,8 @@ def get_items_by_do_number(do_number, warehouse=None, company=None):
 
 # Generic item search used by ItemsSelector in purchase context.
 @frappe.whitelist()
-def search_items(search_text=None, limit=20):
-	return po.search_items(search_text=search_text, limit=limit)
+def search_items(search_text=None, limit=20, page_start=0):
+	return po.search_items(search_text=search_text, limit=limit, page_start=page_start)
 
 
 

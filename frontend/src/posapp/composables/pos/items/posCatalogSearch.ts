@@ -13,6 +13,7 @@ export type PosCatalogSearchApi = {
 	qtyInput: Ref<string | number>;
 	posProfile: Ref<Record<string, unknown>>;
 	displayedItems: ComputedRef<CatalogSearchItem[]>;
+	catalogMatches?: ComputedRef<CatalogSearchItem[]>;
 	isLoading: ComputedRef<boolean>;
 	scannerLocked: Ref<boolean>;
 	enableBackgroundSync: Ref<boolean>;

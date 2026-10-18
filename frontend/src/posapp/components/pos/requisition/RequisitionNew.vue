@@ -142,6 +142,15 @@
 												</v-list-item-subtitle>
 											</v-list-item>
 										</template>
+										<template #append-item>
+											<div
+												v-if="itemSearchHasMore"
+												v-intersect="onItemSearchIntersect"
+												class="pa-2 text-center text-caption text-medium-emphasis"
+											>
+												{{ __("Loading more...") }}
+											</div>
+										</template>
 									</v-autocomplete>
 								</div>
 								<RequisitionItemsTable
@@ -324,6 +333,9 @@ export default {
 		const selectedSearchItemCode = ref(null);
 		const itemSearchResults = ref([]);
 		const itemSearchLoading = ref(false);
+		const itemSearchHasMore = ref(false);
+		const ITEM_SEARCH_PAGE = 50;
+		let itemSearchTerm = '';
 		let itemSearchTimeout = null;
 
 		const canChangePosWarehouse = computed(() => isPosWarehouseSwitcher());
@@ -499,27 +511,57 @@ export default {
 			itemSearchTimeout = setTimeout(() => searchItems(term), 300);
 		};
 
+		const fetchItemPage = async (pageStart) => {
+			const { message } = await frappe.call({
+				method: 'posawesome.posawesome.api.requisitions.search_items',
+				args: {
+					search_text: itemSearchTerm,
+					limit: ITEM_SEARCH_PAGE,
+					page_start: pageStart,
+					warehouse: sourceWarehouse.value || null,
+				},
+			});
+			return Array.isArray(message) ? message : [];
+		};
+
 		const searchItems = async (searchText = '') => {
-			if (!searchText || searchText.length < 2) {
+			const trimmed = String(searchText || '').trim();
+			if (trimmed.length < 2) {
 				itemSearchResults.value = [];
+				itemSearchHasMore.value = false;
 				return;
 			}
+			itemSearchTerm = trimmed;
 			itemSearchLoading.value = true;
 			try {
-				const { message } = await frappe.call({
-					method: 'posawesome.posawesome.api.requisitions.search_items',
-					args: {
-						search_text: searchText,
-						limit: 500,
-						warehouse: sourceWarehouse.value || null,
-					},
-				});
-				itemSearchResults.value = message || [];
+				const rows = await fetchItemPage(0);
+				itemSearchResults.value = rows;
+				itemSearchHasMore.value = rows.length >= ITEM_SEARCH_PAGE;
 			} catch {
 				itemSearchResults.value = [];
 			} finally {
 				itemSearchLoading.value = false;
 			}
+		};
+
+		const loadMoreItems = async () => {
+			if (itemSearchLoading.value || !itemSearchHasMore.value || itemSearchTerm.length < 2) return;
+			itemSearchLoading.value = true;
+			try {
+				const rows = await fetchItemPage(itemSearchResults.value.length);
+				itemSearchResults.value = [...itemSearchResults.value, ...rows];
+				itemSearchHasMore.value = rows.length >= ITEM_SEARCH_PAGE;
+			} catch {
+				/* ignore */
+			} finally {
+				itemSearchLoading.value = false;
+			}
+		};
+
+		const onItemSearchIntersect = (a) => {
+			const isIntersecting =
+				typeof a === 'boolean' ? a : Array.isArray(a) && !!a[0]?.isIntersecting;
+			if (isIntersecting) loadMoreItems();
 		};
 
 		const handleSearchItemPicked = async (itemCode) => {
@@ -729,6 +771,8 @@ export default {
 			selectedSearchItemCode,
 			itemSearchResults,
 			itemSearchLoading,
+			itemSearchHasMore,
+			onItemSearchIntersect,
 			onAddItem,
 			updateItemQty,
 			removeItem,

@@ -1068,6 +1068,8 @@ def get_purchase_invoices_list(
         f"`tab{doctype}`.posting_date as posting_date",
         f"`tab{doctype}`.posting_time as posting_time",
         f"`tab{doctype}`.grand_total as grand_total",
+        f"`tab{doctype}`.discount_amount as discount_amount",
+        f"`tab{doctype}`.paid_amount as paid_amount",
         f"`tab{doctype}`.outstanding_amount as outstanding_amount",
         f"`tab{doctype}`.status as status",
         f"`tab{doctype}`.currency as currency",
@@ -1468,7 +1470,9 @@ def create_purchase_receipt(invoice, doctype=None, items=None):
     return {"name": receipt_doc.name}
 
 
-def search_items(search_text=None, limit=20):
+def search_items(search_text=None, limit=20, page_start=0):
+    limit = max(1, min(int(limit or 20), 500))
+    page_start = max(0, int(page_start or 0))
     filters = {"disabled": 0}
     or_filters = None
     if search_text:
@@ -1495,6 +1499,7 @@ def search_items(search_text=None, limit=20):
         filters=filters,
         or_filters=or_filters,
         fields=["name", "item_name", "stock_uom", "standard_rate", "custom_default_weigt_of_measure"],
+        limit_start=page_start,
         limit_page_length=limit,
         order_by="name asc",
     )

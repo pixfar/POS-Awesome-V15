@@ -192,8 +192,23 @@
 					hide-default-footer
 					:items-per-page="-1"
 					class="pos-list-table purchase-invoice-list-table"
-					@click:row="(_, row) => openInvoiceDetail(row.item)"
+						show-expand
+						:expand-on-click="false"
+						item-value="name"
+						v-model:expanded="expandedRows"
 				>
+						<template #expanded-row="{ columns, item }">
+							<tr class="pos-list-expanded-row">
+								<td :colspan="columns.length">
+									<InvoiceExpandedDetail
+										:detail="detailCache[item.name]"
+										:loading="!!detailLoading[item.name]"
+										:currency-symbol="currencySymbol(item.currency)"
+										:format-currency="formatCurrency"
+									/>
+								</td>
+							</tr>
+						</template>
 					<template #item.name="{ item }">
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
@@ -233,6 +248,19 @@
 						<span class="pos-list-cell-primary">
 							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.grand_total) }}
 						</span>
+					</template>
+					<template #item.discount_amount="{ item }">
+						<span class="pos-list-cell-muted">
+							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.discount_amount || 0) }}
+						</span>
+					</template>
+					<template #item.paid_amount="{ item }">
+						<span class="pos-list-cell-muted">
+							{{ currencySymbol(item.currency) }}{{ formatCurrency(item.paid_amount || 0) }}
+						</span>
+					</template>
+					<template #item.remarks="{ item }">
+						<span class="pos-list-cell-truncate" :title="item.remarks">{{ item.remarks || '—' }}</span>
 					</template>
 					<template #item.outstanding_amount="{ item }">
 						<span
@@ -439,7 +467,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { sortItemGroupsBanglaFirst } from '../../../utils/itemGroupSort';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
@@ -447,6 +475,7 @@ import { useUIStore } from '../../../stores/uiStore.js';
 import { useToastStore } from '../../../stores/toastStore';
 import { ensurePosProfile } from '../../../../utils/pos_profile';
 import DateFilterField from '../shared/DateFilterField.vue';
+import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import ReturnItemsDialog from '../shared/ReturnItemsDialog.vue';
 import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
 import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
@@ -463,7 +492,7 @@ const UNPAID_STATUSES = [
 
 export default {
 	name: 'PurchaseInvoiceList',
-	components: { DateFilterField, ReturnItemsDialog, DeliveryReceiptDialog },
+	components: { DateFilterField, ReturnItemsDialog, DeliveryReceiptDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -607,6 +636,30 @@ export default {
 			}
 		};
 		const invoiceList = ref([]);
+
+		// Inline expand-to-detail (no page redirect).
+		const expandedRows = ref([]);
+		const detailCache = reactive({});
+		const detailLoading = reactive({});
+		const loadRowDetail = async (name) => {
+			if (!name || detailCache[name] || detailLoading[name]) return;
+			detailLoading[name] = true;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.purchase_invoices.get_purchase_invoice_detail',
+					args: { name },
+				});
+				detailCache[name] = message || {};
+			} catch (e) {
+				console.error('Failed to load purchase invoice detail', e);
+				detailCache[name] = {};
+			} finally {
+				detailLoading[name] = false;
+			}
+		};
+		watch(expandedRows, (names) => {
+			(names || []).forEach((name) => loadRowDetail(name));
+		});
 		const listLoading = ref(false);
 		const mineOnly = ref(false);
 		const searchQuery = ref('');
@@ -683,8 +736,11 @@ export default {
 			{ title: __('Receipt Status'), key: 'receipt_status', sortable: true },
 			{ title: __('DO Number'), key: 'custom_do_number', sortable: true },
 			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
-			{ title: __('Total'), key: 'grand_total', sortable: true, align: 'end' },
+			{ title: __('Grand Total'), key: 'grand_total', sortable: true, align: 'end' },
+			{ title: __('Discount'), key: 'discount_amount', sortable: true, align: 'end' },
+			{ title: __('Total Paid'), key: 'paid_amount', sortable: true, align: 'end' },
 			{ title: __('Outstanding'), key: 'outstanding_amount', sortable: true, align: 'end' },
+			{ title: __('Remarks'), key: 'remarks', sortable: false },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '120px' },
 		];
 
@@ -953,6 +1009,9 @@ export default {
 		return {
 			invoiceList,
 			listLoading,
+			expandedRows,
+			detailCache,
+			detailLoading,
 			mineOnly,
 			searchQuery,
 			listHeaders,
