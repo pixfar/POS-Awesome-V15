@@ -374,6 +374,7 @@ import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
+import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 import { useToastStore } from '../../../stores/toastStore';
 import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 
@@ -528,6 +529,29 @@ export default {
 		const supplierSearchLoading = ref(false);
 		let supplierSearchTimeout = null;
 
+		// Filters survive opening a payment and coming back (saved per browser).
+		// The party lookup results are saved too, so a picked customer/supplier
+		// still shows its name instead of the raw ID.
+		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
+			'posa_filter_payment',
+			{
+				searchQuery,
+				mineOnly,
+				partyTypeFilter,
+				paymentTypeFilter,
+				fromDate,
+				toDate,
+				warehouseFilter,
+				modeOfPaymentFilter,
+				customerFilter,
+				customerSearchResults,
+				supplierFilter,
+				supplierSearchResults,
+				page,
+				pageSize,
+			},
+		);
+
 		const listHeaders = [
 			{ title: __('Payment'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
@@ -629,6 +653,7 @@ export default {
 				hasMore.value = Boolean(message?.has_more);
 				typeCounts.value = message?.type_counts || {};
 				totalAmount.value = message?.total_amount || 0;
+				saveFilters();
 			} catch (e) {
 				console.error('Failed to load payments', e);
 				paymentList.value = [];
@@ -741,6 +766,7 @@ export default {
 			toDate.value = '';
 			warehouseFilter.value = null;
 			modeOfPaymentFilter.value = null;
+			clearSavedFilters();
 			resetAndLoad();
 		};
 
@@ -764,10 +790,13 @@ export default {
 		};
 
 		onMounted(() => {
+			loadSavedFilters();
 			loadWarehouseOptions();
 			loadModeOfPayments();
-			fetchCustomers('');
-			fetchSuppliers('');
+			// A restored party filter keeps its restored lookup list; refetching
+			// the default list could drop the selected party from the dropdown.
+			if (!customerFilter.value) fetchCustomers('');
+			if (!supplierFilter.value) fetchSuppliers('');
 			loadPayments();
 		});
 
