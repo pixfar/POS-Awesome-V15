@@ -187,6 +187,15 @@
 						</div>
 					</template>
 				</v-data-table>
+
+				<ListPagination
+					v-model:page="page"
+					v-model:page-size="pageSize"
+					:total="total"
+					:loading="listLoading"
+					@update:page="loadTransfers"
+					@update:page-size="resetAndLoad"
+				/>
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
@@ -231,6 +240,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ListPagination from '../shared/ListPagination.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
@@ -240,7 +250,7 @@ import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 
 export default {
 	name: 'FundTransferList',
-	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
+	components: { DateFilterField, ListPagination, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -319,7 +329,10 @@ export default {
 		const searchQuery = ref('');
 		let searchTimeout = null;
 
-		const PAGE_LENGTH = 100;
+		const page = ref(1);
+		const pageSize = ref(20);
+		// Covers every page, not just the rows on screen -- from the server.
+		const totalTransferred = ref(0);
 		const total = ref(0);
 
 		const fromDate = ref('');
@@ -373,16 +386,6 @@ export default {
 			Boolean(searchQuery.value || fromDate.value || toDate.value || paidToFilter.value || modeOfPaymentFilter.value || statusFilter.value !== null),
 		);
 
-		// Cancelled transfers (docstatus 2) stay in the list for the audit trail
-		// but never happened as far as the till is concerned -- exclude them so
-		// cancelling one actually moves this figure.
-		const totalTransferred = computed(() =>
-			transferList.value.reduce(
-				(sum, row) => (row.docstatus === 2 ? sum : sum + (Number(row.amount) || 0)),
-				0,
-			),
-		);
-
 		const formatDisplayDate = (value) => {
 			if (!value) return '—';
 			const parts = String(value).split('-');
@@ -405,8 +408,8 @@ export default {
 				const { message } = await frappe.call({
 					method: 'posawesome.posawesome.api.fund_transfer.get_fund_transfers_list',
 					args: {
-						page_start: 0,
-						page_length: PAGE_LENGTH,
+						page_start: (page.value - 1) * pageSize.value,
+						page_length: pageSize.value,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
 						paid_to: paidToFilter.value || undefined,
@@ -417,6 +420,7 @@ export default {
 				});
 				transferList.value = message?.transfers || [];
 				total.value = message?.total || 0;
+				totalTransferred.value = message?.total_transferred || 0;
 			} catch (e) {
 				console.error('Failed to load fund transfers', e);
 				transferList.value = [];
@@ -426,6 +430,7 @@ export default {
 		};
 
 		const resetAndLoad = () => {
+			page.value = 1;
 			loadTransfers();
 		};
 
@@ -471,6 +476,8 @@ export default {
 			searchQuery,
 			listHeaders,
 			total,
+			page,
+			pageSize,
 			fromDate,
 			toDate,
 			paidToFilter,

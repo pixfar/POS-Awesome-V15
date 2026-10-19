@@ -43,6 +43,25 @@ def _default_cash_account(company):
 	return account
 
 
+
+def _sum_not_cancelled(doctype, field, filters, or_filters):
+	"""Sum of `field` over every row matching the list filters, leaving out
+	cancelled documents -- the list header's money total, which has to cover
+	all pages, not just the one on screen."""
+	filters = dict(filters)
+	if filters.get('docstatus') == 2:
+		return 0.0
+	filters.setdefault('docstatus', ['!=', 2])
+	return flt(
+		frappe.get_all(
+			doctype,
+			filters=filters,
+			or_filters=or_filters,
+			fields=[f'sum({field}) as total'],
+			ignore_permissions=True,
+		)[0].total
+	)
+
 @frappe.whitelist()
 def get_paid_from_account(company=None):
 	"""Company's default cash account -- fixed, display-only Account Paid
@@ -258,6 +277,7 @@ def get_fund_transfers_list(
 		'transfers': rows,
 		'total': total,
 		'has_more': (page_start + page_length) < total,
+		'total_transferred': _sum_not_cancelled(DOCTYPE, 'paid_amount', filters, or_filters),
 	}
 
 

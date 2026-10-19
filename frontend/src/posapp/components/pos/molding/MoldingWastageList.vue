@@ -64,14 +64,14 @@
 					:label="__('From Date')"
 					field-class="pos-themed-input pos-list-filter-field"
 					:max="toDate"
-					@update:model-value="loadRecords"
+					@update:model-value="resetAndLoad"
 				/>
 				<DateFilterField
 					v-model="toDate"
 					:label="__('To Date')"
 					field-class="pos-themed-input pos-list-filter-field"
 					:min="fromDate"
-					@update:model-value="loadRecords"
+					@update:model-value="resetAndLoad"
 				/>
 				<v-btn variant="text" size="small" class="text-none" @click="clearFilters">
 					{{ __("Clear Filters") }}
@@ -149,6 +149,15 @@
 						</div>
 					</template>
 				</v-data-table>
+
+				<ListPagination
+					v-model:page="page"
+					v-model:page-size="pageSize"
+					:total="total"
+					:loading="listLoading"
+					@update:page="loadRecords"
+					@update:page-size="resetAndLoad"
+				/>
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
@@ -183,6 +192,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ListPagination from '../shared/ListPagination.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
@@ -195,7 +205,7 @@ const API = 'posawesome.posawesome.api.molding';
 
 export default {
 	name: 'MoldingWastageList',
-	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
+	components: { DateFilterField, ListPagination, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -225,13 +235,11 @@ export default {
 		];
 
 		const hasActiveFilters = computed(() => Boolean(searchQuery.value || fromDate.value || toDate.value));
-		const activeRecords = computed(() => records.value.filter((row) => row.docstatus === 1));
-		const totalWastageKg = computed(() =>
-			activeRecords.value.reduce((sum, row) => sum + (Number(row.actual_wastage_kg) || 0), 0),
-		);
-		const totalPenalty = computed(() =>
-			activeRecords.value.reduce((sum, row) => sum + (Number(row.penalty_amount) || 0), 0),
-		);
+		const page = ref(1);
+		const pageSize = ref(20);
+		// Header stats cover every submitted record, not just this page -- from the server.
+		const totalWastageKg = ref(0);
+		const totalPenalty = ref(0);
 
 		const loadRecords = async () => {
 			listLoading.value = true;
@@ -239,6 +247,8 @@ export default {
 				const { message } = await frappe.call({
 					method: `${API}.get_weekly_wastage_list`,
 					args: {
+						page_start: (page.value - 1) * pageSize.value,
+						page_length: pageSize.value,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
 						search: searchQuery.value || undefined,
@@ -246,6 +256,8 @@ export default {
 				});
 				records.value = message?.records || [];
 				total.value = message?.total || 0;
+				totalWastageKg.value = message?.totals?.actual_wastage_kg || 0;
+				totalPenalty.value = message?.totals?.penalty_amount || 0;
 			} catch (e) {
 				console.error('Failed to load molding weekly wastage', e);
 				records.value = [];
@@ -254,16 +266,21 @@ export default {
 			}
 		};
 
+		const resetAndLoad = () => {
+			page.value = 1;
+			loadRecords();
+		};
+
 		const handleSearchUpdate = () => {
 			if (searchTimeout) clearTimeout(searchTimeout);
-			searchTimeout = setTimeout(loadRecords, 300);
+			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
 		const clearFilters = () => {
 			searchQuery.value = '';
 			fromDate.value = '';
 			toDate.value = '';
-			loadRecords();
+			resetAndLoad();
 		};
 
 		const goToNew = () => router.push('/molding-wastage/new');
@@ -327,6 +344,9 @@ export default {
 			canManage,
 			records,
 			total,
+			page,
+			pageSize,
+			resetAndLoad,
 			listLoading,
 			searchQuery,
 			fromDate,

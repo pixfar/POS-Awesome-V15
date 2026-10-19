@@ -220,7 +220,27 @@ def get_stock_entries_list(
 		row['status'] = _status(row.docstatus)
 		row['created_by'] = owner_names.get(row.owner) or row.owner
 
-	return {'records': rows, 'total': total}
+	# Header stats cover every submitted entry matching the filters, not just
+	# the page on screen.
+	value_field = 'total_outgoing_value' if is_issue else 'total_incoming_value'
+	total_value = frappe.db.sql(
+		f'SELECT SUM(se.{value_field}) FROM `tabStock Entry` se WHERE {where_clause} AND se.docstatus = 1',
+		values,
+	)[0][0]
+	total_qty = frappe.db.sql(
+		f"""SELECT SUM(d.qty) FROM `tabStock Entry Detail` d
+		JOIN `tabStock Entry` se ON se.name = d.parent
+		WHERE {where_clause} AND se.docstatus = 1""",
+		values,
+	)[0][0]
+
+	return {
+		'records': rows,
+		'total': total,
+		'has_more': (page_start + page_length) < total,
+		'total_qty': flt(total_qty),
+		'total_value': flt(total_value),
+	}
 
 
 @frappe.whitelist()

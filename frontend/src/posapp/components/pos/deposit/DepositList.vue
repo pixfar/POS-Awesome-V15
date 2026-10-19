@@ -157,6 +157,15 @@
 						</div>
 					</template>
 				</v-data-table>
+
+				<ListPagination
+					v-model:page="page"
+					v-model:page-size="pageSize"
+					:total="total"
+					:loading="listLoading"
+					@update:page="loadDeposits"
+					@update:page-size="resetAndLoad"
+				/>
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
@@ -201,6 +210,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ListPagination from '../shared/ListPagination.vue';
 import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
@@ -210,7 +220,7 @@ import { useToastStore } from '../../../stores/toastStore';
 
 export default {
 	name: 'DepositList',
-	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
+	components: { DateFilterField, ListPagination, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -322,10 +332,10 @@ export default {
 		const searchQuery = ref('');
 		let searchTimeout = null;
 
-		// Single page view: the whole (per-user) list fits comfortably within
-		// the backend's max page_length, so it's fetched and shown in one
-		// continuous table instead of paginated.
-		const PAGE_LENGTH = 100;
+		const page = ref(1);
+		const pageSize = ref(20);
+		// Covers every page, not just the rows on screen -- from the server.
+		const totalDeposited = ref(0);
 		const total = ref(0);
 
 		const fromDate = ref('');
@@ -347,16 +357,6 @@ export default {
 
 		const hasActiveFilters = computed(() =>
 			Boolean(searchQuery.value || fromDate.value || toDate.value || warehouseFilter.value),
-		);
-
-		// Cancelled deposits (docstatus 2) stay in the list for the audit trail
-		// but never happened as far as the till is concerned -- exclude them so
-		// cancelling one actually moves this figure.
-		const totalDeposited = computed(() =>
-			depositList.value.reduce(
-				(sum, row) => (row.docstatus === 2 ? sum : sum + (Number(row.amount) || 0)),
-				0,
-			),
 		);
 
 		const formatDisplayDate = (value) => {
@@ -381,8 +381,8 @@ export default {
 				const { message } = await frappe.call({
 					method: 'posawesome.posawesome.api.bsp_daily_deposit.get_daily_deposits_list',
 					args: {
-						page_start: 0,
-						page_length: PAGE_LENGTH,
+						page_start: (page.value - 1) * pageSize.value,
+						page_length: pageSize.value,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
@@ -391,6 +391,7 @@ export default {
 				});
 				depositList.value = message?.deposits || [];
 				total.value = message?.total || 0;
+				totalDeposited.value = message?.total_deposited || 0;
 			} catch (e) {
 				console.error('Failed to load daily deposits', e);
 				depositList.value = [];
@@ -400,6 +401,7 @@ export default {
 		};
 
 		const resetAndLoad = () => {
+			page.value = 1;
 			loadDeposits();
 		};
 
@@ -442,6 +444,8 @@ export default {
 			searchQuery,
 			listHeaders,
 			total,
+			page,
+			pageSize,
 			fromDate,
 			toDate,
 			warehouseFilter,

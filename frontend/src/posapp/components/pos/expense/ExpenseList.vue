@@ -176,6 +176,15 @@
 						</div>
 					</template>
 				</v-data-table>
+
+				<ListPagination
+					v-model:page="page"
+					v-model:page-size="pageSize"
+					:total="total"
+					:loading="listLoading"
+					@update:page="loadExpenseClaims"
+					@update:page-size="resetAndLoad"
+				/>
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
@@ -220,6 +229,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ListPagination from '../shared/ListPagination.vue';
 import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
@@ -229,7 +239,7 @@ import { useToastStore } from '../../../stores/toastStore';
 
 export default {
 	name: 'ExpenseList',
-	components: { DateFilterField, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
+	components: { DateFilterField, ListPagination, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -341,10 +351,10 @@ export default {
 		const searchQuery = ref('');
 		let searchTimeout = null;
 
-		// Single page view: the whole (per-employee) list fits comfortably
-		// within the backend's max page_length, so it's fetched and shown in
-		// one continuous table instead of paginated.
-		const PAGE_LENGTH = 100;
+		const page = ref(1);
+		const pageSize = ref(20);
+		// Covers every page, not just the rows on screen -- from the server.
+		const totalClaimed = ref(0);
 		const total = ref(0);
 
 		const fromDate = ref('');
@@ -377,16 +387,6 @@ export default {
 			),
 		);
 
-		// Cancelled claims (docstatus 2) stay in the list for the audit trail
-		// but never happened as far as the till is concerned -- exclude them so
-		// cancelling one actually moves this figure.
-		const totalClaimed = computed(() =>
-			expenseList.value.reduce(
-				(sum, row) => (row.docstatus === 2 ? sum : sum + (Number(row.grand_total) || 0)),
-				0,
-			),
-		);
-
 		const formatDisplayDate = (value) => {
 			if (!value) return '—';
 			const parts = String(value).split('-');
@@ -411,8 +411,8 @@ export default {
 				const { message } = await frappe.call({
 					method: 'posawesome.posawesome.api.expense_claims.get_expense_claims_list',
 					args: {
-						page_start: 0,
-						page_length: PAGE_LENGTH,
+						page_start: (page.value - 1) * pageSize.value,
+						page_length: pageSize.value,
 						from_date: fromDate.value || undefined,
 						to_date: toDate.value || undefined,
 						warehouse: warehouseFilter.value || undefined,
@@ -422,6 +422,7 @@ export default {
 				});
 				expenseList.value = message?.expense_claims || [];
 				total.value = message?.total || 0;
+				totalClaimed.value = message?.total_claimed || 0;
 			} catch (e) {
 				console.error('Failed to load expense claims', e);
 				expenseList.value = [];
@@ -431,6 +432,7 @@ export default {
 		};
 
 		const resetAndLoad = () => {
+			page.value = 1;
 			loadExpenseClaims();
 		};
 
@@ -487,6 +489,8 @@ export default {
 			searchQuery,
 			listHeaders,
 			total,
+			page,
+			pageSize,
 			fromDate,
 			toDate,
 			warehouseFilter,

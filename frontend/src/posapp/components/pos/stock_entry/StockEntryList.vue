@@ -64,14 +64,14 @@
 					:label="__('From Date')"
 					field-class="pos-themed-input pos-list-filter-field"
 					:max="toDate"
-					@update:model-value="loadRecords"
+					@update:model-value="resetAndLoad"
 				/>
 				<DateFilterField
 					v-model="toDate"
 					:label="__('To Date')"
 					field-class="pos-themed-input pos-list-filter-field"
 					:min="fromDate"
-					@update:model-value="loadRecords"
+					@update:model-value="resetAndLoad"
 				/>
 				<v-autocomplete
 					v-model="warehouseFilter"
@@ -84,7 +84,7 @@
 					hide-details
 					clearable
 					class="pos-themed-input pos-list-filter-field"
-					@update:model-value="loadRecords"
+					@update:model-value="resetAndLoad"
 				/>
 				<v-text-field
 					v-model="remarksFilter"
@@ -168,6 +168,63 @@
 						</div>
 					</template>
 				</v-data-table>
+
+				<div class="pos-list-pagination">
+					<div class="pos-list-pagination__info">
+						{{ paginationLabel }}
+					</div>
+					<div class="pos-list-pagination__controls">
+						<v-select
+							v-model="pageSize"
+							:items="[10, 20, 50]"
+							density="compact"
+							variant="outlined"
+							hide-details
+							class="pos-themed-input pos-list-pagination__page-size"
+							@update:model-value="resetAndLoad"
+						/>
+						<v-btn
+							icon="mdi-page-first"
+							size="small"
+							variant="text"
+							:disabled="page <= 1 || listLoading"
+							@click="goToPage(1)"
+						/>
+						<v-btn
+							icon="mdi-chevron-left"
+							size="small"
+							variant="text"
+							:disabled="page <= 1 || listLoading"
+							@click="goToPage(page - 1)"
+						/>
+						<v-btn
+							v-for="pageNumber in pageNumbers"
+							:key="pageNumber"
+							size="small"
+							:variant="pageNumber === page ? 'flat' : 'text'"
+							:color="pageNumber === page ? 'primary' : undefined"
+							class="pos-list-pagination__page-btn"
+							:disabled="listLoading"
+							@click="goToPage(pageNumber)"
+						>
+							{{ pageNumber }}
+						</v-btn>
+						<v-btn
+							icon="mdi-chevron-right"
+							size="small"
+							variant="text"
+							:disabled="!hasMore || listLoading"
+							@click="goToPage(page + 1)"
+						/>
+						<v-btn
+							icon="mdi-page-last"
+							size="small"
+							variant="text"
+							:disabled="!hasMore || listLoading"
+							@click="goToPage(totalPages)"
+						/>
+					</div>
+				</div>
 			</div>
 
 			<div v-else-if="!listLoading" class="pos-list-empty">
@@ -240,6 +297,29 @@ export default {
 		const basePath = computed(() => stockEntryBasePath(props.purpose));
 		let searchTimeout = null;
 
+		const page = ref(1);
+		const pageSize = ref(20);
+		const hasMore = ref(false);
+		const totalQty = ref(0);
+		const totalValue = ref(0);
+		const totalPages = computed(() => Math.max(1, Math.ceil(total.value / (pageSize.value || 1))));
+
+		const paginationLabel = computed(() => {
+			if (!total.value) return __('No results');
+			return __('Page {0} of {1}', [page.value, totalPages.value]);
+		});
+
+		const pageNumbers = computed(() => {
+			const totalCount = totalPages.value;
+			const windowSize = 5;
+			let start = Math.max(1, page.value - Math.floor(windowSize / 2));
+			const end = Math.min(totalCount, start + windowSize - 1);
+			start = Math.max(1, end - windowSize + 1);
+			const pages = [];
+			for (let p = start; p <= end; p++) pages.push(p);
+			return pages;
+		});
+
 		const listHeaders = [
 			{ title: __('Stock Entry'), key: 'name', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
@@ -255,13 +335,6 @@ export default {
 		];
 
 		const hasActiveFilters = computed(() => Boolean(searchQuery.value || fromDate.value || toDate.value || warehouseFilter.value || remarksFilter.value));
-		const activeRecords = computed(() => records.value.filter((row) => row.docstatus === 1));
-		const totalQty = computed(() =>
-			activeRecords.value.reduce((sum, row) => sum + (Number(row.total_qty) || 0), 0),
-		);
-		const totalValue = computed(() =>
-			activeRecords.value.reduce((sum, row) => sum + (Number(row.total_value) || 0), 0),
-		);
 
 		const loadRecords = async () => {
 			listLoading.value = true;
@@ -270,6 +343,8 @@ export default {
 					method: `${API}.get_stock_entries_list`,
 					args: {
 						purpose: props.purpose,
+						page_start: (page.value - 1) * pageSize.value,
+						page_length: pageSize.value,
 						warehouse: warehouseFilter.value || undefined,
 						remarks: remarksFilter.value || undefined,
 						from_date: fromDate.value || undefined,
@@ -279,6 +354,9 @@ export default {
 				});
 				records.value = message?.records || [];
 				total.value = message?.total || 0;
+				hasMore.value = Boolean(message?.has_more);
+				totalQty.value = message?.total_qty || 0;
+				totalValue.value = message?.total_value || 0;
 			} catch (e) {
 				console.error('Failed to load stock entries', e);
 				records.value = [];
@@ -287,9 +365,20 @@ export default {
 			}
 		};
 
+		const resetAndLoad = () => {
+			page.value = 1;
+			loadRecords();
+		};
+
+		const goToPage = (nextPage) => {
+			if (nextPage < 1) return;
+			page.value = nextPage;
+			loadRecords();
+		};
+
 		const handleSearchUpdate = () => {
 			if (searchTimeout) clearTimeout(searchTimeout);
-			searchTimeout = setTimeout(loadRecords, 300);
+			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
 		const clearFilters = () => {
@@ -298,7 +387,7 @@ export default {
 			toDate.value = '';
 			warehouseFilter.value = null;
 			remarksFilter.value = '';
-			loadRecords();
+			resetAndLoad();
 		};
 
 		const goToNew = () => router.push(`${basePath.value}/new`);
@@ -378,6 +467,14 @@ export default {
 			totalQty,
 			totalValue,
 			loadRecords,
+			resetAndLoad,
+			goToPage,
+			page,
+			pageSize,
+			hasMore,
+			totalPages,
+			pageNumbers,
+			paginationLabel,
 			handleSearchUpdate,
 			clearFilters,
 			goToNew,

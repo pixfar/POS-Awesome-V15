@@ -27,6 +27,25 @@ def _parse_json(value):
 	return value
 
 
+
+def _sum_not_cancelled(doctype, field, filters, or_filters):
+	"""Sum of `field` over every row matching the list filters, leaving out
+	cancelled documents -- the list header's money total, which has to cover
+	all pages, not just the one on screen."""
+	filters = dict(filters)
+	if filters.get('docstatus') == 2:
+		return 0.0
+	filters.setdefault('docstatus', ['!=', 2])
+	return flt(
+		frappe.get_all(
+			doctype,
+			filters=filters,
+			or_filters=or_filters,
+			fields=[f'sum({field}) as total'],
+			ignore_permissions=True,
+		)[0].total
+	)
+
 @frappe.whitelist()
 def get_current_user_display():
 	"""User + display name used to prefill the New Daily Deposit form."""
@@ -233,6 +252,7 @@ def get_daily_deposits_list(
 		'deposits': rows,
 		'total': total,
 		'has_more': (page_start + page_length) < total,
+		'total_deposited': _sum_not_cancelled(DOCTYPE, 'amount', filters, or_filters),
 	}
 
 

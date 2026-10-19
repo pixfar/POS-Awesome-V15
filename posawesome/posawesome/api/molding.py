@@ -50,7 +50,19 @@ def _status(docstatus):
 	return {0: 'Draft', 1: 'Submitted', 2: 'Cancelled'}.get(docstatus, 'Draft')
 
 
-def _list(doctype, fields, date_field, from_date=None, to_date=None, search=None, page_start=0, page_length=100):
+def _list(
+	doctype,
+	fields,
+	date_field,
+	from_date=None,
+	to_date=None,
+	search=None,
+	page_start=0,
+	page_length=100,
+	sum_fields=(),
+):
+	"""Paginated rows, the total count and -- for the list header -- the sum
+	of each of `sum_fields` over every submitted row matching the filters."""
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 100), 200))
 
@@ -76,7 +88,18 @@ def _list(doctype, fields, date_field, from_date=None, to_date=None, search=None
 	)
 	for row in rows:
 		row['status'] = _status(row.docstatus)
-	return rows, total
+
+	sums = {}
+	if sum_fields:
+		sums = frappe.get_all(
+			doctype,
+			filters=[*filters, [doctype, 'docstatus', '=', 1]],
+			or_filters=or_filters,
+			fields=[f'sum({field}) as {field}' for field in sum_fields],
+			ignore_permissions=True,
+		)[0]
+		sums = {field: flt(sums.get(field)) for field in sum_fields}
+	return rows, total, sums
 
 
 def _cancel(doctype, name):
@@ -175,7 +198,7 @@ def create_daily_production(data):
 @frappe.whitelist()
 def get_daily_production_list(from_date=None, to_date=None, search=None, page_start=0, page_length=100):
 	_ensure_can_view()
-	rows, total = _list(
+	rows, total, sums = _list(
 		DAILY_PRODUCTION,
 		['name', 'date', 'rate_per_kg', 'total_work_kg', 'total_wage', 'docstatus', 'modified', 'creation'],
 		'date',
@@ -184,6 +207,7 @@ def get_daily_production_list(from_date=None, to_date=None, search=None, page_st
 		search=search,
 		page_start=page_start,
 		page_length=page_length,
+		sum_fields=('total_work_kg', 'total_wage'),
 	)
 
 	counts = {}
@@ -200,7 +224,8 @@ def get_daily_production_list(from_date=None, to_date=None, search=None, page_st
 	for row in rows:
 		row['employee_count'] = counts.get(row.name, 0)
 
-	return {'records': rows, 'total': total}
+	page_start, page_length = int(page_start or 0), int(page_length or 100)
+	return {'records': rows, 'total': total, 'has_more': page_start + page_length < total, 'totals': sums}
 
 
 @frappe.whitelist()
@@ -303,7 +328,7 @@ def create_weekly_wastage(data):
 @frappe.whitelist()
 def get_weekly_wastage_list(from_date=None, to_date=None, search=None, page_start=0, page_length=100):
 	_ensure_can_view()
-	rows, total = _list(
+	rows, total, sums = _list(
 		WEEKLY_WASTAGE,
 		[
 			'name',
@@ -324,8 +349,10 @@ def get_weekly_wastage_list(from_date=None, to_date=None, search=None, page_star
 		search=search,
 		page_start=page_start,
 		page_length=page_length,
+		sum_fields=('actual_wastage_kg', 'penalty_amount'),
 	)
-	return {'records': rows, 'total': total}
+	page_start, page_length = int(page_start or 0), int(page_length or 100)
+	return {'records': rows, 'total': total, 'has_more': page_start + page_length < total, 'totals': sums}
 
 
 @frappe.whitelist()

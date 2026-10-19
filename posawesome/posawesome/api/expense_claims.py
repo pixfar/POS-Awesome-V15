@@ -62,6 +62,25 @@ def _get_employee_by_id(employee_id):
 	return employee
 
 
+
+def _sum_not_cancelled(doctype, field, filters, or_filters):
+	"""Sum of `field` over every row matching the list filters, leaving out
+	cancelled documents -- the list header's money total, which has to cover
+	all pages, not just the one on screen."""
+	filters = dict(filters)
+	if filters.get('docstatus') == 2:
+		return 0.0
+	filters.setdefault('docstatus', ['!=', 2])
+	return flt(
+		frappe.get_all(
+			doctype,
+			filters=filters,
+			or_filters=or_filters,
+			fields=[f'sum({field}) as total'],
+			ignore_permissions=True,
+		)[0].total
+	)
+
 @frappe.whitelist()
 def get_current_employee():
 	"""Employee record linked to the logged-in POS user, used to prefill the Expense form."""
@@ -408,6 +427,7 @@ def get_expense_claims_list(
 		'expense_claims': rows,
 		'total': total,
 		'has_more': (page_start + page_length) < total,
+		'total_claimed': _sum_not_cancelled('Expense Claim', 'grand_total', filters, or_filters),
 	}
 
 
