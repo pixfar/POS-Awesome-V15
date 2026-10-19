@@ -1,17 +1,32 @@
 <template>
 	<v-navigation-drawer
 		v-model="drawerOpen"
-		:rail="mini"
-		expand-on-hover
-		width="200"
-		:class="['drawer-custom', { 'drawer-visible': drawerOpen }, rtlClasses]"
+		:rail="mini && !docked"
+		:expand-on-hover="!docked"
+		width="240"
+		:class="['drawer-custom', { 'drawer-visible': drawerOpen, 'drawer-docked': docked }, rtlClasses]"
 		@mouseleave="handleMouseLeave"
-		temporary
+		:temporary="!docked"
 		:location="isRtl ? 'right' : 'left'"
-		:scrim="scrimColor"
+		:scrim="docked ? false : scrimColor"
 	>
 		<div class="drawer-shell">
 			<div>
+				<!-- Pin: keep the menu docked beside the page (wide screens only). -->
+				<div v-if="!mini && canDock" class="drawer-toolbar">
+					<span class="drawer-toolbar__title">{{ __("Menu") }}</span>
+					<v-btn
+						size="small"
+						variant="text"
+						density="comfortable"
+						:icon="pinned ? 'mdi-pin' : 'mdi-pin-outline'"
+						:title="pinned ? __('Unpin menu') : __('Keep menu open')"
+						:aria-pressed="pinned ? 'true' : 'false'"
+						:class="['drawer-pin-btn', { 'drawer-pin-btn--active': pinned }]"
+						data-test="drawer-pin-toggle"
+						@click="togglePinned"
+					/>
+				</div>
 				<v-list density="compact" nav v-model:selected="activeItem" selected-class="active-item">
 					<template v-for="(item, index) in items" :key="item.text">
 						<!-- Item with sub-menu -->
@@ -103,7 +118,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRtl } from "../../composables/core/useRtl";
 
 defineOptions({
@@ -142,8 +157,26 @@ const userInitials = computed(() => {
 
 const { isRtl, rtlClasses } = useRtl();
 
+// Pinned menu: docked beside the page instead of floating over it, so moving
+// to another page is one click. Remembered per browser; only on screens wide
+// enough to give up the room, smaller ones keep the overlay menu.
+const PIN_STORAGE_KEY = "posawesome_drawer_pinned";
+const DOCK_MIN_WIDTH = 1025; // matches the 240px drawer width rule below
+
+function readPinned() {
+	try {
+		return localStorage.getItem(PIN_STORAGE_KEY) === "1";
+	} catch {
+		return false;
+	}
+}
+
+const pinned = ref(readPinned());
+const canDock = ref(window.innerWidth >= DOCK_MIN_WIDTH);
+const docked = computed(() => pinned.value && canDock.value);
+
 const mini = ref(false);
-const drawerOpen = ref(props.drawer);
+const drawerOpen = ref(props.drawer || docked.value);
 const activeItem = ref(props.item);
 const showSport = ref(true);
 let closeTimeout = null;
@@ -164,10 +197,50 @@ watch(
 	},
 );
 
+// Only the floating menu locks page scrolling; a docked one sits beside it.
+function syncBodyScroll() {
+	document.body.style.overflow = drawerOpen.value && !docked.value ? "hidden" : "";
+}
+
 watch(drawerOpen, (val) => {
-	document.body.style.overflow = val ? "hidden" : "";
+	syncBodyScroll();
 	emit("update:drawer", val);
 });
+
+watch(docked, (val) => {
+	if (val) {
+		drawerOpen.value = true;
+		mini.value = false;
+	}
+	syncBodyScroll();
+});
+
+function handleResize() {
+	canDock.value = window.innerWidth >= DOCK_MIN_WIDTH;
+}
+
+onMounted(() => {
+	window.addEventListener("resize", handleResize);
+	// Opened docked on load: let the parent's v-model know.
+	if (drawerOpen.value !== props.drawer) {
+		emit("update:drawer", drawerOpen.value);
+	}
+	syncBodyScroll();
+});
+
+onBeforeUnmount(() => {
+	window.removeEventListener("resize", handleResize);
+	document.body.style.overflow = "";
+});
+
+function togglePinned() {
+	pinned.value = !pinned.value;
+	try {
+		localStorage.setItem(PIN_STORAGE_KEY, pinned.value ? "1" : "0");
+	} catch {
+		// Storage unavailable (private mode): the pin lasts for this visit.
+	}
+}
 
 watch(
 	() => props.item,
@@ -181,7 +254,7 @@ watch(activeItem, (val) => {
 });
 
 function handleMouseLeave() {
-	if (!drawerOpen.value) return;
+	if (!drawerOpen.value || docked.value) return;
 	clearTimeout(closeTimeout);
 	closeTimeout = setTimeout(() => {
 		drawerOpen.value = false;
@@ -191,7 +264,7 @@ function handleMouseLeave() {
 
 function handleItemClick() {
 	// Close drawer after selection if mobile
-	if (window.innerWidth < 1024) {
+	if (!docked.value && window.innerWidth < 1024) {
 		closeDrawer();
 	}
 }
@@ -250,7 +323,7 @@ function closeDrawer() {
 	font-weight: 600;
 	font-size: 0.8125rem;
 	line-height: 1.25;
-	color: #0097a7;
+	color: var(--pos-text-primary);
 	font-family: "Roboto", sans-serif;
 	overflow: hidden;
 	display: -webkit-box;
@@ -258,10 +331,11 @@ function closeDrawer() {
 	-webkit-box-orient: vertical;
 }
 
-/* Styling for icons within the navigation drawer list items */
+/* Styling for icons within the navigation drawer list items: neutral, the
+   active page's icon takes the primary colour (see .active-item). */
 .drawer-icon {
 	font-size: 20px;
-	color: var(--pos-primary);
+	color: var(--pos-menu-icon);
 }
 
 /* Styling for the title text of navigation drawer list items */
@@ -312,17 +386,74 @@ function closeDrawer() {
 	white-space: normal;
 }
 
+/* Sub-menu items sit indented under their group, inside its guide line. */
 .drawer-custom :deep(.drawer-item--child) {
-	padding-inline-start: 12px !important;
+	padding-inline-start: 14px !important;
+}
+
+/* Menu header with the pin button */
+.drawer-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 6px 8px 2px 16px;
+}
+
+.drawer-toolbar__title {
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--pos-label-text);
+}
+
+.drawer-pin-btn {
+	color: var(--pos-menu-icon) !important;
+}
+
+.drawer-pin-btn--active {
+	color: var(--pos-accent-teal) !important;
+	background: color-mix(in srgb, var(--pos-primary) 10%, transparent) !important;
+}
+
+/* Sub-menu: set apart from the top-level items -- a soft panel behind the
+   group's pages, smaller and lighter text. */
+.drawer-custom :deep(.v-list-group__items) {
+	margin: 2px 0 6px 18px;
+	padding: 2px 0;
+	border-inline-start: 2px solid var(--pos-panel-border);
+	border-radius: 0 8px 8px 0;
+	background: var(--pos-panel-bg);
+}
+
+.drawer-custom :deep(.drawer-item--child .drawer-item-title) {
+	font-size: 0.78rem;
+	font-weight: 500;
+	color: var(--pos-label-text) !important;
+}
+
+.drawer-custom :deep(.drawer-item--child .drawer-icon) {
+	color: var(--pos-label-text);
+}
+
+.drawer-custom :deep(.drawer-item--child.active-item .drawer-item-title),
+.drawer-custom :deep(.drawer-item--child.active-item .drawer-icon) {
+	color: var(--pos-accent-teal) !important;
+	font-weight: 600;
 }
 
 /* Hover effect for all list items in the navigation drawer */
 .v-list-item:hover {
-	background-color: color-mix(
-		in srgb,
-		var(--pos-primary) 8%,
-		transparent
-	) !important;
+	background-color: var(--pos-menu-hover) !important;
+}
+
+/* An open group's header reads as the section heading. */
+.drawer-custom :deep(.v-list-group--open > .v-list-item .drawer-item-title) {
+	font-weight: 600;
+}
+
+.drawer-custom :deep(.v-list-group--open > .v-list-item .drawer-icon) {
+	color: var(--pos-text-primary);
 }
 
 .drawer-footer {
@@ -428,14 +559,34 @@ function closeDrawer() {
 	border-color: color-mix(in srgb, #d32f2f 35%, transparent);
 }
 
-/* Styling for the actively selected list item in the navigation drawer */
+/* Styling for the actively selected list item in the navigation drawer:
+   primary tint with a bar on the leading edge. */
 .active-item {
 	background-color: color-mix(
 		in srgb,
-		var(--pos-primary) 12%,
+		var(--pos-primary) 10%,
 		transparent
 	) !important;
-	border-right: 3px solid var(--pos-primary);
+	box-shadow: inset 3px 0 0 var(--pos-primary);
+}
+
+.active-item :deep(.v-list-item__overlay) {
+	opacity: 0 !important;
+}
+
+.active-item .drawer-item-title,
+.active-item :deep(.drawer-item-title) {
+	color: var(--pos-accent-teal) !important;
+	font-weight: 600;
+}
+
+.active-item .drawer-icon,
+.active-item :deep(.drawer-icon) {
+	color: var(--pos-accent-teal) !important;
+}
+
+.drawer-custom.rtl-layout .active-item {
+	box-shadow: inset -3px 0 0 var(--pos-primary);
 }
 
 /* Theme-aware drawer styling */
@@ -468,19 +619,18 @@ function closeDrawer() {
 
 :deep([data-theme="dark"]) .drawer-icon,
 :deep(.v-theme--dark) .drawer-icon {
-	color: var(--pos-primary) !important;
+	color: var(--pos-menu-icon) !important;
 	font-size: 20px;
 }
 
 :deep([data-theme="dark"]) .v-list-item:hover,
 :deep(.v-theme--dark) .v-list-item:hover {
-	background-color: rgba(144, 202, 249, 0.08) !important;
+	background-color: var(--pos-menu-hover) !important;
 }
 
 :deep([data-theme="dark"]) .active-item,
 :deep(.v-theme--dark) .active-item {
-	background-color: rgba(144, 202, 249, 0.12) !important;
-	border-right: 3px solid #90caf9;
+	background-color: color-mix(in srgb, var(--pos-primary) 14%, transparent) !important;
 }
 
 :deep([data-theme="dark"]) .v-divider,
@@ -499,19 +649,19 @@ function closeDrawer() {
 /* Responsive adjustments for width and dark theme */
 @media (max-width: 900px) and (orientation: landscape) {
 	.drawer-custom.drawer-visible {
-		width: 168px !important;
+		width: 190px !important;
 	}
 }
 
 @media (min-width: 601px) and (max-width: 1024px) {
 	.drawer-custom.drawer-visible {
-		width: 190px !important;
+		width: 220px !important;
 	}
 }
 
 @media (min-width: 1025px) {
 	.drawer-custom.drawer-visible {
-		width: 200px !important;
+		width: 240px !important;
 	}
 }
 

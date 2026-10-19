@@ -125,6 +125,26 @@
 	--pos-padding-start: 0;
 	--pos-padding-end: 0;
 	color-scheme: light;
+	/* Report accents for list/detail pages (stat cards, filter panels, table
+	   headers, summary cards). Deeper than the Vuetify status colours so
+	   coloured text stays readable on white. */
+	--pos-accent-teal: #0e7490;
+	--pos-accent-teal-tint: #ecfeff;
+	--pos-accent-violet: #6d28d9;
+	--pos-accent-violet-tint: #f3effe;
+	--pos-accent-amber: #b45309;
+	--pos-accent-amber-tint: #fef6e4;
+	--pos-accent-green: #15803d;
+	--pos-accent-green-tint: #e8f8ee;
+	--pos-accent-red: #dc2626;
+	--pos-accent-red-tint: #fdecec;
+	--pos-panel-bg: #f8fafc;
+	--pos-panel-border: #e2e8f0;
+	--pos-table-head-bg: #eef2f8;
+	--pos-table-head-text: #334155;
+	--pos-label-text: #64748b;
+	--pos-menu-hover: #f1f5f9;
+	--pos-menu-icon: #64748b;
 }
 
 /* Dark Theme — vivid cyan primary (matches Vuetify / useTheme) */
@@ -213,6 +233,23 @@
 	--surface-secondary: var(--pos-surface-muted);
 
 	color-scheme: dark;
+	--pos-accent-teal: #22d3ee;
+	--pos-accent-teal-tint: rgba(34, 211, 238, 0.12);
+	--pos-accent-violet: #a78bfa;
+	--pos-accent-violet-tint: rgba(167, 139, 250, 0.14);
+	--pos-accent-amber: #fbbf24;
+	--pos-accent-amber-tint: rgba(251, 191, 36, 0.13);
+	--pos-accent-green: #4ade80;
+	--pos-accent-green-tint: rgba(74, 222, 128, 0.12);
+	--pos-accent-red: #f87171;
+	--pos-accent-red-tint: rgba(248, 113, 113, 0.13);
+	--pos-panel-bg: rgba(255, 255, 255, 0.03);
+	--pos-panel-border: rgba(255, 255, 255, 0.09);
+	--pos-table-head-bg: rgba(255, 255, 255, 0.05);
+	--pos-table-head-text: #cbd5e1;
+	--pos-label-text: #94a3b8;
+	--pos-menu-hover: rgba(255, 255, 255, 0.06);
+	--pos-menu-icon: #94a3b8;
 }
 
 /* Automatic Theme Support - follows system preference */
@@ -761,3 +798,50 @@ body[data-page-route="posapp"] #body {
 body[data-page-route="posapp"] .desk-container {
 	padding-left: 0 !important;
 }
+
+/* Dropdown menus (row actions, Print, select/autocomplete lists): a plain
+   menu surface with neutral items and a grey hover. Items or icons given a
+   colour (e.g. a red "Delete") keep it. */
+.v-menu > .v-overlay__content > .v-list {
+	padding: 4px !important;
+	background: var(--pos-menu-bg) !important;
+	border: 1px solid var(--pos-panel-border);
+	border-radius: 10px !important;
+	box-shadow: 0 8px 24px var(--pos-shadow) !important;
+}
+
+.v-menu > .v-overlay__content > .v-list .v-list-item {
+	min-height: 36px;
+	border-radius: 6px;
+}
+
+.v-menu > .v-overlay__content > .v-list .v-list-item:not([class*="text-"]) {
+	color: var(--pos-text-primary);
+}
+
+.v-menu > .v-overlay__content > .v-list .v-list-item:hover {
+	background: var(--pos-menu-hover);
+}
+
+.v-menu > .v-overlay__content > .v-list .v-list-item:hover > .v-list-item__overlay {
+	opacity: 0;
+}
+
+.v-menu
+	> .v-overlay__content
+	> .v-list
+	.v-list-item:not([class*="text-"])
+	.v-list-item__prepend
+	> .v-icon:not([class*="text-"]) {
+	color: var(--pos-menu-icon);
+	opacity: 1;
+}
+
+/* Accent helpers for icon badges and tiles: set --pos-accent / --pos-accent-tint
+   for the element and its children (see components/pos/shared/detailIcons.js). */
+.pos-accent--teal { --pos-accent: var(--pos-accent-teal); --pos-accent-tint: var(--pos-accent-teal-tint); }
+.pos-accent--violet { --pos-accent: var(--pos-accent-violet); --pos-accent-tint: var(--pos-accent-violet-tint); }
+.pos-accent--amber { --pos-accent: var(--pos-accent-amber); --pos-accent-tint: var(--pos-accent-amber-tint); }
+.pos-accent--green { --pos-accent: var(--pos-accent-green); --pos-accent-tint: var(--pos-accent-green-tint); }
+.pos-accent--red { --pos-accent: var(--pos-accent-red); --pos-accent-tint: var(--pos-accent-red-tint); }
+.pos-accent--slate { --pos-accent: var(--pos-label-text); --pos-accent-tint: var(--pos-panel-bg); }

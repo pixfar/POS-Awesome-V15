@@ -350,13 +350,10 @@ export default {
 <style scoped>
 /* Enhanced Navbar Styling */
 .pos-navbar-enhanced {
-	background-image: linear-gradient(
-		135deg,
-		var(--pos-bg-primary) 0%,
-		var(--pos-bg-secondary) 100%
-	) !important;
+	background-image: none !important;
 	background-color: var(--pos-bg-primary) !important;
-	border-bottom: 2px solid var(--pos-border) !important;
+	border-bottom: 1px solid var(--pos-panel-border) !important;
+	box-shadow: 0 1px 2px var(--pos-shadow-light) !important;
 	backdrop-filter: blur(10px);
 	transition: all 0.3s ease;
 	padding-bottom: 4px !important;
@@ -484,7 +481,7 @@ export default {
 }
 
 .pos-navbar-enhanced:hover {
-	box-shadow: 0 4px 20px var(--pos-shadow) !important;
+	box-shadow: 0 1px 2px var(--pos-shadow-light) !important;
 }
 
 /* Logo Styling */
@@ -553,8 +550,7 @@ export default {
 	min-width: 0;
 	max-width: 100%;
 	flex: 1 1 auto;
-	/* Use same blue as Menu button - matching gradient blue */
-	color: var(--pos-primary) !important;
+	color: var(--pos-text-primary) !important;
 }
 
 .pos-navbar-title-company {
@@ -627,18 +623,14 @@ export default {
 	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 	min-width: 40px;
 	min-height: 40px;
-	color: var(--pos-primary) !important;
-	background: rgba(25, 118, 210, 0.08) !important;
-	border: 1px solid rgba(25, 118, 210, 0.12);
-	backdrop-filter: blur(8px);
+	color: var(--pos-menu-icon) !important;
+	background: transparent !important;
+	border: 1px solid transparent;
 }
 
 .nav-icon:hover {
-	background: rgba(25, 118, 210, 0.12) !important;
-	color: var(--pos-primary-variant) !important;
-	border-color: rgba(25, 118, 210, 0.2);
-	transform: translateY(-1px);
-	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
+	background: var(--pos-menu-hover) !important;
+	color: var(--pos-text-primary) !important;
 }
 
 .rtl-nav-icon {
@@ -802,19 +794,18 @@ export default {
 	padding: 4px;
 	min-width: 40px;
 	min-height: 40px;
-	background: rgba(25, 118, 210, 0.08) !important;
-	border: 1px solid rgba(25, 118, 210, 0.12);
+	background: transparent !important;
+	border: 1px solid var(--pos-panel-border);
 	border-radius: 12px;
-	backdrop-filter: blur(8px);
 }
 
 .offline-invoices-btn .pos-text-primary {
 	color: var(--pos-primary) !important;
 }
 
-/* Elite styling for navbar text and icons */
+/* Navbar icons and text in standard neutral colours */
 .pos-navbar-enhanced .pos-text-primary {
-	color: var(--pos-primary) !important;
+	color: var(--pos-menu-icon) !important;
 }
 
 /* Ensure profile text and icons use elite colors */
@@ -829,12 +820,12 @@ export default {
 .pos-navbar-enhanced .v-icon.pos-text-primary,
 .pos-navbar-enhanced .mdi-menu-down,
 .pos-navbar-enhanced .v-icon--end.pos-text-primary {
-	color: var(--pos-primary) !important;
+	color: var(--pos-menu-icon) !important;
 	transition: color 0.25s ease;
 }
 
 .pos-navbar-enhanced .v-icon.pos-text-primary:hover {
-	color: var(--pos-primary-variant) !important;
+	color: var(--pos-text-primary) !important;
 }
 
 .rtl-offline-btn {
@@ -848,14 +839,11 @@ export default {
 }
 
 .offline-invoices-btn:hover {
-	transform: translateY(-1px);
-	background: rgba(25, 118, 210, 0.12) !important;
-	border-color: rgba(25, 118, 210, 0.2);
-	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
+	background: var(--pos-menu-hover) !important;
 }
 
 .offline-invoices-btn:hover .pos-text-primary {
-	color: var(--pos-primary-variant) !important;
+	color: var(--pos-text-primary) !important;
 }
 
 .offline-invoices-btn.has-pending {

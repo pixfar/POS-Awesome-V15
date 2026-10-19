@@ -239,12 +239,9 @@
 										hide-details
 										clearable
 										class="pos-themed-input purchase-item-search"
-										:no-data-text="
-											itemSearchQuery && itemSearchQuery.length < 2
-												? __('Type at least 2 characters')
-												: __('No items found')
-										"
+										:no-data-text="itemSearchLoading ? __('Searching...') : __('No items found')"
 										@update:search="handleItemSearchUpdate"
+										@update:menu="browseItemsOnOpen"
 										@update:model-value="handleSearchItemPicked"
 									>
 										<template #item="{ props: itemProps, item }">
@@ -788,7 +785,7 @@ export default {
 		};
 
 		const loadMoreItems = async () => {
-			if (itemSearchLoading.value || !itemSearchHasMore.value || itemSearchTerm.length < 2) return;
+			if (itemSearchLoading.value || !itemSearchHasMore.value || itemSearchTerm.length === 1) return;
 			itemSearchLoading.value = true;
 			try {
 				const rows = await fetchItemPage(itemSearchResults.value.length);
@@ -807,13 +804,20 @@ export default {
 			if (isIntersecting) loadMoreItems();
 		};
 
+		// Opening the item search lists items straight away (first page of the
+		// catalogue) instead of waiting for the user to type.
+		const browseItemsOnOpen = (open) => {
+			if (open && !itemSearchResults.value.length && !itemSearchLoading.value) {
+				searchItems((itemSearchQuery.value || "").trim());
+			}
+		};
+
 		const handleItemSearchUpdate = (term) => {
 			itemSearchQuery.value = term || "";
 			if (itemSearchTimeout.value) clearTimeout(itemSearchTimeout.value);
-			if (!itemSearchQuery.value || itemSearchQuery.value.trim().length < 2) {
-				itemSearchResults.value = [];
-				return;
-			}
+			// Empty: browse the first page of items. One character is too broad
+			// to search, so the current list stays until there are two.
+			if (itemSearchQuery.value.trim().length === 1) return;
 			itemSearchTimeout.value = setTimeout(
 				() => searchItems(itemSearchQuery.value.trim()),
 				250,
@@ -1328,6 +1332,7 @@ export default {
 			itemSearchHasMore,
 			onItemSearchIntersect,
 			handleItemSearchUpdate,
+			browseItemsOnOpen,
 			handleSearchItemPicked,
 			openPaymentDialog,
 			handlePaymentSubmit,

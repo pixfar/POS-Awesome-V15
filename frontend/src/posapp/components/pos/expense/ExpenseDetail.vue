@@ -34,6 +34,7 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue';
+import { formatDisplayTimeAmPm } from '../shared/docStatusUtils';
 import { useRoute, useRouter } from 'vue-router';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 import { useFormat } from '../../../format';
@@ -62,7 +63,7 @@ export default {
 			if (!value) return '—';
 			const [datePart, timePart] = String(value).split(' ');
 			const date = formatDisplayDate(datePart);
-			return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
+			return timePart ? `${date} ${formatDisplayTimeAmPm(timePart)}` : date;
 		};
 
 		const metaFields = computed(() => [

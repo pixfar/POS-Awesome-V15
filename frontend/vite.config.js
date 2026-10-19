@@ -7,7 +7,12 @@ import frappeVueStyle from "../frappe-vue-style";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
-import { buildVersionPayload, getEntryFileName } from "./build-manifest.js";
+import {
+	buildEntryShim,
+	buildVersionPayload,
+	getEntryFileName,
+	SHIMMED_ENTRY_NAMES,
+} from "./build-manifest.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,10 +35,31 @@ function posawesomeBuildVersionPlugin(version) {
 	};
 }
 
+// Emits the stable "<name>.js" re-export shim for each hashed entry in
+// SHIMMED_ENTRY_NAMES (see buildEntryShim in build-manifest.js).
+function posawesomeEntryShimPlugin() {
+	return {
+		name: "posawesome-entry-shim",
+		apply: "build",
+		generateBundle(_options, bundle) {
+			for (const chunk of Object.values(bundle)) {
+				if (chunk.type === "chunk" && chunk.isEntry && SHIMMED_ENTRY_NAMES.has(chunk.name)) {
+					this.emitFile({
+						type: "asset",
+						fileName: `${chunk.name}.js`,
+						source: buildEntryShim(chunk.fileName),
+					});
+				}
+			}
+		},
+	};
+}
+
 export default defineConfig({
 	base: "/assets/posawesome/dist/js/",
 	plugins: [
 		posawesomeBuildVersionPlugin(buildVersion),
+		posawesomeEntryShimPlugin(),
 		frappeVueStyle(),
 		vue(),
 		viteStaticCopy({

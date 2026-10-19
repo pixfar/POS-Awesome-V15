@@ -18,6 +18,7 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue';
+import { formatDisplayTimeAmPm } from '../shared/docStatusUtils';
 import { useRoute, useRouter } from 'vue-router';
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
 
@@ -38,7 +39,7 @@ export default {
 			const [datePart, timePart] = String(value).split(' ');
 			const parts = String(datePart || '').split('-');
 			const date = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : datePart;
-			return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
+			return timePart ? `${date} ${formatDisplayTimeAmPm(timePart)}` : date;
 		};
 
 		const metaFields = computed(() => [

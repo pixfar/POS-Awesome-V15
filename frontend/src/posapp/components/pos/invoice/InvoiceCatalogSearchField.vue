@@ -112,6 +112,11 @@ const posProfile = computed(
 const showQtyInput = computed(() => !!posProfile.value?.posa_input_qty);
 const catalogItems = computed(() => {
 	const term = String(searchQuery.value || "").trim();
+	if (!term) {
+		// Nothing typed yet: offer the items already loaded for the item grid,
+		// so opening the search shows items straight away.
+		return readRef(catalogSearch.value?.displayedItems) || [];
+	}
 	if (term.length < 2) {
 		return [];
 	}

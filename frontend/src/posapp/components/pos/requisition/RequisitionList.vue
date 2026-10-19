@@ -43,7 +43,7 @@
 					<span class="pos-list-stat__label">{{ __("Completed") }}</span>
 					<strong class="pos-list-stat__value">{{ statusCounts.Completed || 0 }}</strong>
 				</div>
-				<div class="pos-list-stat">
+				<div class="pos-list-stat pos-list-stat--danger">
 					<span class="pos-list-stat__label">{{ __("Rejected") }}</span>
 					<strong class="pos-list-stat__value">{{ statusCounts.Rejected || 0 }}</strong>
 				</div>
@@ -112,21 +112,9 @@
 					:min="fromDate"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-autocomplete
+				<ListItemFilter
 					v-model="itemCodeFilter"
-					v-model:search="itemSearchQuery"
-					:items="itemSearchResults"
-					:loading="itemSearchLoading"
-					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
-					item-value="item_code"
 					:label="__('Item')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					:custom-filter="() => true"
-					class="pos-themed-input pos-list-filter-field"
-					@update:search="handleItemSearchUpdate"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-autocomplete
@@ -235,13 +223,19 @@
 						</v-chip>
 					</template>
 					<template #item.notes="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.notes">{{ item.notes || '—' }}</span>
+						<!-- Remarks can be long: one line with "…", full text on hover. -->
+						<v-tooltip v-if="item.notes" :text="item.notes" location="top" max-width="420">
+							<template #activator="{ props: tipProps }">
+								<span v-bind="tipProps" class="pos-list-cell-remarks">{{ item.notes }}</span>
+							</template>
+						</v-tooltip>
+						<span v-else>—</span>
 					</template>
 					<template #item.owner_name="{ item }">
-						<span class="pos-list-cell-truncate pos-list-cell-truncate--wide" :title="item.owner_name">{{ item.owner_name || '—' }}</span>
+						<span class="pos-list-cell-truncate pos-list-cell-truncate--wide pos-list-cell-person" :title="item.owner_name">{{ item.owner_name || '—' }}</span>
 					</template>
 					<template #item.modified_by_name="{ item }">
-						<span class="pos-list-cell-truncate pos-list-cell-truncate--wide" :title="item.modified_by_name">{{ item.modified_by_name || '—' }}</span>
+						<span class="pos-list-cell-truncate pos-list-cell-truncate--wide pos-list-cell-person" :title="item.modified_by_name">{{ item.modified_by_name || '—' }}</span>
 					</template>
 					<template #item.actions="{ item }">
 						<div class="d-flex justify-end">
@@ -359,8 +353,8 @@ import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
-import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
+import ListItemFilter from '../shared/ListItemFilter.vue';
 
 const STATUS_CONFIRM_MESSAGES = {
 	Sent: __('Mark this requisition as Sent? It can no longer be edited after this.'),
@@ -383,7 +377,7 @@ const CONFIRM_COLOR_BY_STATUS = {
 
 export default {
 	name: 'RequisitionList',
-	components: { DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
+	components: { ListItemFilter, DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -422,10 +416,6 @@ export default {
 		const warehouseFilter = ref(null);
 		const remarksFilter = ref('');
 
-		const itemSearchQuery = ref('');
-		const itemSearchResults = ref([]);
-		const itemSearchLoading = ref(false);
-		let itemSearchTimeout = null;
 
 		const itemGroupOptions = ref([]);
 		const warehouseOptions = ref([]);
@@ -438,7 +428,6 @@ export default {
 				fromDate,
 				toDate,
 				itemCodeFilter,
-				itemSearchResults,
 				itemGroupFilter,
 				warehouseFilter,
 				remarksFilter,
@@ -455,7 +444,7 @@ export default {
 			{ title: __('To'), key: 'target_warehouse', sortable: true },
 			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'transfer_status', sortable: true },
-			{ title: __('Remarks'), key: 'notes', sortable: false },
+			{ title: __('Remarks'), key: 'notes', sortable: false , headerProps: { class: 'pos-list-col-flex' } },
 			{ title: __('Created By'), key: 'owner_name', sortable: true },
 			{ title: __('Last Modified By'), key: 'modified_by_name', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
@@ -539,28 +528,6 @@ export default {
 			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
-		const handleItemSearchUpdate = (term) => {
-			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
-			if (!term || term.trim().length < 2) {
-				itemSearchResults.value = [];
-				return;
-			}
-			itemSearchTimeout = setTimeout(async () => {
-				itemSearchLoading.value = true;
-				try {
-					const normalizedTerm = normalizeBengaliNumbers(term.trim());
-					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.requisitions.search_items',
-						args: { search_text: normalizedTerm, limit: 20 },
-					});
-					itemSearchResults.value = message || [];
-				} catch {
-					itemSearchResults.value = [];
-				} finally {
-					itemSearchLoading.value = false;
-				}
-			}, 300);
-		};
 
 		const loadItemGroups = async () => {
 			try {
@@ -605,7 +572,6 @@ export default {
 			itemGroupFilter.value = null;
 			warehouseFilter.value = null;
 			remarksFilter.value = '';
-			itemSearchResults.value = [];
 			clearSavedFilters();
 			resetAndLoad();
 		};
@@ -821,15 +787,11 @@ export default {
 			warehouseFilter,
 			warehouseOptions,
 			remarksFilter,
-			itemSearchQuery,
-			itemSearchResults,
-			itemSearchLoading,
 			hasActiveFilters,
 			paginationLabel,
 			loadRequisitions,
 			resetAndLoad,
 			handleSearchUpdate,
-			handleItemSearchUpdate,
 			clearFilters,
 			goToPage,
 			formatDisplayDate,

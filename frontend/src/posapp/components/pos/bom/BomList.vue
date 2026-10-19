@@ -65,21 +65,9 @@
 			</div>
 
 			<div class="pos-list-filters">
-				<v-autocomplete
+				<ListItemFilter
 					v-model="itemCodeFilter"
-					v-model:search="itemSearchQuery"
-					:items="itemSearchResults"
-					:loading="itemSearchLoading"
-					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
-					item-value="item_code"
 					:label="__('Item')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					:custom-filter="() => true"
-					class="pos-themed-input pos-list-filter-field"
-					@update:search="handleItemSearchUpdate"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-select
@@ -181,7 +169,7 @@
 						</v-chip>
 					</template>
 					<template #item.owner_name="{ item }">
-						<span class="pos-list-cell-wrap">{{ item.owner_name || "—" }}</span>
+						<span class="pos-list-cell-wrap pos-list-cell-person">{{ item.owner_name || "—" }}</span>
 					</template>
 					<template #item.actions="{ item }">
 						<div class="d-flex justify-end">
@@ -298,12 +286,12 @@ import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
-import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
+import ListItemFilter from '../shared/ListItemFilter.vue';
 
 export default {
 	name: 'BomList',
-	components: { RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
+	components: { ListItemFilter, RowActionsMenu, ConfirmActionDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -429,17 +417,12 @@ export default {
 			{ label: __('No'), value: 0 },
 		];
 
-		const itemSearchQuery = ref('');
-		const itemSearchResults = ref([]);
-		const itemSearchLoading = ref(false);
-		let itemSearchTimeout = null;
 
 		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
 			'posa_filter_bom',
 			{
 				searchQuery,
 				itemCodeFilter,
-				itemSearchResults,
 				isActiveFilter,
 				isDefaultFilter,
 				page,
@@ -527,35 +510,12 @@ export default {
 			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
-		const handleItemSearchUpdate = (term) => {
-			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
-			if (!term || term.trim().length < 2) {
-				itemSearchResults.value = [];
-				return;
-			}
-			itemSearchTimeout = setTimeout(async () => {
-				itemSearchLoading.value = true;
-				try {
-					const normalizedTerm = normalizeBengaliNumbers(term.trim());
-					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.boms.search_bom_items',
-						args: { search_text: normalizedTerm, limit: 20 },
-					});
-					itemSearchResults.value = message || [];
-				} catch {
-					itemSearchResults.value = [];
-				} finally {
-					itemSearchLoading.value = false;
-				}
-			}, 300);
-		};
 
 		const clearFilters = () => {
 			searchQuery.value = '';
 			itemCodeFilter.value = null;
 			isActiveFilter.value = null;
 			isDefaultFilter.value = null;
-			itemSearchResults.value = [];
 			clearSavedFilters();
 			resetAndLoad();
 		};
@@ -608,15 +568,11 @@ export default {
 			isActiveFilter,
 			isDefaultFilter,
 			yesNoOptions,
-			itemSearchQuery,
-			itemSearchResults,
-			itemSearchLoading,
 			hasActiveFilters,
 			paginationLabel,
 			loadBoms,
 			resetAndLoad,
 			handleSearchUpdate,
-			handleItemSearchUpdate,
 			clearFilters,
 			goToPage,
 			formatQty,

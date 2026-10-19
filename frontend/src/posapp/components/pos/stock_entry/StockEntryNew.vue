@@ -70,13 +70,14 @@
 										return-object
 										:label="__('Search item by name or code')"
 										:custom-filter="() => true"
-										:no-data-text="__('Type at least 2 characters')"
+										:no-data-text="itemSearchLoading ? __('Searching...') : __('No items found')"
 										prepend-inner-icon="mdi-magnify"
 										variant="solo"
 										density="compact"
 										hide-details
 										class="pos-themed-input"
 										@update:search="handleItemSearch"
+										@update:menu="browseItemsOnOpen"
 										@update:model-value="addItem"
 									>
 										<template #item="{ props: itemProps, item }">
@@ -313,14 +314,20 @@ export default {
 			return Array.isArray(message) ? message : [];
 		};
 
+		// Opening the item search lists items straight away (first page of the
+		// catalogue) instead of waiting for the user to type.
+		const browseItemsOnOpen = (open) => {
+			if (open && !itemSearchResults.value.length && !itemSearchLoading.value) {
+				handleItemSearch(itemSearchQuery.value || '');
+			}
+		};
+
 		const handleItemSearch = (term) => {
 			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
 			const trimmed = String(term || '').trim();
-			if (trimmed.length < 2) {
-				itemSearchResults.value = [];
-				itemSearchHasMore.value = false;
-				return;
-			}
+			// Empty: browse the first page of items. One character is too broad
+			// to search, so the current list stays until there are two.
+			if (trimmed.length === 1) return;
 			itemSearchTimeout = setTimeout(async () => {
 				itemSearchTerm = trimmed;
 				itemSearchLoading.value = true;
@@ -337,7 +344,7 @@ export default {
 		};
 
 		const loadMoreItems = async () => {
-			if (itemSearchLoading.value || !itemSearchHasMore.value || itemSearchTerm.length < 2) return;
+			if (itemSearchLoading.value || !itemSearchHasMore.value || itemSearchTerm.length === 1) return;
 			itemSearchLoading.value = true;
 			try {
 				const rows = await fetchItemPage(itemSearchResults.value.length);
@@ -483,6 +490,7 @@ export default {
 			refreshStockQty,
 			onWarehouseChange,
 			handleItemSearch,
+			browseItemsOnOpen,
 			addItem,
 			submit,
 		};

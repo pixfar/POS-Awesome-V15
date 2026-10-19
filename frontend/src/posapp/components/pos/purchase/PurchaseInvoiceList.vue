@@ -109,21 +109,9 @@
 					:min="fromDate"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-autocomplete
+				<ListItemFilter
 					v-model="itemCodeFilter"
-					v-model:search="itemSearchQuery"
-					:items="itemSearchResults"
-					:loading="itemSearchLoading"
-					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
-					item-value="item_code"
 					:label="__('Item')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					:custom-filter="() => true"
-					class="pos-themed-input pos-list-filter-field"
-					@update:search="handleItemSearchUpdate"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-autocomplete
@@ -282,7 +270,13 @@
 						</span>
 					</template>
 					<template #item.remarks="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.remarks">{{ item.remarks || '—' }}</span>
+						<!-- Remarks can be long: one line with "…", full text on hover. -->
+						<v-tooltip v-if="item.remarks" :text="item.remarks" location="top" max-width="420">
+							<template #activator="{ props: tipProps }">
+								<span v-bind="tipProps" class="pos-list-cell-remarks">{{ item.remarks }}</span>
+							</template>
+						</v-tooltip>
+						<span v-else>—</span>
 					</template>
 					<template #item.outstanding_amount="{ item }">
 						<span
@@ -500,15 +494,15 @@ import DateFilterField from '../shared/DateFilterField.vue';
 import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import ReturnItemsDialog from '../shared/ReturnItemsDialog.vue';
 import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
-import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
+import ListItemFilter from '../shared/ListItemFilter.vue';
 
 const OVERDUE_STATUSES = ['Overdue', 'Overdue and Discounted'];
 const RETIRED_STATUS_FILTERS = ['Unpaid', 'Unpaid and Discounted'];
 
 export default {
 	name: 'PurchaseInvoiceList',
-	components: { DateFilterField, ReturnItemsDialog, DeliveryReceiptDialog, InvoiceExpandedDetail },
+	components: { ListItemFilter, DateFilterField, ReturnItemsDialog, DeliveryReceiptDialog, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -711,10 +705,6 @@ export default {
 		const doNumberFilter = ref('');
 		const remarksFilter = ref('');
 
-		const itemSearchQuery = ref('');
-		const itemSearchResults = ref([]);
-		const itemSearchLoading = ref(false);
-		let itemSearchTimeout = null;
 
 		const supplierSearchQuery = ref('');
 		const supplierSearchResults = ref([]);
@@ -732,7 +722,6 @@ export default {
 				fromDate,
 				toDate,
 				itemCodeFilter,
-				itemSearchResults,
 				itemGroupFilter,
 				supplierFilter,
 				supplierSearchResults,
@@ -745,7 +734,7 @@ export default {
 		);
 
 		const listHeaders = [
-			{ title: __('Invoice'), key: 'name', sortable: true, width: '152px' },
+			{ title: __('Invoice'), key: 'name', sortable: true, width: '176px' },
 			{ title: __('Date'), key: 'posting_date', sortable: true, width: '86px' },
 			{ title: __('Time'), key: 'creation_ampm', sortable: false, width: '70px' },
 			{ title: __('Supplier'), key: 'supplier', sortable: true, width: '120px', maxWidth: '140px' },
@@ -872,28 +861,6 @@ export default {
 			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
-		const handleItemSearchUpdate = (term) => {
-			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
-			if (!term || term.trim().length < 2) {
-				itemSearchResults.value = [];
-				return;
-			}
-			itemSearchTimeout = setTimeout(async () => {
-				itemSearchLoading.value = true;
-				try {
-					const normalizedTerm = normalizeBengaliNumbers(term.trim());
-					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.purchase_invoices.search_items',
-						args: { search_text: normalizedTerm, limit: 20 },
-					});
-					itemSearchResults.value = message || [];
-				} catch {
-					itemSearchResults.value = [];
-				} finally {
-					itemSearchLoading.value = false;
-				}
-			}, 300);
-		};
 
 		const handleSupplierSearchUpdate = (term) => {
 			if (supplierSearchTimeout) clearTimeout(supplierSearchTimeout);
@@ -963,7 +930,6 @@ export default {
 			warehouseFilter.value = null;
 			doNumberFilter.value = '';
 			remarksFilter.value = '';
-			itemSearchResults.value = [];
 			supplierSearchResults.value = [];
 			clearSavedFilters();
 			resetAndLoad();
@@ -1058,9 +1024,6 @@ export default {
 			warehouseOptions,
 			doNumberFilter,
 			remarksFilter,
-			itemSearchQuery,
-			itemSearchResults,
-			itemSearchLoading,
 			supplierSearchQuery,
 			supplierSearchResults,
 			supplierSearchLoading,
@@ -1071,7 +1034,6 @@ export default {
 			loadInvoices,
 			resetAndLoad,
 			handleSearchUpdate,
-			handleItemSearchUpdate,
 			handleSupplierSearchUpdate,
 			clearFilters,
 			goToPage,

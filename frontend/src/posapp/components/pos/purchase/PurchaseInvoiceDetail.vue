@@ -19,6 +19,7 @@
 
 <script>
 import { ref } from 'vue';
+import { formatDisplayTimeAmPm } from '../shared/docStatusUtils';
 import { useRoute, useRouter } from 'vue-router';
 import format from '../../../format';
 import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
@@ -46,7 +47,9 @@ export default {
 			const fields = [
 				{
 					label: this.__('Posting Date'),
-					value: `${this.formatDisplayDate(this.detail.posting_date)} ${this.detail.posting_time || ''}`.trim(),
+					value: this.detail.posting_time
+						? `${this.formatDisplayDate(this.detail.posting_date)} ${formatDisplayTimeAmPm(this.detail.posting_time)}`
+						: this.formatDisplayDate(this.detail.posting_date),
 				},
 				{ label: this.__('Created On'), value: this.formatDisplayDateTime(this.detail.creation) },
 				{ label: this.__('Supplier'), value: this.detail.supplier_name || this.detail.supplier },
@@ -129,7 +132,7 @@ export default {
 			if (!value) return '—';
 			const [datePart, timePart] = String(value).split(' ');
 			const date = this.formatDisplayDate(datePart);
-			return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
+			return timePart ? `${date} ${formatDisplayTimeAmPm(timePart)}` : date;
 		},
 		statusColor(status) {
 			const map = {

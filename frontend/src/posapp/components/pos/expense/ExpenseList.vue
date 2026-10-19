@@ -153,7 +153,13 @@
 						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
 					</template>
 					<template #item.remark="{ item }">
-						<span class="pos-list-cell-wrap" :title="item.remark">{{ item.remark || "—" }}</span>
+						<!-- Remarks can be long: one line with "…", full text on hover. -->
+						<v-tooltip v-if="item.remark" :text="item.remark" location="top" max-width="420">
+							<template #activator="{ props: tipProps }">
+								<span v-bind="tipProps" class="pos-list-cell-remarks">{{ item.remark }}</span>
+							</template>
+						</v-tooltip>
+						<span v-else>—</span>
 					</template>
 					<template #item.expense_types="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.expense_types">{{ item.expense_types || "—" }}</span>
@@ -370,7 +376,7 @@ export default {
 			{ title: __('Warehouse'), key: 'warehouse', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
 			{ title: __('Time'), key: 'creation_ampm', sortable: false },
-			{ title: __('Remark'), key: 'remark', sortable: false, width: '180px' },
+			{ title: __('Remark'), key: 'remark', sortable: false , headerProps: { class: 'pos-list-col-flex' } },
 			{ title: __('Expense Type'), key: 'expense_types', sortable: false },
 			{ title: __('Amount'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'status', sortable: true },

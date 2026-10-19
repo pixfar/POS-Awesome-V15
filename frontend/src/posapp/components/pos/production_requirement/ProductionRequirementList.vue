@@ -105,21 +105,9 @@
 					class="pos-themed-input pos-list-filter-field"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-autocomplete
+				<ListItemFilter
 					v-model="itemCodeFilter"
-					v-model:search="itemSearchQuery"
-					:items="itemSearchResults"
-					:loading="itemSearchLoading"
-					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
-					item-value="item_code"
 					:label="__('Item')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					:custom-filter="() => true"
-					class="pos-themed-input pos-list-filter-field"
-					@update:search="handleItemSearchUpdate"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-autocomplete
@@ -204,7 +192,7 @@
 						</span>
 					</template>
 					<template #item.production_by="{ item }">
-						<span class="pos-list-cell-truncate">{{
+						<span class="pos-list-cell-truncate pos-list-cell-person">{{
 							item.production_by_name || item.production_by
 						}}</span>
 					</template>
@@ -350,9 +338,9 @@ import { useExpandedRowDetail } from "../../../composables/useExpandedRowDetail"
 import format from "../../../format";
 import { useWarehouseFilterOptions } from "../shared/useWarehouseFilterOptions";
 import { formatDisplayDate } from "../shared/docStatusUtils";
-import { normalizeBengaliNumbers } from "../../../composables/pos/items/useItemSearch";
 import { useListFilterPersistence } from "../../../composables/useListFilterPersistence";
 import { isPosWarehouseSwitcher } from "../../../utils/posWarehouseAccess";
+import ListItemFilter from "../shared/ListItemFilter.vue";
 import {
 	formatQty,
 	PRODUCTION_REQUIREMENT_STATUSES,
@@ -363,7 +351,7 @@ const API = "posawesome.posawesome.api.production_requirements";
 
 export default {
 	name: "ProductionRequirementList",
-	components: { DateFilterField, RowActionsMenu, InvoiceExpandedDetail },
+	components: { ListItemFilter, DateFilterField, RowActionsMenu, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -401,10 +389,6 @@ export default {
 		const productionGroupFilter = ref(null);
 		const filterOptions = reactive({ item_groups: [], production_groups: [] });
 
-		const itemSearchQuery = ref("");
-		const itemSearchResults = ref([]);
-		const itemSearchLoading = ref(false);
-		let itemSearchTimeout = null;
 
 		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
 			"posa_filter_production_requirement",
@@ -415,7 +399,6 @@ export default {
 				toDate,
 				warehouseFilter,
 				itemCodeFilter,
-				itemSearchResults,
 				itemGroupFilter,
 				productionGroupFilter,
 				page,
@@ -510,24 +493,6 @@ export default {
 			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
-		const handleItemSearchUpdate = (term) => {
-			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
-			if (!term || term.trim().length < 2) return;
-			itemSearchTimeout = setTimeout(async () => {
-				itemSearchLoading.value = true;
-				try {
-					const { message } = await frappe.call({
-						method: "posawesome.posawesome.api.material_transfers.search_items",
-						args: { search_text: normalizeBengaliNumbers(term.trim()), limit: 20 },
-					});
-					itemSearchResults.value = message || [];
-				} catch {
-					itemSearchResults.value = [];
-				} finally {
-					itemSearchLoading.value = false;
-				}
-			}, 300);
-		};
 
 		const loadFilterOptions = async () => {
 			try {
@@ -548,7 +513,6 @@ export default {
 			itemCodeFilter.value = null;
 			itemGroupFilter.value = null;
 			productionGroupFilter.value = null;
-			itemSearchResults.value = [];
 			clearSavedFilters();
 			resetAndLoad();
 		};
@@ -621,9 +585,6 @@ export default {
 			warehouseFilter,
 			warehouseOptions,
 			itemCodeFilter,
-			itemSearchQuery,
-			itemSearchResults,
-			itemSearchLoading,
 			itemGroupFilter,
 			productionGroupFilter,
 			filterOptions,
@@ -631,7 +592,6 @@ export default {
 			loadList,
 			resetAndLoad,
 			handleSearchUpdate,
-			handleItemSearchUpdate,
 			clearFilters,
 			goToPage,
 			goToNew,

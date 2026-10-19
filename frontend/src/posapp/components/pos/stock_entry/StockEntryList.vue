@@ -149,7 +149,13 @@
 						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
 					</template>
 					<template #item.remarks="{ item }">
-						<span class="pos-list-cell-wrap" :title="item.remarks">{{ item.remarks || "—" }}</span>
+						<!-- Remarks can be long: one line with "…", full text on hover. -->
+						<v-tooltip v-if="item.remarks" :text="item.remarks" location="top" max-width="420">
+							<template #activator="{ props: tipProps }">
+								<span v-bind="tipProps" class="pos-list-cell-remarks">{{ item.remarks }}</span>
+							</template>
+						</v-tooltip>
+						<span v-else>—</span>
 					</template>
 					<template #item.total_qty="{ item }">{{ formatFloat(item.total_qty) }}</template>
 					<template #item.total_value="{ item }">{{ formatCurrency(item.total_value) }}</template>
@@ -328,7 +334,7 @@ export default {
 			{ title: __('Items'), key: 'item_count', sortable: true, align: 'end', width: '70px' },
 			{ title: __('Qty'), key: 'total_qty', sortable: true, align: 'end', width: '96px' },
 			{ title: __('Value'), key: 'total_value', sortable: true, align: 'end', width: '120px' },
-			{ title: __('Remarks'), key: 'remarks', sortable: false, width: '180px' },
+			{ title: __('Remarks'), key: 'remarks', sortable: false , headerProps: { class: 'pos-list-col-flex' } },
 			{ title: __('Created By'), key: 'created_by', sortable: true, width: '130px' },
 			{ title: __('Status'), key: 'status', sortable: true, width: '110px' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },

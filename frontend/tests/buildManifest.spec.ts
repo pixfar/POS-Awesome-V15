@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildVersionPayload, getEntryFileName } from "../build-manifest.js";
+import { buildEntryShim, buildVersionPayload, getEntryFileName } from "../build-manifest.js";
 
 describe("build manifest helpers", () => {
-	it("keeps primary shell entries stable while hashing auxiliary entries", () => {
-		expect(getEntryFileName({ name: "posawesome" })).toBe("[name].js");
+	it("keeps the loader stable while hashing the app and auxiliary entries", () => {
+		expect(getEntryFileName({ name: "posawesome" })).toBe("[name]-[hash].js");
 		expect(getEntryFileName({ name: "loader" })).toBe("[name].js");
 		expect(getEntryFileName({ name: "offline/index" })).toBe(
 			"[name]-[hash].js",
@@ -44,6 +44,12 @@ describe("build manifest helpers", () => {
 		);
 		expect(payload.assets.css).toBe(
 			"/assets/posawesome/dist/js/posawesome.css?v=build%20with%20spaces",
+		);
+	});
+
+	it("re-exports the hashed app entry from its stable shim", () => {
+		expect(buildEntryShim("posawesome-AbCd1234.js")).toBe(
+			'export * from "./posawesome-AbCd1234.js";\n',
 		);
 	});
 });

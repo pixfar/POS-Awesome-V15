@@ -35,7 +35,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
-import { formatDisplayDate, formatDisplayDateTime, docStatusColor } from '../shared/docStatusUtils';
+import { formatDisplayDate, formatDisplayDateTime, formatDisplayTimeAmPm, docStatusColor } from '../shared/docStatusUtils';
 import { stockEntryBasePath } from './stockEntryRoutes';
 
 const API = 'posawesome.posawesome.api.stock_entries';
@@ -61,7 +61,7 @@ export default {
 
 		const metaFields = computed(() => [
 			{ label: __('Posting Date'), value: formatDisplayDate(detail.value.posting_date) },
-			{ label: __('Posting Time'), value: String(detail.value.posting_time || '').slice(0, 5) },
+			{ label: __('Posting Time'), value: formatDisplayTimeAmPm(detail.value.posting_time) },
 			{
 				label: props.purpose === 'Material Issue' ? __('Issued From') : __('Received Into'),
 				value: detail.value.warehouse,

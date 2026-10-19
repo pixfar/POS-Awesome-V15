@@ -7,11 +7,12 @@ export const formatDisplayDate = (value) => {
 	return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
 };
 
+// "DD-MM-YYYY hh:mm AM/PM" (see formatDisplayTimeAmPm below).
 export const formatDisplayDateTime = (value) => {
 	if (!value) return '—';
 	const [datePart, timePart] = String(value).split(' ');
 	const date = formatDisplayDate(datePart);
-	return timePart ? `${date} ${timePart.slice(0, 5)}` : date;
+	return timePart ? `${date} ${formatDisplayTimeAmPm(timePart)}` : date;
 };
 
 // 24-hour clock "HH:MM" from a datetime ("YYYY-MM-DD HH:MM:SS") or bare time;

@@ -9,8 +9,15 @@
 		</div>
 		<div v-else>
 			<div class="invoice-expanded__meta">
-				<span v-for="bit in metaBits" :key="bit.label">
-					<strong>{{ bit.label }}:</strong> {{ bit.value }}
+				<span
+					v-for="bit in metaChips"
+					:key="bit.label"
+					class="invoice-expanded__chip"
+					:class="`pos-accent--${bit.accent}`"
+				>
+					<v-icon size="14" class="invoice-expanded__chip-icon">{{ bit.icon }}</v-icon>
+					<span class="invoice-expanded__chip-label">{{ bit.label }}</span>
+					<span class="invoice-expanded__chip-value">{{ bit.value }}</span>
 				</span>
 			</div>
 			<v-table density="compact" class="invoice-expanded__table">
@@ -43,8 +50,15 @@
 				</tbody>
 			</v-table>
 			<div v-if="totalBits.length" class="invoice-expanded__totals">
-				<span v-for="bit in totalBits" :key="bit.label">
-					<strong>{{ bit.label }}:</strong> {{ bit.value }}
+				<span
+					v-for="bit in totalChips"
+					:key="bit.label"
+					class="invoice-expanded__total"
+					:class="`pos-accent--${bit.accent}`"
+				>
+					<v-icon size="15">{{ bit.icon }}</v-icon>
+					<span class="invoice-expanded__total-label">{{ bit.label }}</span>
+					<strong class="invoice-expanded__total-value">{{ bit.value }}</strong>
 				</span>
 			</div>
 			<div v-if="imageAttachments.length" class="invoice-expanded__images">
@@ -65,6 +79,7 @@
 
 <script setup>
 import { computed } from "vue";
+import { fieldIcon, totalIcon } from "./detailIcons";
 
 const __ = window.__;
 
@@ -363,6 +378,12 @@ const imageAttachments = computed(() =>
 	Array.isArray(props.detail?.attachments) ? props.detail.attachments : [],
 );
 
+// Display-only: icon and accent for each detail chip / total pill.
+const metaChips = computed(() => metaBits.value.map((bit) => ({ ...bit, ...fieldIcon(bit) })));
+const totalChips = computed(() =>
+	totalBits.value.map((bit, index) => ({ ...bit, ...totalIcon(bit, index) })),
+);
+
 const cellClass = (col) => ({
 	"text-right": col.align === "right",
 	"text-medium-emphasis": col.muted,
@@ -377,8 +398,11 @@ const cellText = (col, row) => {
 
 <style scoped>
 .invoice-expanded {
-	padding: 12px 16px;
-	background: color-mix(in srgb, var(--pos-primary, #0f766e) 3%, #fff);
+	padding: 14px 16px 14px 18px;
+	background: var(--pos-panel-bg);
+	border-top: 1px solid var(--pos-panel-border);
+	border-bottom: 1px solid var(--pos-panel-border);
+	box-shadow: inset 3px 0 0 var(--pos-accent-teal);
 }
 
 .invoice-expanded__loading,
@@ -389,28 +413,95 @@ const cellText = (col, row) => {
 	color: var(--pos-text-secondary, #6b7280);
 }
 
+/* Document details as chips: icon, label, value. */
 .invoice-expanded__meta {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px 18px;
-	margin-bottom: 8px;
-	font-size: 0.82rem;
-	color: var(--pos-text-primary, #1f2937);
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.invoice-expanded__chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	padding: 4px 10px 4px 6px;
+	border-radius: 999px;
+	background: var(--pos-card-bg);
+	border: 1px solid var(--pos-panel-border);
+	font-size: 0.8rem;
+	line-height: 1.3;
+}
+
+.invoice-expanded__chip-icon {
+	flex: 0 0 auto;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: var(--pos-accent-tint);
+	color: var(--pos-accent);
+}
+
+.invoice-expanded__chip-label {
+	font-size: 0.7rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--pos-label-text);
+}
+
+.invoice-expanded__chip-value {
+	font-weight: 600;
+	color: var(--pos-text-primary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .invoice-expanded__table {
-	border: 1px solid rgba(17, 24, 39, 0.1);
-	border-radius: 8px;
+	border: 1px solid var(--pos-panel-border);
+	border-radius: 10px;
 	overflow: hidden;
+	background: var(--pos-card-bg);
 }
 
+.invoice-expanded__table :deep(thead th) {
+	background: var(--pos-table-head-bg) !important;
+	color: var(--pos-table-head-text) !important;
+	font-size: 0.7rem !important;
+	font-weight: 700 !important;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+/* Totals as coloured pills. */
 .invoice-expanded__totals {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px 18px;
-	margin-top: 8px;
-	font-size: 0.85rem;
+	gap: 8px;
+	margin-top: 12px;
 	justify-content: flex-end;
+}
+
+.invoice-expanded__total {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 12px;
+	border-radius: 999px;
+	background: var(--pos-accent-tint);
+	color: var(--pos-accent);
+	font-size: 0.8rem;
+}
+
+.invoice-expanded__total-label {
+	font-weight: 600;
+	opacity: 0.85;
+}
+
+.invoice-expanded__total-value {
+	font-weight: 700;
 }
 
 .invoice-expanded__images {
@@ -425,7 +516,7 @@ const cellText = (col, row) => {
 	height: 72px;
 	object-fit: cover;
 	border-radius: 6px;
-	border: 1px solid rgba(17, 24, 39, 0.12);
+	border: 1px solid var(--pos-panel-border);
 	display: block;
 }
 </style>

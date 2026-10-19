@@ -85,70 +85,106 @@
 					</div>
 				</div>
 
-				<div class="pos-detail-meta-grid">
-					<div v-for="field in metaFields" :key="field.label" class="pos-detail-meta-field">
-						<span class="pos-detail-meta-field__label">{{ field.label }}</span>
-						<!-- Optional `href`: shown as a link opening in a new tab (e.g. an attachment). -->
-						<a
-							v-if="field.href"
-							:href="field.href"
-							target="_blank"
-							rel="noopener noreferrer"
-							class="pos-detail-meta-field__value pos-detail-meta-field__link"
-						>
-							{{ field.value || field.href }}
-						</a>
-						<v-tooltip v-else-if="isTruncated(field.value)" :text="String(field.value)" location="bottom">
-							<template #activator="{ props: tooltipProps }">
-								<span v-bind="tooltipProps" class="pos-detail-meta-field__value">
-									{{ truncateValue(field.value) }}
-								</span>
-							</template>
-						</v-tooltip>
-						<span v-else class="pos-detail-meta-field__value">{{ field.value || "—" }}</span>
+				<!-- Totals as figure tiles, each with its own accent and icon. -->
+				<div v-if="totals.length" class="pos-detail-kpis">
+					<div
+						v-for="t in totalTiles"
+						:key="t.label"
+						class="pos-detail-kpi"
+						:class="`pos-accent--${t.accent}`"
+					>
+						<span class="pos-detail-kpi__icon">
+							<v-icon size="20">{{ t.icon }}</v-icon>
+						</span>
+						<div class="pos-detail-kpi__copy">
+							<span class="pos-detail-kpi__label">{{ t.label }}</span>
+							<strong class="pos-detail-kpi__value">{{ t.value }}</strong>
+						</div>
 					</div>
 				</div>
 
-				<div class="pos-list-table-wrap pos-detail-table-wrap">
-					<v-table density="comfortable" class="pos-themed-table pos-detail-items-table">
-						<thead>
-							<tr>
-								<th
-									v-for="col in itemColumns"
-									:key="col.key"
-									:class="col.align === 'end' ? 'text-right' : 'text-left'"
+				<section class="pos-detail-section">
+					<header class="pos-detail-section__head">
+						<span class="pos-detail-section__icon pos-accent--teal">
+							<v-icon size="18">mdi-file-document-outline</v-icon>
+						</span>
+						<h4 class="pos-detail-section__title">{{ __("Document Information") }}</h4>
+					</header>
+					<div class="pos-detail-meta-grid">
+						<div v-for="field in metaTiles" :key="field.label" class="pos-detail-meta-field">
+							<span class="pos-detail-meta-field__icon" :class="`pos-accent--${field.accent}`">
+								<v-icon size="16">{{ field.icon }}</v-icon>
+							</span>
+							<div class="pos-detail-meta-field__copy">
+								<span class="pos-detail-meta-field__label">{{ field.label }}</span>
+								<!-- Optional `href`: shown as a link opening in a new tab (e.g. an attachment). -->
+								<a
+									v-if="field.href"
+									:href="field.href"
+									target="_blank"
+									rel="noopener noreferrer"
+									class="pos-detail-meta-field__value pos-detail-meta-field__link"
 								>
-									{{ col.label }}
-								</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr v-for="(row, idx) in items" :key="idx">
-								<td
-									v-for="col in itemColumns"
-									:key="col.key"
-									:class="col.align === 'end' ? 'text-right' : 'text-left'"
-								>
-									{{ row[col.key] }}
-								</td>
-							</tr>
-							<tr v-if="!items.length">
-								<td :colspan="itemColumns.length || 1" class="text-center text-medium-emphasis py-4">
-									{{ __("No items") }}
-								</td>
-							</tr>
-						</tbody>
-					</v-table>
-				</div>
-
-				<div v-if="totals.length" class="pos-detail-totals">
-					<div v-for="t in totals" :key="t.label" class="pos-detail-totals__row">
-						<span class="pos-detail-totals__label">{{ t.label }}</span>
-						<strong class="pos-detail-totals__value">{{ t.value }}</strong>
+									{{ field.value || field.href }}
+								</a>
+								<v-tooltip v-else-if="isTruncated(field.value)" :text="String(field.value)" location="bottom">
+									<template #activator="{ props: tooltipProps }">
+										<span v-bind="tooltipProps" class="pos-detail-meta-field__value">
+											{{ truncateValue(field.value) }}
+										</span>
+									</template>
+								</v-tooltip>
+								<span v-else class="pos-detail-meta-field__value">{{ field.value || "—" }}</span>
+							</div>
+						</div>
 					</div>
-				</div>
+				</section>
 
-				<!-- Optional extra section below the totals (e.g. Production Plan's raw materials). -->
+				<section class="pos-detail-section">
+					<header class="pos-detail-section__head">
+						<span class="pos-detail-section__icon pos-accent--violet">
+							<v-icon size="18">mdi-format-list-bulleted</v-icon>
+						</span>
+						<h4 class="pos-detail-section__title">{{ __("Items") }}</h4>
+						<span class="pos-detail-section__badge">{{ items.length }}</span>
+					</header>
+					<div class="pos-detail-table-wrap">
+						<v-table density="comfortable" class="pos-themed-table pos-detail-items-table">
+							<thead>
+								<tr>
+									<th
+										v-for="col in itemColumns"
+										:key="col.key"
+										:class="col.align === 'end' ? 'text-right' : 'text-left'"
+									>
+										{{ col.label }}
+									</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(row, idx) in items" :key="idx">
+									<td
+										v-for="col in itemColumns"
+										:key="col.key"
+										:class="[
+											col.align === 'end' ? 'text-right' : 'text-left',
+											{ 'pos-detail-cell--code': isCodeColumn(col) },
+										]"
+									>
+										{{ cellText(row, col) }}
+									</td>
+								</tr>
+								<tr v-if="!items.length">
+									<td :colspan="itemColumns.length || 1" class="text-center text-medium-emphasis py-4">
+										{{ __("No items") }}
+									</td>
+								</tr>
+							</tbody>
+						</v-table>
+					</div>
+				</section>
+
+				<!-- Optional extra section below the items (e.g. Production Plan's raw materials). -->
 				<slot />
 			</template>
 		</v-card>
@@ -159,6 +195,12 @@
 
 <script>
 import ShareDocumentDialog from "./ShareDocumentDialog.vue";
+import { fieldIcon, totalIcon, isCodeColumn } from "./detailIcons";
+
+// Item columns holding money or measures always show two decimals.
+const DECIMAL_COLUMN = /weight|rate|amount|price|total|value|cost|discount|tax|balance/i;
+// A numeric string with float noise, e.g. "7.199999999999999".
+const NOISY_NUMBER = /^-?\d+\.\d{3,}$/;
 import { buildShareText } from "../../../utils/documentShare";
 
 export default {
@@ -186,6 +228,12 @@ export default {
 		return { shareOpen: false };
 	},
 	computed: {
+		metaTiles() {
+			return this.metaFields.map((field) => ({ ...field, ...fieldIcon(field) }));
+		},
+		totalTiles() {
+			return this.totals.map((total, index) => ({ ...total, ...totalIcon(total, index) }));
+		},
 		shareText() {
 			return buildShareText({
 				title: this.title,
@@ -197,6 +245,22 @@ export default {
 		},
 	},
 	methods: {
+		isCodeColumn,
+		// Raw numbers from the server (weights, quantities) arrive unformatted,
+		// so 12 x 0.6 kg shows as 7.199999999999999. Money/measure columns get
+		// two decimals ("7.20", "1,116.00"); other fractional numbers too;
+		// whole quantities stay as they are. Pre-formatted text passes through.
+		cellText(row, col) {
+			let value = row[col.key];
+			if (typeof value === "string" && NOISY_NUMBER.test(value)) {
+				value = Number(value);
+			}
+			if (typeof value !== "number" || !Number.isFinite(value)) return value;
+			if (DECIMAL_COLUMN.test(col.key) || !Number.isInteger(value)) {
+				return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+			}
+			return value;
+		},
 		// Truncation threshold for meta field values (e.g. Requisition's long
 		// free-text Notes) -- anything longer than 50 characters gets cut
 		// with "..." and the full text moved into a hover tooltip instead

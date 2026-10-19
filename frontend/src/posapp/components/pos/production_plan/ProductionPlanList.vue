@@ -35,7 +35,7 @@
 					<span class="pos-list-stat__label">{{ __("Production Complete") }}</span>
 					<strong class="pos-list-stat__value">{{ statusCounts["Production Complete"] || 0 }}</strong>
 				</div>
-				<div class="pos-list-stat">
+				<div class="pos-list-stat pos-list-stat--danger">
 					<span class="pos-list-stat__label">{{ __("Cancelled") }}</span>
 					<strong class="pos-list-stat__value">{{ statusCounts["Cancelled"] || 0 }}</strong>
 				</div>
@@ -94,21 +94,9 @@
 					:min="fromDate"
 					@update:model-value="resetAndLoad"
 				/>
-				<v-autocomplete
+				<ListItemFilter
 					v-model="itemCodeFilter"
-					v-model:search="itemSearchQuery"
-					:items="itemSearchResults"
-					:loading="itemSearchLoading"
-					:item-title="(item) => `${item.item_name} - ${item.item_code}`"
-					item-value="item_code"
 					:label="__('Item')"
-					density="compact"
-					variant="outlined"
-					hide-details
-					clearable
-					:custom-filter="() => true"
-					class="pos-themed-input pos-list-filter-field"
-					@update:search="handleItemSearchUpdate"
 					@update:model-value="resetAndLoad"
 				/>
 				<v-autocomplete
@@ -192,10 +180,10 @@
 						<span class="pos-list-cell-wrap">{{ item.for_warehouse || "—" }}</span>
 					</template>
 					<template #item.owner_name="{ item }">
-						<span class="pos-list-cell-wrap">{{ item.owner_name || "—" }}</span>
+						<span class="pos-list-cell-wrap pos-list-cell-person">{{ item.owner_name || "—" }}</span>
 					</template>
 					<template #item.modified_by_name="{ item }">
-						<span class="pos-list-cell-wrap">{{ item.modified_by_name || "—" }}</span>
+						<span class="pos-list-cell-wrap pos-list-cell-person">{{ item.modified_by_name || "—" }}</span>
 					</template>
 					<template #item.total_planned_qty="{ item }">
 						<span class="pos-list-cell-muted">{{ formatQty(item.total_planned_qty) }}</span>
@@ -326,8 +314,8 @@ import ServerMessageDialog, { parseServerError } from '../shared/ServerMessageDi
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
-import { normalizeBengaliNumbers } from '../../../composables/pos/items/useItemSearch';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
+import ListItemFilter from '../shared/ListItemFilter.vue';
 
 const ACTION_CONFIRM_MESSAGES = {
 	'Start Production': __('Start production for this plan? This will submit it and lock in the planned quantities.'),
@@ -342,7 +330,7 @@ const ACTION_CONFIRM_MESSAGES = {
 
 export default {
 	name: 'ProductionPlanList',
-	components: { ServerMessageDialog, DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
+	components: { ListItemFilter, ServerMessageDialog, DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -367,10 +355,6 @@ export default {
 		const itemGroupFilter = ref(null);
 		const warehouseFilter = ref(null);
 
-		const itemSearchQuery = ref('');
-		const itemSearchResults = ref([]);
-		const itemSearchLoading = ref(false);
-		let itemSearchTimeout = null;
 
 		const itemGroupOptions = ref([]);
 		const warehouseOptions = ref([]);
@@ -383,7 +367,6 @@ export default {
 				fromDate,
 				toDate,
 				itemCodeFilter,
-				itemSearchResults,
 				itemGroupFilter,
 				warehouseFilter,
 				page,
@@ -484,28 +467,6 @@ export default {
 			searchTimeout = setTimeout(resetAndLoad, 300);
 		};
 
-		const handleItemSearchUpdate = (term) => {
-			if (itemSearchTimeout) clearTimeout(itemSearchTimeout);
-			if (!term || term.trim().length < 2) {
-				itemSearchResults.value = [];
-				return;
-			}
-			itemSearchTimeout = setTimeout(async () => {
-				itemSearchLoading.value = true;
-				try {
-					const normalizedTerm = normalizeBengaliNumbers(term.trim());
-					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.production_plans.search_manufacturable_items',
-						args: { search_text: normalizedTerm, limit: 20 },
-					});
-					itemSearchResults.value = message || [];
-				} catch {
-					itemSearchResults.value = [];
-				} finally {
-					itemSearchLoading.value = false;
-				}
-			}, 300);
-		};
 
 		const loadItemGroups = async () => {
 			try {
@@ -549,7 +510,6 @@ export default {
 			itemCodeFilter.value = null;
 			itemGroupFilter.value = null;
 			warehouseFilter.value = null;
-			itemSearchResults.value = [];
 			clearSavedFilters();
 			resetAndLoad();
 		};
@@ -721,15 +681,11 @@ export default {
 			itemGroupOptions,
 			warehouseFilter,
 			warehouseOptions,
-			itemSearchQuery,
-			itemSearchResults,
-			itemSearchLoading,
 			hasActiveFilters,
 			paginationLabel,
 			loadPlans,
 			resetAndLoad,
 			handleSearchUpdate,
-			handleItemSearchUpdate,
 			clearFilters,
 			goToPage,
 			formatDisplayDate,
