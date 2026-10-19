@@ -70,8 +70,9 @@ doctype_js = {
 # 	"Role": "home_page"
 # }
 
-# Website user home page (by function)
-# get_website_user_home_page = "posawesome.utils.get_home_page"
+# Website user home page (by function) -- also decides where "/" lands for a
+# logged-in Desk user; see www/pos_dashboard.py.
+get_website_user_home_page = "posawesome.www.pos_dashboard.get_home_page"
 
 # Generators
 # ----------

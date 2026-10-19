@@ -2,9 +2,11 @@
 
 posawesome is installed after frappe, and Frappe resolves a www page from the
 last-installed app that has one, so this file (plus login.html) takes over
-/login. It still logs in through Frappe's own /api/method/login, but sends
-System Users to the POS Awesome dashboard instead of whatever Desk workspace
-Frappe would otherwise pick.
+/login. It still logs in through Frappe's own /api/method/login, but always
+sends System Users to the POS Awesome dashboard -- ignoring both whatever Desk
+workspace Frappe would pick and any ?redirect-to= deep link (Desk adds one when
+a guest opens e.g. /app/posapp/fund-transfer/new). Website Users keep their
+redirect-to, since they cannot open the dashboard anyway.
 """
 
 import frappe
@@ -71,7 +73,7 @@ def get_context(context):
 		if frappe.session.data.user_type == "Website User":
 			target = redirect_to or "/" + get_home_page()
 		else:
-			target = redirect_to or DASHBOARD_PATH
+			target = DASHBOARD_PATH
 		frappe.local.flags.redirect_location = target
 		# 302, not the default 301: a cached permanent redirect on /login would
 		# keep bouncing the browser to the dashboard even after logout.
@@ -94,7 +96,6 @@ def get_context(context):
 	context.modules = MODULES
 	context.industries = INDUSTRIES
 	context.dashboard_path = DASHBOARD_PATH
-	context.redirect_to = redirect_to or ""
 	context.disable_password_login = cint(system_settings.disable_user_pass_login)
 	context.login_label = _("Email or username") if cint(system_settings.allow_login_using_user_name) else _("Email address")
 	context.lang = frappe.local.lang or "en"

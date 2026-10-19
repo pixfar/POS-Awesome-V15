@@ -623,7 +623,6 @@
 		"use strict";
 
 		var DASHBOARD = {{ dashboard_path | tojson }};
-		var REDIRECT_TO = {{ redirect_to | tojson }};
 		var STORAGE_KEY = "posa_login_email";
 		var REMEMBER_KEY = "posa_login_remember";
 		// Chrome/Edge expose the Credential Management API; other browsers fall
@@ -749,7 +748,9 @@
 				// Website User -- no Desk access, keep Frappe's own landing page.
 				target = safePath(body.redirect_to) || body.home_page || "/";
 			} else {
-				target = safePath(REDIRECT_TO) || DASHBOARD;
+				// System User -- always the dashboard, even when the login was
+				// reached from a deep link (?redirect-to=/app/...).
+				target = DASHBOARD;
 			}
 			rememberCredentials().then(function () { window.location.href = target; });
 		}
