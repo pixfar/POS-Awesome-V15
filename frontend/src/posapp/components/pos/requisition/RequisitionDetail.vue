@@ -82,7 +82,7 @@ export default {
 			const fields = [
 				{ label: __('Posting Date'), value: formatDisplayDate(detail.value.transaction_date) },
 				{ label: __('Requested By'), value: detail.value.requested_by },
-				{ label: __('Source Warehouse'), value: detail.value.source_warehouse },
+				{ label: __('From Warehouse'), value: detail.value.source_warehouse },
 				{ label: __('Target Warehouse'), value: detail.value.target_warehouse },
 				{ label: __('Created By'), value: detail.value.created_by },
 			{ label: __('Last Modified By'), value: detail.value.last_modified_by },

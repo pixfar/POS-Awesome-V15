@@ -24,7 +24,7 @@
 											:items="sourceWarehouseOptions"
 											item-title="warehouse_name"
 											item-value="name"
-											:label="__('Source Warehouse')"
+											:label="__('From Warehouse')"
 											density="compact"
 											variant="outlined"
 											color="primary"
@@ -35,7 +35,7 @@
 										<v-text-field
 											v-else-if="sourceWarehouse"
 											:model-value="sourceWarehouseLabel || sourceWarehouse"
-											:label="__('Source Warehouse')"
+											:label="__('From Warehouse')"
 											density="compact"
 											variant="outlined"
 											color="primary"
@@ -629,7 +629,7 @@ export default {
 			errorMessage.value = '';
 			const resolvedSource = resolveSourceWarehouse();
 			if (!resolvedSource) {
-				errorMessage.value = __('Source Warehouse is required.');
+				errorMessage.value = __('From Warehouse is required.');
 				return;
 			}
 			if (!targetWarehouse.value) {
@@ -638,7 +638,7 @@ export default {
 			}
 			if (resolvedSource === targetWarehouse.value) {
 				errorMessage.value = __(
-					'Source Warehouse and Target Warehouse cannot be the same.',
+					'From Warehouse and Target Warehouse cannot be the same.',
 				);
 				return;
 			}

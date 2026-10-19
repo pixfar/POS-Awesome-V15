@@ -45,10 +45,10 @@ def _validate_requisition_payload(data):
 
 	source_warehouse = data.get('source_warehouse')
 	if not source_warehouse:
-		frappe.throw(_('Source Warehouse is required.'), title=_('Warehouse Required'))
+		frappe.throw(_('From Warehouse is required.'), title=_('Warehouse Required'))
 	if source_warehouse == target_warehouse:
 		frappe.throw(
-			_('Source Warehouse and Target Warehouse cannot be the same.'),
+			_('From Warehouse and Target Warehouse cannot be the same.'),
 			title=_('Invalid Warehouses'),
 		)
 	return items
