@@ -142,16 +142,29 @@ export default {
 			return fields;
 		});
 
-		const itemColumns = [
-			{ key: 'item_code', label: __('Item Code') },
-			{ key: 'item_name', label: __('Item Name') },
-			{ key: 'item_group', label: __('Item Group') },
-			{ key: 'qty', label: __('Qty'), align: 'end' },
-			{ key: 'received_qty', label: __('Received Qty'), align: 'end' },
-			{ key: 'weight', label: __('Weight'), align: 'end' },
-			{ key: 'uom', label: __('UOM') },
-			{ key: 'schedule_date', label: __('Required Date') },
-		];
+		// Current stock columns: the server only sends the warehouse sides this
+		// user may see (all for System Manager / BSP Admin / BSP Viewer).
+		const itemColumns = computed(() => {
+			const columns = [
+				{ key: 'item_code', label: __('Item Code') },
+				{ key: 'item_name', label: __('Item Name') },
+				{ key: 'item_group', label: __('Item Group') },
+				{ key: 'qty', label: __('Qty'), align: 'end' },
+				{ key: 'received_qty', label: __('Received Qty'), align: 'end' },
+			];
+			if (detail.value.show_source_stock) {
+				columns.push({ key: 'source_stock_qty', label: __('Source Stock ({0})', [detail.value.from_warehouse]), align: 'end' });
+			}
+			if (detail.value.show_target_stock) {
+				columns.push({ key: 'target_stock_qty', label: __('Target Stock ({0})', [detail.value.to_warehouse]), align: 'end' });
+			}
+			columns.push(
+				{ key: 'weight', label: __('Weight'), align: 'end' },
+				{ key: 'uom', label: __('UOM') },
+				{ key: 'schedule_date', label: __('Required Date') },
+			);
+			return columns;
+		});
 
 		const itemRows = computed(() =>
 			(detail.value.items || []).map((row) => ({

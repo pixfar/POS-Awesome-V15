@@ -6,6 +6,7 @@ import time
 from functools import cache
 
 import frappe
+from frappe.utils import flt
 
 # Reusable ORM filter to exclude template items
 HAS_VARIANTS_EXCLUSION = {"has_variants": 0}
@@ -73,6 +74,51 @@ def attach_actual_qty(items, warehouse=None):
 	for row in items:
 		row["actual_qty"] = qty_map.get(row.get("item_code"), 0)
 	return items
+
+
+def attach_warehouse_stock(items, source_warehouse, target_warehouse, user=None):
+	"""Attach the current stock (Bin.actual_qty) of each item in the source
+	and target warehouse of a stock-movement document, as ``source_stock_qty``
+	and ``target_stock_qty``, for the warehouse sides this user may see.
+
+	System Manager, BSP Admin and BSP Viewer see both sides. Anyone else sees
+	only a side whose warehouse is one of their own permitted warehouses --
+	e.g. a showroom user sees their own showroom's stock, never the other
+	warehouse's. Returns {"show_source_stock": bool, "show_target_stock": bool}
+	so the page knows which columns to render.
+	"""
+	from posawesome.posawesome.utils.warehouse_doc_permissions import (
+		get_expanded_permitted_warehouses,
+	)
+
+	permitted = get_expanded_permitted_warehouses(user)
+
+	def visible(warehouse):
+		return bool(warehouse) and (permitted is None or warehouse in permitted)
+
+	sides = {
+		"source_stock_qty": source_warehouse if visible(source_warehouse) else None,
+		"target_stock_qty": target_warehouse if visible(target_warehouse) else None,
+	}
+	codes = list({row.get("item_code") for row in items if row.get("item_code")})
+	for field, warehouse in sides.items():
+		if not warehouse:
+			continue
+		qty_by_item = dict(
+			frappe.get_all(
+				"Bin",
+				filters={"item_code": ["in", codes or [""]], "warehouse": warehouse},
+				fields=["item_code", "actual_qty"],
+				as_list=True,
+			)
+		)
+		for row in items:
+			row[field] = flt(qty_by_item.get(row.get("item_code")))
+
+	return {
+		"show_source_stock": bool(sides["source_stock_qty"]),
+		"show_target_stock": bool(sides["target_stock_qty"]),
+	}
 
 
 logger = logging.getLogger(__name__)

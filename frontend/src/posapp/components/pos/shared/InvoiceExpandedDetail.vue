@@ -91,6 +91,14 @@ const text = (row, ...keys) => {
 
 const column = (key, label, options = {}) => ({ key, label: __(label), ...options });
 
+// Current stock in the source/target warehouse. The detail API only sends
+// the sides this user may see (both for System Manager / BSP Admin / BSP
+// Viewer, otherwise just the user's own warehouse).
+const stockColumns = (d) => [
+	...(d.show_source_stock ? [column("source_stock_qty", "Source Stock", { align: "right", kind: "qty" })] : []),
+	...(d.show_target_stock ? [column("target_stock_qty", "Target Stock", { align: "right", kind: "qty" })] : []),
+];
+
 const specs = {
 	invoice: {
 		lines: (d) => d.items || [],
@@ -111,10 +119,11 @@ const specs = {
 	},
 	requisition: {
 		lines: (d) => d.items || [],
-		columns: () => [
+		columns: (d) => [
 			column("item_name", "Item"),
 			column("item_code", "Code", { muted: true }),
 			column("required_qty", "Qty", { align: "right", kind: "qty" }),
+			...stockColumns(d),
 			column("uom", "UOM"),
 		],
 		totals: (d) => [
@@ -124,11 +133,12 @@ const specs = {
 	},
 	material_transfer: {
 		lines: (d) => d.items || [],
-		columns: () => [
+		columns: (d) => [
 			column("item_name", "Item"),
 			column("item_code", "Code", { muted: true }),
 			column("qty", "Qty", { align: "right", kind: "qty" }),
 			column("received_qty", "Received", { align: "right", kind: "qty" }),
+			...stockColumns(d),
 			column("uom", "UOM"),
 		],
 		totals: (d) => [
@@ -293,7 +303,7 @@ const specs = {
 };
 
 const spec = computed(() => specs[props.variant] || specs.invoice);
-const columns = computed(() => spec.value.columns());
+const columns = computed(() => spec.value.columns(props.detail || {}));
 const lines = computed(() => (props.detail ? spec.value.lines(props.detail) || [] : []));
 
 const formatKind = (kind, value) => {

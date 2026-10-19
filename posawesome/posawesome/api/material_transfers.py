@@ -19,7 +19,11 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_can_create,
 )
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
-from posawesome.posawesome.api.utils import attach_actual_qty, attach_user_full_names
+from posawesome.posawesome.api.utils import (
+	attach_actual_qty,
+	attach_user_full_names,
+	attach_warehouse_stock,
+)
 
 
 def _parse_json(value):
@@ -265,7 +269,10 @@ def get_material_transfer_detail(transfer):
 			}
 		)
 
+	stock_visibility = attach_warehouse_stock(items, doc.from_warehouse, doc.to_warehouse)
+
 	return {
+		**stock_visibility,
 		'name': doc.name,
 		'transaction_date': doc.transaction_date,
 		'requested_by': doc.requested_by,

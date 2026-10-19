@@ -110,7 +110,7 @@
 					density="comfortable"
 					hide-default-footer
 					:items-per-page="-1"
-					class="pos-list-table"
+					class="pos-list-table pos-list-table--wrap"
 					show-expand
 					:expand-on-click="false"
 					item-value="name"
@@ -149,7 +149,7 @@
 						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
 					</template>
 					<template #item.remarks="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.remarks">{{ item.remarks || "—" }}</span>
+						<span class="pos-list-cell-wrap" :title="item.remarks">{{ item.remarks || "—" }}</span>
 					</template>
 					<template #item.total_qty="{ item }">{{ formatFloat(item.total_qty) }}</template>
 					<template #item.total_value="{ item }">{{ formatCurrency(item.total_value) }}</template>
@@ -321,16 +321,16 @@ export default {
 		});
 
 		const listHeaders = [
-			{ title: __('Stock Entry'), key: 'name', sortable: true },
-			{ title: __('Date'), key: 'posting_date', sortable: true },
-			{ title: __('Time'), key: 'creation_ampm', sortable: false },
-			{ title: __('Warehouse'), key: 'warehouse', sortable: true },
-			{ title: __('Items'), key: 'item_count', sortable: true, align: 'end' },
-			{ title: __('Qty'), key: 'total_qty', sortable: true, align: 'end' },
-			{ title: __('Value'), key: 'total_value', sortable: true, align: 'end' },
-			{ title: __('Remarks'), key: 'remarks', sortable: false },
-			{ title: __('Created By'), key: 'created_by', sortable: true },
-			{ title: __('Status'), key: 'status', sortable: true },
+			{ title: __('Stock Entry'), key: 'name', sortable: true, width: '170px' },
+			{ title: __('Date'), key: 'posting_date', sortable: true, width: '92px' },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false, width: '80px' },
+			{ title: __('Warehouse'), key: 'warehouse', sortable: true, width: '200px' },
+			{ title: __('Items'), key: 'item_count', sortable: true, align: 'end', width: '70px' },
+			{ title: __('Qty'), key: 'total_qty', sortable: true, align: 'end', width: '96px' },
+			{ title: __('Value'), key: 'total_value', sortable: true, align: 'end', width: '120px' },
+			{ title: __('Remarks'), key: 'remarks', sortable: false, width: '180px' },
+			{ title: __('Created By'), key: 'created_by', sortable: true, width: '130px' },
+			{ title: __('Status'), key: 'status', sortable: true, width: '110px' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 

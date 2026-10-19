@@ -114,7 +114,7 @@
 					density="comfortable"
 					hide-default-footer
 					:items-per-page="-1"
-					class="pos-list-table"
+					class="pos-list-table pos-list-table--wrap"
 					show-expand
 					:expand-on-click="false"
 					item-value="name"
@@ -153,7 +153,7 @@
 						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
 					</template>
 					<template #item.remark="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.remark">{{ item.remark || "—" }}</span>
+						<span class="pos-list-cell-wrap" :title="item.remark">{{ item.remark || "—" }}</span>
 					</template>
 					<template #item.expense_types="{ item }">
 						<span class="pos-list-cell-truncate" :title="item.expense_types">{{ item.expense_types || "—" }}</span>
@@ -370,7 +370,7 @@ export default {
 			{ title: __('Warehouse'), key: 'warehouse', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
 			{ title: __('Time'), key: 'creation_ampm', sortable: false },
-			{ title: __('Remark'), key: 'remark', sortable: false },
+			{ title: __('Remark'), key: 'remark', sortable: false, width: '180px' },
 			{ title: __('Expense Type'), key: 'expense_types', sortable: false },
 			{ title: __('Amount'), key: 'grand_total', sortable: true, align: 'end' },
 			{ title: __('Status'), key: 'status', sortable: true },

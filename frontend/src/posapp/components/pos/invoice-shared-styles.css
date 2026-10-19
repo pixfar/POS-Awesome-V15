@@ -1036,6 +1036,14 @@
 	padding-right: 20px !important;
 }
 
+/* A left-aligned column right after a right-aligned number column (e.g.
+   Value then Remarks) otherwise starts flush against the number, so the
+   two read as one cell. Give it a clear gap on every list page. */
+.pos-list-table :deep(thead th.v-data-table-column--align-end + th:not(.v-data-table-column--align-end):not(.v-data-table-column--no-padding)),
+.pos-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td.v-data-table-column--align-end + td:not(.v-data-table-column--align-end):not(.v-data-table-column--no-padding)) {
+	padding-left: 24px !important;
+}
+
 /* Sales and Purchase invoice lists have many columns. Fixed widths keep
    Outstanding and Remarks from collapsing into each other, and a narrower
    DO Number leaves room for them. */
