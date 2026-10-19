@@ -72,6 +72,7 @@
 			:loading="actionLoading"
 			@confirm="performAdvanceStatus"
 		/>
+		<ServerMessageDialog :message="serverMessage" @close="serverMessage = null" />
 	</div>
 </template>
 
@@ -82,6 +83,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import ServerMessageDialog, { parseServerError } from '../shared/ServerMessageDialog.vue';
 import { useFormat } from '../../../format';
 
 const ACTION_CONFIRM_MESSAGES = {
@@ -97,7 +99,7 @@ const ACTION_CONFIRM_MESSAGES = {
 
 export default {
 	name: 'ProductionPlanDetail',
-	components: { DocumentDetailView, ConfirmActionDialog },
+	components: { ServerMessageDialog, DocumentDetailView, ConfirmActionDialog },
 	setup() {
 		const route = useRoute();
 		const router = useRouter();
@@ -213,6 +215,7 @@ export default {
 		};
 
 		const confirmDialogOpen = ref(false);
+		const serverMessage = ref(null);
 		const pendingAction = ref(null);
 
 		const confirmDialogTitle = computed(() =>
@@ -253,6 +256,7 @@ export default {
 				await frappe.call({
 					method: 'posawesome.posawesome.api.production_plans.advance_production_plan_status',
 					args: { name, action },
+					silent: true,
 					freeze: true,
 					freeze_message: __('Updating status...'),
 				});
@@ -261,7 +265,15 @@ export default {
 				pendingAction.value = null;
 				await loadDetail();
 			} catch (e) {
-				toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
+				// The server's own message (e.g. the Insufficient Stock table) is
+				// already on screen -- close the confirm dialog instead of
+				// leaving it stacked under that message.
+				confirmDialogOpen.value = false;
+				pendingAction.value = null;
+				serverMessage.value = parseServerError(e);
+				if (!serverMessage.value) {
+					toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
+				}
 			} finally {
 				actionLoading.value = false;
 			}
@@ -300,6 +312,7 @@ export default {
 			statusColor,
 			actionColor,
 			confirmDialogOpen,
+			serverMessage,
 			pendingAction,
 			confirmDialogTitle,
 			confirmDialogMessage,

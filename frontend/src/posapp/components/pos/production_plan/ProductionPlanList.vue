@@ -310,6 +310,7 @@
 			:loading="confirmLoading"
 			@confirm="performAdvanceStatus"
 		/>
+		<ServerMessageDialog :message="serverMessage" @close="serverMessage = null" />
 	</div>
 </template>
 
@@ -321,6 +322,7 @@ import format from '../../../format';
 import { useToastStore } from '../../../stores/toastStore';
 import DateFilterField from '../shared/DateFilterField.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
+import ServerMessageDialog, { parseServerError } from '../shared/ServerMessageDialog.vue';
 import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
@@ -340,7 +342,7 @@ const ACTION_CONFIRM_MESSAGES = {
 
 export default {
 	name: 'ProductionPlanList',
-	components: { DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
+	components: { ServerMessageDialog, DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
 	mixins: [format],
 	setup() {
 		const router = useRouter();
@@ -587,6 +589,7 @@ export default {
 		};
 
 		const confirmDialogOpen = ref(false);
+		const serverMessage = ref(null);
 		const confirmLoading = ref(false);
 		const pendingAction = ref(null);
 
@@ -652,6 +655,7 @@ export default {
 					await frappe.call({
 						method: 'posawesome.posawesome.api.production_plans.advance_production_plan_status',
 						args: { name, action },
+						silent: true,
 						freeze: true,
 						freeze_message: __('Updating status...'),
 					});
@@ -664,7 +668,15 @@ export default {
 				pendingAction.value = null;
 				await loadPlans();
 			} catch (e) {
-				toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
+				// The server's own message (e.g. the Insufficient Stock table) is
+				// already on screen -- close the confirm dialog instead of
+				// leaving it stacked under that message.
+				confirmDialogOpen.value = false;
+				pendingAction.value = null;
+				serverMessage.value = parseServerError(e);
+				if (!serverMessage.value) {
+					toastStore.show({ title: e?.message || __('Failed to update status'), color: 'error' });
+				}
 			} finally {
 				confirmLoading.value = false;
 			}
@@ -728,6 +740,7 @@ export default {
 			handleRowAction,
 			goToNew,
 			confirmDialogOpen,
+			serverMessage,
 			confirmLoading,
 			pendingAction,
 			confirmDialogTitle,
