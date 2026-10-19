@@ -1003,6 +1003,39 @@
 	text-overflow: ellipsis;
 }
 
+/* Lists that show full text instead of ellipsis: long values (warehouse
+   names, user names) wrap onto a second line so every column stays readable
+   inside the page. Status chips stay on one line. */
+.pos-list-table--wrap :deep(td) {
+	overflow: visible;
+	text-overflow: clip;
+}
+
+.pos-list-table--wrap :deep(.pos-list-cell-wrap) {
+	display: block;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	line-height: 1.3;
+	min-width: 90px;
+}
+
+.pos-list-table--wrap :deep(.v-chip) {
+	white-space: nowrap;
+}
+
+/* Production Plan numbers (MFG-PP-2026-00094) need more than the shared
+   150px first-column cap to show in full. */
+.production-plan-list-table :deep(thead th:first-child),
+.production-plan-list-table :deep(tbody tr:not(.pos-list-expanded-row) > td:first-child) {
+	max-width: 190px !important;
+}
+
+/* Keep an end-aligned number column from running into the next column. */
+.pos-list-table--wrap :deep(td.v-data-table-column--align-end),
+.pos-list-table--wrap :deep(th.v-data-table-column--align-end) {
+	padding-right: 20px !important;
+}
+
 /* Sales and Purchase invoice lists have many columns. Fixed widths keep
    Outstanding and Remarks from collapsing into each other, and a narrower
    DO Number leaves room for them. */

@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import flt, get_datetime, today
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
+from posawesome.posawesome.api.utils import attach_user_full_names
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 ALLOWED_TRANSITIONS = {
@@ -372,6 +373,8 @@ def get_production_plans_list(
 		'total_planned_qty',
 		'modified',
 		'creation',
+		'owner',
+		'modified_by',
 	]
 
 	rows = frappe.get_list(
@@ -386,6 +389,7 @@ def get_production_plans_list(
 		ignore_permissions=True,
 	)
 	rows = [_enrich_list_row(row) for row in rows]
+	attach_user_full_names(rows, {'owner': 'owner_name', 'modified_by': 'modified_by_name'})
 
 	weight_by_parent = get_total_weight_by_parent(
 		item_doctype, [row['name'] for row in rows], qty_field='planned_qty',

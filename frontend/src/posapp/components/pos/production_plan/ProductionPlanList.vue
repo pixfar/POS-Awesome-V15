@@ -150,7 +150,7 @@
 					density="comfortable"
 					hide-default-footer
 					:items-per-page="-1"
-					class="pos-list-table production-plan-list-table"
+					class="pos-list-table pos-list-table--wrap production-plan-list-table"
 					show-expand
 					:expand-on-click="false"
 					item-value="name"
@@ -189,9 +189,13 @@
 						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
 					</template>
 					<template #item.for_warehouse="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.for_warehouse">
-							{{ item.for_warehouse || "—" }}
-						</span>
+						<span class="pos-list-cell-wrap">{{ item.for_warehouse || "—" }}</span>
+					</template>
+					<template #item.owner_name="{ item }">
+						<span class="pos-list-cell-wrap">{{ item.owner_name || "—" }}</span>
+					</template>
+					<template #item.modified_by_name="{ item }">
+						<span class="pos-list-cell-wrap">{{ item.modified_by_name || "—" }}</span>
 					</template>
 					<template #item.total_planned_qty="{ item }">
 						<span class="pos-list-cell-muted">{{ formatQty(item.total_planned_qty) }}</span>
@@ -385,13 +389,15 @@ export default {
 		);
 
 		const listHeaders = [
-			{ title: __('Plan'), key: 'name', sortable: true },
-			{ title: __('Date'), key: 'posting_date', sortable: true },
-			{ title: __('Time'), key: 'creation_ampm', sortable: false },
-			{ title: __('Source Warehouse'), key: 'for_warehouse', sortable: true },
-			{ title: __('Planned Qty'), key: 'total_planned_qty', sortable: true, align: 'end' },
-			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
-			{ title: __('Status'), key: 'workflow_state', sortable: true },
+			{ title: __('Plan'), key: 'name', sortable: true, width: '180px' },
+			{ title: __('Date'), key: 'posting_date', sortable: true, width: '92px' },
+			{ title: __('Time'), key: 'creation_ampm', sortable: false, width: '80px' },
+			{ title: __('Source Warehouse'), key: 'for_warehouse', sortable: true, width: '220px' },
+			{ title: __('Planned Qty'), key: 'total_planned_qty', sortable: true, align: 'end', width: '96px' },
+			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end', width: '90px' },
+			{ title: __('Status'), key: 'workflow_state', sortable: true, width: '170px' },
+			{ title: __('Created By'), key: 'owner_name', sortable: true, width: '130px' },
+			{ title: __('Last Updated By'), key: 'modified_by_name', sortable: true, width: '130px' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 

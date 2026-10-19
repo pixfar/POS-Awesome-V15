@@ -121,7 +121,7 @@
 					density="comfortable"
 					hide-default-footer
 					:items-per-page="-1"
-					class="pos-list-table"
+					class="pos-list-table pos-list-table--wrap"
 					show-expand
 					:expand-on-click="false"
 					item-value="name"
@@ -154,10 +154,10 @@
 						<span class="pos-list-cell-primary">{{ item.name }}</span>
 					</template>
 					<template #item.item="{ item }">
-						<div>
-							<div>{{ item.item_name }}</div>
-							<div class="text-caption text-medium-emphasis">{{ item.item }}</div>
-						</div>
+						<span>{{ item.item }}</span>
+					</template>
+					<template #item.item_name="{ item }">
+						<span class="pos-list-cell-wrap">{{ item.item_name || "—" }}</span>
 					</template>
 					<template #item.quantity="{ item }">
 						<span class="pos-list-cell-muted">{{ formatQty(item.quantity) }} {{ item.uom }}</span>
@@ -179,6 +179,9 @@
 						<v-chip size="small" variant="tonal" :color="statusColor(item.status)">
 							{{ item.status }}
 						</v-chip>
+					</template>
+					<template #item.owner_name="{ item }">
+						<span class="pos-list-cell-wrap">{{ item.owner_name || "—" }}</span>
 					</template>
 					<template #item.actions="{ item }">
 						<div class="d-flex justify-end">
@@ -445,12 +448,14 @@ export default {
 
 		const listHeaders = [
 			{ title: __('BOM'), key: 'name', sortable: true },
-			{ title: __('Item'), key: 'item', sortable: true },
+			{ title: __('Item Code'), key: 'item', sortable: true, width: '110px' },
+			{ title: __('Item Name'), key: 'item_name', sortable: true },
 			{ title: __('Qty'), key: 'quantity', sortable: true, align: 'end' },
 			{ title: __('Weight'), key: 'total_weight', sortable: true, align: 'end' },
 			{ title: __('Active'), key: 'is_active', sortable: true },
 			{ title: __('Default'), key: 'is_default', sortable: true },
 			{ title: __('Status'), key: 'status', sortable: true },
+			{ title: __('Created By'), key: 'owner_name', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 

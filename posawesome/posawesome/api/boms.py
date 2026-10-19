@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import cint, flt
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
+from posawesome.posawesome.api.utils import attach_user_full_names
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 
@@ -251,6 +252,7 @@ def get_boms_list(
 		'docstatus',
 		'total_cost',
 		'modified',
+		'owner',
 	]
 
 	rows = frappe.get_list(
@@ -264,6 +266,7 @@ def get_boms_list(
 		ignore_permissions=True,
 	)
 	rows = [_enrich_list_row(row) for row in rows]
+	attach_user_full_names(rows, {'owner': 'owner_name'})
 
 	weight_by_parent = get_total_weight_by_parent('BOM Item', [row['name'] for row in rows])
 	for row in rows:
