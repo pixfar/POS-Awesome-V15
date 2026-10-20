@@ -747,9 +747,27 @@ export default {
 			if (!warehouse || typeof this.itemsStore?.refreshItems !== "function") {
 				return;
 			}
+			// The first catalog load already waited for this warehouse
+			// (itemsStore.beginWarehouseResolution) -- reloading it again
+			// would only blank and refill the same grid.
+			if (this.itemsStore.catalogWarehouse === warehouse) {
+				return;
+			}
 			await this.itemsStore.refreshItems({ warehouse, forceServer: true });
 		},
 		async fetchWarehouses() {
+			try {
+				await this.resolveSaleWarehouse();
+			} finally {
+				// Release the item catalog even if no warehouse could be
+				// resolved -- but not on the mounted() call that runs before
+				// the POS Profile is registered, which can't resolve anything.
+				if (this.pos_profile?.name) {
+					this.itemsStore?.endWarehouseResolution?.();
+				}
+			}
+		},
+		async resolveSaleWarehouse() {
 			const profileWh = this.pos_profile?.warehouse || null;
 			if (!this.canChangePosWarehouse) {
 				this.warehouses = [];
@@ -1300,12 +1318,15 @@ export default {
 
 			this.invoiceType = this.pos_profile.posa_default_sales_order ? "Order" : "Invoice";
 
-			// Seed warehouse from POS profile if user hasn't picked one yet
-			if (!this.sale_warehouse && data.pos_profile?.warehouse) {
-				this.sale_warehouse = data.pos_profile.warehouse;
-			}
+			// Seed warehouse from POS profile if user hasn't picked one yet.
+			// Only an already-resolved warehouse goes to the item store here --
+			// the profile's static default is just a placeholder until
+			// fetchWarehouses() resolves the real one, and handing it over
+			// would load the catalog for the wrong warehouse first.
 			if (this.sale_warehouse) {
 				this.itemsStore?.setActiveSaleWarehouse?.(this.sale_warehouse);
+			} else if (data.pos_profile?.warehouse) {
+				this.sale_warehouse = data.pos_profile.warehouse;
 			}
 
 			this.fetchWarehouses();
@@ -1706,6 +1727,10 @@ export default {
 	},
 	created() {
 		this.invoiceStore.clear();
+		// Hold the item selector's first catalog load until fetchWarehouses()
+		// resolves the cashier's real warehouse (see itemsStore). Invoice is
+		// created before ItemsSelector in Pos.vue, so this runs first.
+		this.itemsStore?.beginWarehouseResolution?.();
 		this.$watch(
 			() => this.selectedCustomer,
 			(newCustomer) => {

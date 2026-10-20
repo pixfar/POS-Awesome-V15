@@ -111,6 +111,50 @@ export const useItemsStore = defineStore("items", () => {
 	const lastSearch = ref("");
 	const posProfile = ref<POSProfile | null>(null);
 	const activeSaleWarehouse = ref<string | null>(null);
+	// Warehouse the catalog was last (or is currently being) loaded for --
+	// lets the Sales screen skip a redundant full reload once it resolves the
+	// warehouse the first load already used.
+	const catalogWarehouse = ref<string | null>(null);
+
+	// The Sales screen only knows the cashier's real warehouse after a server
+	// round trip (get_pos_warehouses / get_pos_active_warehouse); until then
+	// all it has is the POS Profile's static default. Without this gate
+	// initialize() loaded the catalog for that default first, then the whole
+	// grid swapped to the real warehouse's items a few seconds later. The
+	// screen opens the gate with beginWarehouseResolution() before the item
+	// selector initialises; setActiveSaleWarehouse() (or
+	// endWarehouseResolution() on failure) closes it, and initialize() waits
+	// for it -- capped, so a stuck request never leaves the grid empty.
+	const WAREHOUSE_GATE_TIMEOUT_MS = 8000;
+	let warehouseGate: { promise: Promise<void>; resolve: () => void } | null = null;
+
+	const beginWarehouseResolution = () => {
+		if (warehouseGate) return;
+		let resolve: () => void = () => {};
+		const promise = new Promise<void>((r) => {
+			resolve = r;
+		});
+		warehouseGate = { promise, resolve };
+	};
+
+	const endWarehouseResolution = () => {
+		if (!warehouseGate) return;
+		const gate = warehouseGate;
+		warehouseGate = null;
+		gate.resolve();
+	};
+
+	const waitForWarehouseResolution = async () => {
+		if (!warehouseGate) return;
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		await Promise.race([
+			warehouseGate.promise,
+			new Promise<void>((r) => {
+				timer = setTimeout(r, WAREHOUSE_GATE_TIMEOUT_MS);
+			}),
+		]);
+		if (timer) clearTimeout(timer);
+	};
 	const customer = ref<string | null>(null);
 	const customerPriceList = ref<string | null>(null);
 	// Independent of cachedPagination's IndexedDB-total heuristic (which can get
@@ -320,6 +364,9 @@ export const useItemsStore = defineStore("items", () => {
 			// removes that stale figure before it can ever be applied.
 			stockCoordinator.clearAll();
 		}
+		if (resolved) {
+			endWarehouseResolution();
+		}
 	};
 
 	const getCacheScope = () => {
@@ -474,6 +521,7 @@ export const useItemsStore = defineStore("items", () => {
 		// instead of trusting posProfile.value.warehouse -- preserving it
 		// here closes it at the source instead, so every other consumer of
 		// posProfile.value.warehouse doesn't need its own workaround too.
+		await waitForWarehouseResolution();
 		posProfile.value = activeSaleWarehouse.value
 			? { ...profile, warehouse: activeSaleWarehouse.value }
 			: profile;
@@ -488,6 +536,7 @@ export const useItemsStore = defineStore("items", () => {
 		void assessCacheHealth();
 
 		if (!itemsLoaded.value || items.value.length === 0) {
+			catalogWarehouse.value = resolveLoadItemsWarehouse();
 			await loadItems({ forceServer: false });
 		}
 		itemsLoaded.value = true;
@@ -605,6 +654,11 @@ export const useItemsStore = defineStore("items", () => {
 	let forcedLoadsInFlight = 0;
 
 	const loadItems = async (options: LoadItemsOptions = {}) => {
+		// Any load that doesn't name its warehouse waits for the real one
+		// (see beginWarehouseResolution) instead of using the placeholder.
+		if (!options.warehouse) {
+			await waitForWarehouseResolution();
+		}
 		const request = buildLoadItemsRequest({
 			options: {
 				...options,
@@ -1323,6 +1377,7 @@ export const useItemsStore = defineStore("items", () => {
 	};
 
 	const refreshItems = async (options: LoadItemsOptions = {}) => {
+		catalogWarehouse.value = resolveLoadItemsWarehouse(options);
 		await clearAllCaches();
 		itemsLoaded.value = false;
 		resetCachedPagination();
@@ -1511,6 +1566,9 @@ export const useItemsStore = defineStore("items", () => {
 		posProfile,
 		activeSaleWarehouse,
 		setActiveSaleWarehouse,
+		catalogWarehouse,
+		beginWarehouseResolution,
+		endWarehouseResolution,
 		customer,
 		customerPriceList,
 		cacheHealth,
