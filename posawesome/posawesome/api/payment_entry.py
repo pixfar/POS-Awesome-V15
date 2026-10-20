@@ -10,7 +10,7 @@ to preserve stable dotted paths used by existing clients and hooks.
 import json
 import frappe
 from frappe import _
-from frappe.utils import flt, cint, nowdate, getdate
+from frappe.utils import flt, cint, fmt_money, nowdate, getdate
 from erpnext.accounts.party import get_party_account
 from erpnext.accounts.utils import get_account_currency
 from erpnext.setup.utils import get_exchange_rate
@@ -732,6 +732,11 @@ def make_payment_direct(
     invoices_to_allocate = _resolve_invoices_for_allocation(
         party, party_type, company, selected_invoices, auto_allocate
     )
+    # Payments are kept invoice-wise: no advance / unallocated amount. Anything
+    # entered beyond the invoices' outstanding is change handed back, so it is
+    # trimmed off the payment methods (last ones first) before the Payment
+    # Entries are made.
+    active_methods = _cap_methods_to_outstanding(active_methods, invoices_to_allocate, party_type)
 
     created = []
     remaining_inv = {}
@@ -775,10 +780,12 @@ def make_payment_direct(
                 posting_date,
                 remaining_inv,
             )
-        else:
-            pe.total_allocated_amount = 0
-            party_amount, _party_currency = _party_amount_available(pe, party_type)
-            pe.unallocated_amount = flt(party_amount)
+        if flt(pe.unallocated_amount) > 0.005:
+            frappe.throw(
+                _("Payment of {0} exceeds the selected invoices' outstanding by {1}. Over payment is not allowed.").format(
+                    fmt_money(amount), fmt_money(pe.unallocated_amount)
+                )
+            )
 
         pe.insert(ignore_permissions=True)
         pe.submit()
@@ -789,6 +796,49 @@ def make_payment_direct(
         frappe.throw(_("Payment could not be processed"))
 
     return {"name": created[0], "payments": created}
+
+
+def _invoices_outstanding_total(invoices, party_type):
+    """Sum of the current outstanding of the invoices / Journal Entry dues
+    being paid -- re-read from the documents, not trusted from the client."""
+    total = 0
+    for inv in invoices or []:
+        voucher_type = inv.get("voucher_type") or (
+            "Purchase Invoice" if party_type == "Supplier" else "Sales Invoice"
+        )
+        inv_no = inv.get("voucher_no") or inv.get("name")
+        if not inv_no:
+            continue
+        if voucher_type == "Journal Entry":
+            outstanding = flt(inv.get("outstanding_amount"))
+        else:
+            outstanding = flt(frappe.db.get_value(voucher_type, inv_no, "outstanding_amount"))
+        total += max(outstanding, 0)
+    return total
+
+
+def _cap_methods_to_outstanding(active_methods, invoices, party_type="Customer"):
+    """Trim the entered payment-method amounts so their total never exceeds
+    the invoices' outstanding (no over payment / unallocated amount). Earlier
+    methods are filled first; methods left with nothing are dropped."""
+    if not invoices:
+        frappe.throw(_("Please select the invoice(s) to pay. Advance / unallocated payments are not allowed."))
+
+    precision = cint(frappe.db.get_default("currency_precision") or 2)
+    budget = flt(_invoices_outstanding_total(invoices, party_type), precision)
+    if budget <= 0:
+        frappe.throw(_("The selected invoices have no outstanding amount."))
+
+    capped = []
+    for method in active_methods:
+        if budget <= 0:
+            break
+        amount = min(flt(method.get("amount"), precision), budget)
+        if amount <= 0:
+            continue
+        capped.append({**method, "amount": amount})
+        budget = flt(budget - amount, precision)
+    return capped
 
 
 def _attach_cheque_image(pe):

@@ -388,7 +388,7 @@
 										: paymentDiff > 0 ? 'text-warning' : 'text-error'"
 								>
 									<span class="payment-summary-row__label">
-										{{ paymentDiff >= 0 ? __("Excess") : __("Shortfall") }}
+										{{ paymentDiff >= 0 ? __("Change") : __("Shortfall") }}
 									</span>
 									<strong class="payment-summary-row__val">
 										{{ currencySymbol() }}{{ formatAmt(Math.abs(paymentDiff)) }}
@@ -509,7 +509,7 @@
 												? 'payment-submit-panel__row--excess'
 												: 'payment-submit-panel__row--short'"
 									>
-										<span>{{ paymentDiff >= 0 ? __("Excess") : __("Shortfall") }}</span>
+										<span>{{ paymentDiff >= 0 ? __("Change") : __("Shortfall") }}</span>
 										<strong>{{ currencySymbol() }}{{ formatAmt(Math.abs(paymentDiff)) }}</strong>
 									</div>
 								</div>
@@ -1004,6 +1004,9 @@ export default {
 			() =>
 				!!partyName.value &&
 				total_payment_methods.value > 0 &&
+				// Payments are invoice-wise only -- no advance / unallocated
+				// amount (make_payment_direct enforces the same).
+				(selected_invoices.value.length > 0 || autoAllocate.value) &&
 				(props.partyType !== "Supplier" || isFundTransferManager()),
 		);
 
