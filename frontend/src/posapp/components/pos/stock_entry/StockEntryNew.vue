@@ -465,9 +465,15 @@ export default {
 			}
 			loadWarehouseOptions();
 			await ensureItemsStoreInitialized(uiStore.posProfile);
-			if (warehouse.value) {
-				itemsStore.setActiveSaleWarehouse(warehouse.value);
+			// Landing here directly, the POS Profile (and so its warehouse) may
+			// only be known after the store initialized.
+			if (!warehouse.value) {
+				warehouse.value = itemsStore.posProfile?.warehouse || null;
 			}
+			// initialize() alone only fetches the 20-item first page; load the
+			// warehouse's full catalogue like the other entry screens (and the
+			// warehouse picker) do.
+			await onWarehouseChange();
 		});
 
 		return {

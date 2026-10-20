@@ -601,10 +601,43 @@ export const useItemsStore = defineStore("items", () => {
 		});
 	};
 
+	// Full (forceServer) catalogue loads currently in flight; see loadItems.
+	let forcedLoadsInFlight = 0;
+
 	const loadItems = async (options: LoadItemsOptions = {}) => {
+		const request = buildLoadItemsRequest({
+			options: {
+				...options,
+				warehouse: resolveLoadItemsWarehouse(options),
+			},
+			posProfile: posProfile.value,
+			activePriceList: activePriceList.value,
+			customer: customer.value,
+			itemCount: items.value.length,
+			totalItemCount: totalItemCount.value,
+			limitSearchEnabled: limitSearchEnabled.value,
+			resolvePageSize,
+			resolveInitialBootstrapPageSize,
+			resolveLimitSearchSize: () =>
+				resolveLimitSearchSize(
+					posProfile.value,
+					limitSearchEnabled.value,
+				),
+		});
+
+		// An empty catalog grid starts a quick first-page ("bootstrap") load
+		// when it mounts. While a full load is already running (an entry
+		// screen loading its warehouse's catalogue) that page is redundant --
+		// and, being the newer request, it would make the full result be
+		// dropped below (requestToken), leaving only the first 20 items.
+		if (request.isInitialBootstrapRequest && forcedLoadsInFlight > 0) {
+			return items.value;
+		}
+
 		const startTime = performance.now();
 		const currentRequestToken = ++requestToken.value;
 		let cacheKey: string | null = null;
+		if (request.forceServer) forcedLoadsInFlight++;
 
 		try {
 			isLoading.value = true;
@@ -618,25 +651,7 @@ export const useItemsStore = defineStore("items", () => {
 				effectivePriceList,
 				isInitialBootstrapRequest,
 				args,
-			} = buildLoadItemsRequest({
-				options: {
-					...options,
-					warehouse: resolveLoadItemsWarehouse(options),
-				},
-				posProfile: posProfile.value,
-				activePriceList: activePriceList.value,
-				customer: customer.value,
-				itemCount: items.value.length,
-				totalItemCount: totalItemCount.value,
-				limitSearchEnabled: limitSearchEnabled.value,
-				resolvePageSize,
-				resolveInitialBootstrapPageSize,
-				resolveLimitSearchSize: () =>
-					resolveLimitSearchSize(
-						posProfile.value,
-						limitSearchEnabled.value,
-					),
-			});
+			} = request;
 
 			cacheKey = generateCacheKey(
 				searchValue,
@@ -794,6 +809,7 @@ export const useItemsStore = defineStore("items", () => {
 				throw error;
 			}
 		} finally {
+			if (request.forceServer) forcedLoadsInFlight--;
 			isLoading.value = false;
 			if (cacheKey) {
 				abortControllers.value.delete(cacheKey);
