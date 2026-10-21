@@ -91,7 +91,7 @@
 							<div v-html="`Email: ${item.raw.email_id}`"></div>
 						</v-list-item-subtitle>
 						<v-list-item-subtitle v-if="item.raw.mobile_no">
-							<div v-html="`Mobile No: ${item.raw.mobile_no}`"></div>
+							<v-icon size="14" class="mr-1">mdi-phone-outline</v-icon>{{ item.raw.mobile_no }}
 						</v-list-item-subtitle>
 						<v-list-item-subtitle v-if="item.raw.primary_address">
 							<div v-html="`Primary Address: ${item.raw.primary_address}`"></div>

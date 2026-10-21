@@ -435,7 +435,9 @@ def search_items(search_text=None, limit=20, warehouse=None, page_start=0):
 			'standard_rate',
 			'custom_default_weigt_of_measure',
 		],
-		order_by='item_name asc',
+		# Same order as the item selector and the other transaction searches
+		# (item code), so the dropdown lists the same items in the same sequence.
+		order_by='name asc',
 		limit_start=page_start,
 		limit_page_length=limit,
 	)

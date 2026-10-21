@@ -124,7 +124,30 @@ const __ = window.__;
 }
 
 .payment-action-col {
+	min-width: 0;
 	padding: 0 6px;
+}
+
+.payment-footer-btn {
+	width: 100%;
+	max-width: 100%;
+	height: auto !important;
+	white-space: normal !important;
+}
+
+:deep(.payment-footer-btn.v-btn) {
+	min-width: 0 !important;
+	height: auto !important;
+	white-space: normal !important;
+}
+
+:deep(.payment-footer-btn .v-btn__content) {
+	white-space: normal !important;
+	flex-wrap: wrap;
+	justify-content: center;
+	text-align: center;
+	line-height: 1.15;
+	overflow-wrap: break-word;
 }
 
 .payment-action-col:first-child {

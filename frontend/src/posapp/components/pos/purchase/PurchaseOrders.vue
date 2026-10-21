@@ -310,11 +310,29 @@
 						<div class="purchase-bottom-bar__summary">
 							<span class="purchase-bottom-bar__label">{{ __("Purchase Total") }}</span>
 							<strong class="purchase-bottom-bar__amount">
-								{{ currencySymbol(supplierCurrency || pos_profile.currency) }}{{ formatCurrency(totalAmount) }}
+								{{ currencySymbol(supplierCurrency || pos_profile.currency) }}{{ formatCurrency(payableAmount) }}
 							</strong>
 							<span class="purchase-bottom-bar__meta">
 								{{ purchaseItems.length }} {{ purchaseItems.length === 1 ? __("item") : __("items") }}
+								<template v-if="Number(discountAmount) > 0">
+									· {{ currencySymbol(supplierCurrency || pos_profile.currency) }}{{ formatCurrency(discountAmount) }} {{ __("discount") }}
+								</template>
 							</span>
+						</div>
+						<div class="purchase-bottom-bar__discount">
+							<v-text-field
+								:model-value="discountAmount"
+								type="number"
+								min="0"
+								:label="__('Additional Discount')"
+								prepend-inner-icon="mdi-cash-minus"
+								variant="solo"
+								density="compact"
+								hide-details
+								class="purchase-discount-field"
+								:prefix="currencySymbol(supplierCurrency || pos_profile.currency)"
+								@update:model-value="setDiscountAmount"
+							/>
 						</div>
 						<v-btn
 							:loading="submitLoading"
@@ -346,16 +364,19 @@
 				<div class="mobile-sale-dock__copy">
 					<span class="mobile-sale-dock__eyebrow">{{ __("Purchase Total") }}</span>
 					<strong class="mobile-sale-dock__amount">
-						{{ currencySymbol(supplierCurrency || pos_profile.currency) }}{{ formatCurrency(totalAmount) }}
+						{{ currencySymbol(supplierCurrency || pos_profile.currency) }}{{ formatCurrency(payableAmount) }}
 					</strong>
 					<span class="mobile-sale-dock__meta">
 						{{ purchaseItems.length }} {{ purchaseItems.length === 1 ? __("item") : __("items") }}
+						<template v-if="Number(discountAmount) > 0">
+							· {{ currencySymbol(supplierCurrency || pos_profile.currency) }}{{ formatCurrency(discountAmount) }} {{ __("discount") }}
+						</template>
 					</span>
 				</div>
 				<!-- Discount here (same as Sales); the Pay button is in the dock below. -->
 				<div class="mobile-sale-dock__field">
 					<v-text-field
-						v-model.number="discountAmount"
+						:model-value="discountAmount"
 						type="number"
 						min="0"
 						:label="__('Additional Discount')"
@@ -364,6 +385,7 @@
 						density="compact"
 						color="warning"
 						hide-details
+						@update:model-value="setDiscountAmount"
 					/>
 				</div>
 			</div>
@@ -603,6 +625,22 @@ export default {
 		});
 		const payments = ref([]);
 		const discountAmount = ref(0);
+		const payableAmount = computed(() =>
+			Math.max((Number(totalAmount.value) || 0) - (Number(discountAmount.value) || 0), 0),
+		);
+		const setDiscountAmount = (value) => {
+			const parsed = Number(value);
+			let amount = Number.isFinite(parsed) ? parsed : 0;
+			if (amount < 0) amount = 0;
+			const max = Number(totalAmount.value) || 0;
+			if (amount > max) amount = max;
+			discountAmount.value = amount;
+		};
+		watch(totalAmount, (total) => {
+			const current = Number(discountAmount.value) || 0;
+			const cap = Number(total) || 0;
+			if (current > cap) discountAmount.value = Math.max(cap, 0);
+		});
 		const itemSearchQuery = ref("");
 		const selectedSearchItemCode = ref(null);
 		const itemSearchResults = ref([]);
@@ -1318,6 +1356,9 @@ export default {
 			priceListCurrency,
 			supplierOutstanding,
 			totalAmount,
+			payableAmount,
+			discountAmount,
+			setDiscountAmount,
 			submitLoading,
 			errorMessage,
 			onAddItem,
@@ -1480,6 +1521,28 @@ export default {
 .purchase-bottom-bar__meta {
 	font-size: 0.82rem;
 	color: rgba(255, 255, 255, 0.82);
+}
+
+.purchase-bottom-bar__discount {
+	flex: 1 1 220px;
+	max-width: 280px;
+	min-width: 180px;
+}
+
+.purchase-discount-field :deep(.v-field) {
+	background: rgba(255, 255, 255, 0.18) !important;
+	border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+.purchase-discount-field :deep(.v-field__input),
+.purchase-discount-field :deep(.v-label),
+.purchase-discount-field :deep(input),
+.purchase-discount-field :deep(.v-text-field__prefix) {
+	color: #ffffff !important;
+}
+
+.purchase-discount-field :deep(.v-field__prepend-inner .v-icon) {
+	color: rgba(255, 255, 255, 0.75) !important;
 }
 
 .outstanding-panel {

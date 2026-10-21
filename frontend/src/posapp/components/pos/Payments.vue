@@ -2194,31 +2194,105 @@ onBeforeUnmount(() => {
 	color: rgb(var(--v-theme-on-surface));
 }
 
+@media (max-width: 1099px) {
+	/* Purchase Pay is a dialog whose card is viewport-tall, so Submit is the
+	   last row of that card. Sales Pay is inline. Give it the same shape:
+	   a sheet from the navbar down to just above Browse / Cart / Pay.
+	   Do not use --bottom-safe-space here. On a phone that variable is at
+	   least 220px, which parks the buttons well above the menu. */
+	.payment-shell:not(.payment-shell--dialog) {
+		position: fixed;
+		top: var(--v-layout-top, 64px);
+		right: 8px;
+		left: 8px;
+		bottom: auto;
+		z-index: 6;
+		display: flex;
+		flex-direction: column;
+		height: calc(
+			100dvh - var(--v-layout-top, 64px) - var(--mobile-dock-clearance, 84px) - 8px
+		) !important;
+		max-height: none !important;
+		min-height: 0;
+		overflow: hidden;
+		gap: 0;
+		padding: 0;
+		background: var(--pos-card-bg);
+		border-radius: 16px;
+		box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+	}
+
+	.payment-shell:not(.payment-shell--dialog) .payment-card {
+		flex: 1 1 auto;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		margin: 0 !important;
+		height: auto !important;
+		max-height: none !important;
+		overflow: hidden;
+		border: none !important;
+		border-radius: 16px 16px 0 0 !important;
+		box-shadow: none !important;
+	}
+
+	.payment-shell:not(.payment-shell--dialog) .payment-scroll {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto !important;
+		max-height: none;
+	}
+
+	.payment-shell:not(.payment-shell--dialog) .payment-footer {
+		position: static !important;
+		left: auto;
+		right: auto;
+		bottom: auto;
+		z-index: 8;
+		flex: 0 0 auto;
+		margin: 0 !important;
+		background: var(--pos-card-bg);
+		border-top: 1px solid var(--pos-border-light);
+		border-radius: 0 0 16px 16px;
+		box-shadow: none;
+	}
+}
+
 @media (max-width: 768px) {
-	.payment-shell {
+	.payment-shell--dialog {
 		display: flex;
 		flex-direction: column;
 		gap: var(--pos-space-2);
-		overflow: visible;
+		height: auto;
+		max-height: calc(100dvh - 24px);
+		overflow: hidden;
 	}
 
-	.payment-card {
+	.payment-shell--dialog .payment-card {
 		padding: var(--pos-space-1);
+		flex: 1 1 auto;
+		min-height: 0;
 		height: auto !important;
 		max-height: none !important;
-		overflow: visible !important;
+		overflow: hidden !important;
 	}
 
-	.payment-shell--dialog {
-		height: auto;
-	}
-
-	.payment-scroll {
+	.payment-shell--dialog .payment-scroll {
 		padding: var(--pos-space-2);
 		gap: var(--pos-space-2);
-		overflow: visible !important;
-		min-height: auto;
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto !important;
 		max-height: none;
+	}
+
+	.payment-shell:not(.payment-shell--dialog) .payment-card {
+		padding: var(--pos-space-1);
+	}
+
+	.payment-shell:not(.payment-shell--dialog) .payment-scroll {
+		padding: var(--pos-space-2);
+		gap: var(--pos-space-2);
 	}
 
 	.payment-sections {
@@ -2238,8 +2312,9 @@ onBeforeUnmount(() => {
 		gap: var(--pos-space-2);
 	}
 
-	.payment-footer {
-		position: sticky;
+	.payment-shell--dialog .payment-footer {
+		position: static;
+		flex: 0 0 auto;
 		margin-top: 0;
 		padding-bottom: calc(env(safe-area-inset-bottom) + 4px);
 	}

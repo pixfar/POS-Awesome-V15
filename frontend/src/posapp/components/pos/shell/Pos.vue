@@ -107,13 +107,13 @@
 				:md="useCompactPosSwitcher ? 12 : 6"
 				:sm="useCompactPosSwitcher ? 12 : 6"
 				cols="12"
-				class="pos dynamic-col dynamic-col--selector"
+				class="pos dynamic-col dynamic-col--selector dynamic-col--payment"
 			>
 				<Payments></Payments>
 			</v-col>
 		</v-row>
 		<div v-if="showBottomDock" ref="mobileDock" class="mobile-pos-stack">
-			<div class="mobile-sale-dock">
+			<div v-if="showActiveSaleDock" class="mobile-sale-dock">
 				<div class="mobile-sale-dock__copy">
 					<span class="mobile-sale-dock__eyebrow">{{ __("Active sale") }}</span>
 					<strong class="mobile-sale-dock__amount">{{ formattedCartTotal }}</strong>
@@ -275,7 +275,16 @@ export default {
 		const compactPanel = ref("invoice");
 		const isPhone = computed(() => responsive.isPhone.value);
 		const showBottomDock = computed(() => !dialog.value && responsive.windowWidth.value < 1100);
+		// Pay already shows net total, tax, and discount. The Active Sale card
+		// would only repeat that and push the submit buttons over the form.
+		const showActiveSaleDock = computed(
+			() => !paymentDialogOpen.value && activeView.value !== "payment",
+		);
 		const bottomDockHeight = ref(0);
+		// Distance from the viewport bottom to the top of Browse / Cart / Pay.
+		// --bottom-safe-space stays at least 220px so other panels can scroll
+		// clear of the dock; the pay sheet must use this tighter measurement.
+		const mobileDockClearance = ref(0);
 		let mobileDockObserver = null;
 		const isEditingAdditionalDiscount = ref(false);
 		const isEditingAdditionalDiscountPercentage = ref(false);
@@ -456,21 +465,33 @@ export default {
 			const parsed = Number.parseFloat(String(rawValue || "0"));
 			return Number.isFinite(parsed) ? parsed : 24;
 		};
+		const measureDockClearance = (dockElement) => {
+			if (!dockElement || typeof window === "undefined") {
+				mobileDockClearance.value = 0;
+				return;
+			}
+			const top = dockElement.getBoundingClientRect().top;
+			mobileDockClearance.value = Math.max(0, Math.round(window.innerHeight - top));
+		};
 		const updateBottomDockHeight = () => {
 			const dockElement = mobileDock.value;
 			if (!showBottomDock.value || !dockElement) {
 				bottomDockHeight.value = 0;
+				mobileDockClearance.value = 0;
 				return;
 			}
 			bottomDockHeight.value = dockElement.offsetHeight + 28;
+			measureDockClearance(dockElement);
 		};
 		const layoutStyleOverrides = computed(() => {
 			const fallbackBottomSpace = getFallbackBottomSpace();
 			const effectiveBottomSpace = showBottomDock.value
 				? Math.max(bottomDockHeight.value, fallbackBottomSpace)
 				: fallbackBottomSpace;
+			const dockClearance = mobileDockClearance.value || 84;
 			return {
 				"--bottom-safe-space": `${effectiveBottomSpace}px`,
+				"--mobile-dock-clearance": `${dockClearance}px`,
 			};
 		});
 		const handleAdditionalDiscountUpdate = (value) => {
@@ -519,6 +540,9 @@ export default {
 						return;
 					}
 					bottomDockHeight.value = size + 28;
+					if (entry?.target) {
+						measureDockClearance(entry.target);
+					}
 				});
 			}
 			if (eventBus) {
@@ -627,6 +651,7 @@ export default {
 			usePaymentDialog,
 			useCompactPosSwitcher,
 			showBottomDock,
+			showActiveSaleDock,
 			layoutStyleOverrides,
 			compactPanel,
 			mobileDock,
@@ -887,6 +912,15 @@ export default {
 		   The parents grow with content here, so a % height wouldn't bound it. */
 		height: calc(100dvh - var(--bottom-safe-space, 220px) - 84px);
 		min-height: 320px;
+	}
+
+	/* The pay sheet is position:fixed in Payments.vue. Keep this column from
+	   adding a second page-height scroller underneath it. */
+	.dynamic-col--payment {
+		height: 0 !important;
+		min-height: 0 !important;
+		overflow: hidden !important;
+		padding: 0 !important;
 	}
 }
 
