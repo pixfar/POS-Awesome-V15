@@ -424,6 +424,11 @@ export default {
 			if (activeView.value === "payment" && !usePaymentDialog.value) {
 				uiStore.setActiveView("items");
 			}
+			// "Cart" should show the cart lines (qty / - + controls), not the
+			// customer card at the top of the invoice panel.
+			if (itemsCount.value) {
+				nextTick(() => invoicePanel.value?.scrollCartIntoView?.());
+			}
 		};
 		const showPaymentPanel = () => {
 			compactPanel.value = "selector";
@@ -998,7 +1003,13 @@ export default {
 	transform: scale(0.98);
 }
 
-.mobile-pos-dock__pill {
+/* Specificity above `.mobile-pos-dock__item span` (width: 100%), which
+   otherwise stretched the count badge across the whole Cart button. */
+.mobile-pos-dock__item .mobile-pos-dock__pill {
+	display: inline-block;
+	width: auto;
+	max-width: 40px;
+	overflow: visible;
 	position: absolute;
 	top: 4px;
 	left: calc(50% + 8px);

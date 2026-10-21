@@ -40,6 +40,7 @@ import { finalizePendingBundleActivation } from "./utils/bundleVersionActivation
 import { reconcileBuildChangeOnStartup } from "./utils/buildCacheReconciler";
 import { ONLINE_ONLY_MODE } from "./config/runtime";
 import { installCsrfGuard } from "./utils/csrfGuard";
+import { initPwaInstall } from "./utils/pwaInstall";
 import { initPromise, isOffline } from "../offline";
 import App from "./App.vue";
 // @ts-ignore
@@ -65,6 +66,9 @@ if (typeof frappe === "undefined") {
 	// Stale CSRF token -> refresh + retry once, instead of "Invalid Request"
 	// on every save until the page is reloaded.
 	installCsrfGuard();
+	// Manifest link + install-prompt capture as early as possible, so Chrome
+	// sees the app as installable right away (see utils/pwaInstall).
+	initPwaInstall();
 }
 
 export async function initPosStorage() {
@@ -93,30 +97,24 @@ async function startOptionalRuntimeServices() {
 	const notificationLogStore = useNotificationLogStore();
 	notificationLogStore.init();
 
-	// The app works on live data only, so it no longer installs a service
-	// worker: one that served cached pages/assets on a slow connection caused
-	// "Invalid Request" (stale CSRF token) and half-loaded, unresponsive
-	// pages. Remove any worker / caches left from earlier versions.
-	void removeLegacyServiceWorker();
+	// Installable app (PWA) on live data only: the manifest plus an
+	// install-only service worker (/sw.js) that has no fetch handler, so
+	// nothing is ever served from a cache. It also deletes caches left by
+	// older, caching versions of the worker.
+	void registerInstallOnlyServiceWorker();
 
 	// "New version available" banner: a plain reload picks up the new build.
 	useUpdateStore().setReloadAction(() => window.location.reload());
 }
 
-async function removeLegacyServiceWorker() {
+async function registerInstallOnlyServiceWorker() {
 	try {
-		if ("serviceWorker" in navigator && navigator.serviceWorker.getRegistrations) {
-			const registrations = await navigator.serviceWorker.getRegistrations();
-			await Promise.all(registrations.map((registration) => registration.unregister()));
-		}
-		if (typeof caches !== "undefined") {
-			const keys = await caches.keys();
-			await Promise.all(
-				keys.filter((key) => key.startsWith("posawesome-cache-")).map((key) => caches.delete(key)),
-			);
-		}
+		if (!("serviceWorker" in navigator) || !window.isSecureContext) return;
+		const registration = await navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
+		// Pick up the install-only worker right away where an old caching one is still installed.
+		void registration.update();
 	} catch (error) {
-		console.warn("Failed to remove legacy service worker", error);
+		console.warn("Service worker registration failed", error);
 	}
 }
 

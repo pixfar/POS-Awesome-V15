@@ -102,6 +102,17 @@
 						</div>
 					</div>
 					<button
+						v-if="canInstallApp"
+						type="button"
+						class="drawer-user-card__logout"
+						data-test="drawer-install-app-action"
+						:title="__('Install App')"
+						@click="promptInstallApp"
+					>
+						<v-icon size="18">mdi-download-box-outline</v-icon>
+						<span v-if="!mini">{{ __("Install App") }}</span>
+					</button>
+					<button
 						type="button"
 						class="drawer-user-card__logout"
 						data-test="drawer-logout-action"
@@ -120,6 +131,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRtl } from "../../composables/core/useRtl";
+import { canInstallApp, promptInstallApp } from "../../utils/pwaInstall";
 
 defineOptions({
 	name: "NavbarDrawer",

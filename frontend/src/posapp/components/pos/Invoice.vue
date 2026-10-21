@@ -870,6 +870,21 @@ export default {
 				await applyResolved(profileWh, profileWh, { syncAccount: false });
 			}
 		},
+		// Scrolls the cart (Invoice Items table) into view. onlyIfHidden: leave
+		// the scroll position alone when the table is already on screen.
+		scrollCartIntoView({ onlyIfHidden = false } = {}) {
+			const table = this.$el?.querySelector?.(".items-table-wrapper");
+			if (!table || !table.offsetParent) return; // panel hidden (phone Browse view)
+			if (onlyIfHidden) {
+				const rect = table.getBoundingClientRect();
+				const summary = this.$el.querySelector(".invoice-summary-dock");
+				const bottomLimit = summary
+					? Math.min(window.innerHeight, summary.getBoundingClientRect().top)
+					: window.innerHeight;
+				if (rect.top >= 0 && rect.top + 120 <= bottomLimit) return;
+			}
+			table.scrollIntoView({ block: "start", behavior: "smooth" });
+		},
 		applySaleWarehouse(warehouse, label) {
 			this.sale_warehouse = warehouse;
 			this.sale_warehouse_label = label || warehouse;
@@ -1840,6 +1855,15 @@ export default {
 	},
 	watch: {
 		...invoiceWatchers,
+		// A new cart line on a short screen (installed app window, laptop)
+		// was added below the fold -- under the customer / DO / accounts
+		// cards -- so the cashier couldn't see its qty or change it. Bring
+		// the cart into view when the line count grows and it isn't visible.
+		"items.length"(count, previous) {
+			if (count > (previous || 0)) {
+				this.$nextTick(() => this.scrollCartIntoView({ onlyIfHidden: true }));
+			}
+		},
 		sale_update_stock: {
 			immediate: true,
 			handler(val) {

@@ -1,7 +1,7 @@
 <template>
 	<v-dialog :model-value="modelValue" max-width="460" @update:model-value="(v) => $emit('update:modelValue', v)">
 		<v-card class="pos-themed-card share-dialog">
-			<v-card-title class="d-flex align-center ga-2 pt-4">
+			<v-card-title class="d-flex align-center ga-2 pt-4 share-dialog__title">
 				<v-icon color="primary">mdi-share-variant</v-icon>
 				<span>{{ __("Share {0}", [target.name]) }}</span>
 			</v-card-title>
@@ -100,7 +100,9 @@ export default {
 	name: 'ShareDocumentDialog',
 	props: {
 		modelValue: { type: Boolean, default: false },
-		// { doctype, name, printFormat }
+		// { doctype, name, printFormat } -- or, for something that isn't a
+		// document (e.g. a report), { name, title, loadPdfFile(), loadShareLink() }
+		// returning a File / { url, expires_on }.
 		target: { type: Object, required: true },
 		// Plain-text summary sent along with the PDF / link.
 		text: { type: String, default: '' },
@@ -116,7 +118,7 @@ export default {
 		const copied = ref(false);
 		const canNativeShare = ref(false);
 
-		const subject = () => `${props.target.doctype} ${props.target.name}`;
+		const subject = () => props.target.title || `${props.target.doctype} ${props.target.name}`;
 		const messageWithLink = () => [props.text, '', `${__('PDF')}: ${shareLink.value}`].join('\n').trim();
 
 		const prepare = async () => {
@@ -129,7 +131,7 @@ export default {
 			// the browser's user-gesture window.
 			if (!pdfFile.value) {
 				pdfLoading.value = true;
-				fetchDocumentPdfFile(props.target)
+				(props.target.loadPdfFile ? props.target.loadPdfFile() : fetchDocumentPdfFile(props.target))
 					.then((file) => {
 						pdfFile.value = file;
 						canNativeShare.value = canNativeShare.value && navigator.canShare({ files: [file] });
@@ -145,7 +147,9 @@ export default {
 			if (!shareLink.value) {
 				linkLoading.value = true;
 				try {
-					const result = await getDocumentShareLink(props.target);
+					const result = await (props.target.loadShareLink
+						? props.target.loadShareLink()
+						: getDocumentShareLink(props.target));
 					shareLink.value = result?.url || '';
 					expiresOn.value = result?.expires_on || null;
 				} catch (e) {
@@ -237,6 +241,18 @@ export default {
 </script>
 
 <style scoped>
+/* Long names (e.g. "Daily Cash Summary - <warehouse> - <date>") wrap instead
+   of being cut off by the card title's default single-line ellipsis. */
+.share-dialog__title {
+	white-space: normal;
+	overflow-wrap: anywhere;
+	line-height: 1.35;
+	align-items: flex-start !important;
+}
+.share-dialog__title .v-icon {
+	margin-top: 2px;
+}
+
 .share-dialog__grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));

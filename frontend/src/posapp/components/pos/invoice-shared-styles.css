@@ -644,7 +644,10 @@
 	color: var(--primary-start, #0097a7);
 }
 
-.txn-bottom-dock .mobile-pos-dock__pill {
+.txn-bottom-dock .mobile-pos-dock__item .mobile-pos-dock__pill {
+	display: inline-block;
+	width: auto;
+	max-width: 40px;
 	position: absolute;
 	top: 4px;
 	right: calc(50% - 22px);

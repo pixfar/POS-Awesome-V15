@@ -14,7 +14,8 @@
 						:model-value="unreadCount > 0"
 						:content="unreadCount"
 						color="error"
-						floating
+						:offset-x="-2"
+						:offset-y="-2"
 						v-if="notifications.length"
 					>
 						<v-icon class="pos-text-primary">mdi-bell-outline</v-icon>
@@ -155,6 +156,10 @@ function formatTimestamp(ts: string | number | Date) {
 </script>
 
 <style scoped>
+/* Keep the unread-count badge from being clipped by the button / app bar. */
+.notification-bell-trigger {
+	overflow: visible !important;
+}
 .notification-bell-btn {
 	display: flex;
 	align-items: center;

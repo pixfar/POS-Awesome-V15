@@ -66,7 +66,18 @@
 				>
 					{{ __("Download PDF") }}
 				</v-btn>
+				<v-btn
+					color="primary"
+					variant="tonal"
+					class="text-none dcs-filters__download"
+					prepend-icon="mdi-share-variant"
+					:disabled="!warehouse || !reportDate"
+					@click="shareOpen = true"
+				>
+					{{ __("Share") }}
+				</v-btn>
 			</div>
+			<ShareDocumentDialog v-if="shareTarget" v-model="shareOpen" :target="shareTarget" :text="shareText" />
 
 			<v-alert v-if="errorMessage" type="error" density="compact" class="ma-4">
 				{{ errorMessage }}
@@ -279,13 +290,15 @@ import { useUIStore } from '../../../stores/uiStore.js';
 import { isPosWarehouseSwitcher } from '../../../utils/posWarehouseAccess';
 import { downloadBinaryFile } from '../../../utils/downloadBinaryFile';
 import DateFilterField from '../shared/DateFilterField.vue';
+import ShareDocumentDialog from '../shared/ShareDocumentDialog.vue';
+import { formatDisplayDate } from '../shared/docStatusUtils';
 
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
 
 export default {
 	name: 'DailyCashSummaryReport',
-	components: { DateFilterField },
+	components: { DateFilterField, ShareDocumentDialog },
 	setup() {
 		const router = useRouter();
 		const uiStore = useUIStore();
@@ -466,6 +479,55 @@ export default {
 			}
 		};
 
+		// Share: any user who can view this warehouse's report can share it --
+		// a public PDF link (signed, expires like document share links) plus
+		// the PDF itself where the device supports sharing files.
+		const shareOpen = ref(false);
+		const shareTarget = computed(() => {
+			if (!warehouse.value || !reportDate.value) return null;
+			const wh = warehouse.value;
+			const date = reportDate.value;
+			const label = warehouseLabel.value || wh;
+			// DD-MM-YYYY, same as the link's expiry date shown in the dialog.
+			const shownDate = formatDisplayDate(date);
+			return {
+				name: `${__('Daily Cash Summary')} - ${label} - ${shownDate}`,
+				title: `${__('Daily Cash Summary Report')} - ${label} - ${shownDate}`,
+				loadPdfFile: async () => {
+					const query = new URLSearchParams({ warehouse: wh, date }).toString();
+					const response = await fetch(
+						`/api/method/posawesome.posawesome.api.daily_cash_summary_pdf.download_pdf?${query}`,
+						{ credentials: 'include', headers: { Accept: 'application/pdf' } },
+					);
+					if (!response.ok) throw new Error(__('Failed to generate the PDF.'));
+					const blob = await response.blob();
+					return new File([blob], `Daily-Cash-Summary-${shownDate}.pdf`, { type: 'application/pdf' });
+				},
+				loadShareLink: async () => {
+					const { message } = await frappe.call({
+						method: 'posawesome.posawesome.api.daily_cash_summary_pdf.get_share_link',
+						args: { warehouse: wh, date },
+					});
+					return { url: `${window.location.origin}${message.path}`, expires_on: message.expires_on };
+				},
+			};
+		});
+		const shareText = computed(() => {
+			const r = report.value;
+			const lines = [`*${__('Daily Cash Summary Report')}*`, `${warehouseLabel.value || warehouse.value} · ${formatDisplayDate(reportDate.value)}`];
+			if (r) {
+				lines.push(
+					'',
+					`${__('Opening Balance')}: ${r.opening_balance}`,
+					`${__('Total Collection')}: ${r.total_collection}`,
+					`${__('Total Expense')}: ${r.expense_total}`,
+					`${__('Total Deposited')}: ${r.deposit_total}`,
+					`${__('Closing Balance')}: ${r.closing_balance}`,
+				);
+			}
+			return lines.join('\n');
+		});
+
 		const goBack = () => {
 			router.push('/reports');
 		};
@@ -496,6 +558,9 @@ export default {
 			expenseHeaders,
 			depositHeaders,
 			downloadReport,
+			shareOpen,
+			shareTarget,
+			shareText,
 			goBack,
 		};
 	},

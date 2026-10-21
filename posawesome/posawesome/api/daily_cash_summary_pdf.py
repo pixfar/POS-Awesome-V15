@@ -12,8 +12,9 @@ in-app (get_report_data) or downloaded as a PDF (download_pdf)."""
 
 import frappe
 from frappe import _
-from frappe.utils import flt, fmt_money, formatdate, getdate, now_datetime
+from frappe.utils import add_days, cint, flt, fmt_money, formatdate, getdate, now_datetime, today
 from frappe.utils.pdf import get_pdf
+from frappe.utils.verified_command import get_signed_params, verify_request
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	get_expanded_permitted_warehouses,
@@ -70,7 +71,7 @@ def _warehouse_branding(warehouse):
 	}
 
 
-def _build_context(warehouse, date):
+def _build_context(warehouse, date, check_access=True):
 	"""One warehouse, one day. The figures come from the Script Report's own
 	get_day_summary() so this page, its PDF and the Daily Cash Summary
 	Script Report always match; this only formats them for display."""
@@ -81,7 +82,8 @@ def _build_context(warehouse, date):
 	if not warehouse:
 		frappe.throw(_("Warehouse is required."))
 
-	_ensure_warehouse_access(warehouse)
+	if check_access:
+		_ensure_warehouse_access(warehouse)
 
 	report_date = getdate(date) if date else getdate()
 	company = frappe.db.get_value("Warehouse", warehouse, "company")
@@ -147,3 +149,43 @@ def download_pdf(warehouse, date=None):
 	frappe.local.response.filename = filename
 	frappe.local.response.filecontent = pdf_content
 	frappe.local.response.type = "pdf"
+
+
+def _render_pdf(warehouse, date, check_access=True):
+	context = _build_context(warehouse, date, check_access=check_access)
+	report_date = getdate(date) if date else getdate()
+	html = frappe.render_template(TEMPLATE_PATH, context, is_path=True)
+	frappe.local.response.filename = f"Daily Cash Summary Report- {formatdate(report_date, 'dd-mm-yyyy')}.pdf"
+	frappe.local.response.filecontent = get_pdf(html)
+	frappe.local.response.type = "pdf"
+
+
+@frappe.whitelist()
+def get_share_link(warehouse, date=None):
+	"""Public link to this warehouse/day's PDF -- for any user who may view it
+	(same access check as the page itself; no special role needed). The link
+	is signed with the site secret, so warehouse/date can't be altered, and
+	stops working after the Document Share Key expiry (System Settings,
+	default 30 days) -- same lifetime as document "Share" links."""
+	_ensure_warehouse_access(warehouse)
+	report_date = getdate(date) if date else getdate()
+	days = cint(frappe.db.get_single_value("System Settings", "document_share_key_expiry")) or 30
+	expires_on = add_days(today(), days)
+	params = get_signed_params(
+		{"warehouse": warehouse, "date": str(report_date), "expires_on": str(expires_on)}
+	)
+	return {
+		"path": f"/api/method/posawesome.posawesome.api.daily_cash_summary_pdf.download_shared_pdf?{params}",
+		"expires_on": expires_on,
+	}
+
+
+@frappe.whitelist(allow_guest=True, methods=["GET"])
+def download_shared_pdf(warehouse, date, expires_on, **kwargs):
+	"""Opens a get_share_link() link without logging in."""
+	if not verify_request():
+		frappe.throw(_("This link is invalid."), frappe.PermissionError)
+	if getdate(expires_on) < getdate(today()):
+		frappe.throw(_("This link has expired."), frappe.PermissionError)
+	# Access was checked for the user who created the link.
+	_render_pdf(warehouse, date, check_access=False)
