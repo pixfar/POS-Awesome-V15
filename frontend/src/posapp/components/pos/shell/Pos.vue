@@ -863,6 +863,18 @@ export default {
 		height: auto;
 		overflow: visible;
 	}
+
+	/* Browse panel fits one screen: the item-group list and the item cards
+	   each scroll inside it, instead of the full group list stretching the
+	   page and leaving blank space beside it. (The invoice/cart panel keeps
+	   its natural height and scrolls the page as before.) */
+	.dynamic-col--selector > .selector-with-groups {
+		/* Viewport minus the top bar (~66px + gap) and the space reserved for
+		   the bottom dock (--bottom-safe-space, set from its real height).
+		   The parents grow with content here, so a % height wouldn't bound it. */
+		height: calc(100dvh - var(--bottom-safe-space, 220px) - 84px);
+		min-height: 320px;
+	}
 }
 
 .mobile-pos-stack {

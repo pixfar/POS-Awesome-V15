@@ -539,6 +539,16 @@
 		border-inline-start: none !important;
 	}
 
+	/* Browse panel fits one screen (same as Sales Invoice): the item-group
+	   list and item cards each scroll inside it instead of the full group
+	   list stretching the page. Height = viewport minus the top bar and the
+	   bottom dock's reserved space; the parents grow with content here, so a
+	   % height wouldn't bound it. */
+	.txn-shell .txn-col--selector :deep(.selector-with-groups) {
+		height: calc(100dvh - var(--bottom-safe-space, 220px) - 84px);
+		min-height: 320px;
+	}
+
 	.purchase-bottom-bar {
 		flex-direction: column;
 		align-items: stretch;
@@ -914,6 +924,68 @@
 
 .pos-list-pagination__page-size {
 	max-width: 90px;
+	/* Never let flex squeeze the picker down to just its arrow. */
+	flex: 0 0 88px;
+	min-width: 88px;
+}
+
+/* Phones / installed app: page buttons and the page-size picker on one row,
+   picker at the end; wraps only where a very narrow screen can't fit it. */
+@media (max-width: 600px) {
+	.pos-list-pagination {
+		justify-content: center;
+		gap: 8px;
+	}
+
+	.pos-list-pagination__info {
+		width: 100%;
+		text-align: center;
+	}
+
+	.pos-list-pagination__controls {
+		flex-wrap: wrap;
+		justify-content: center;
+		row-gap: 6px;
+		gap: 2px;
+		width: 100%;
+	}
+
+	.pos-list-pagination__page-size {
+		order: 99;
+		flex: 0 0 76px;
+		min-width: 76px;
+		max-width: 76px;
+		margin-inline-start: 2px;
+	}
+
+	/* Less inner padding so "10" / "20" / "50" stays readable at 76px. */
+	.pos-list-pagination__page-size :deep(.v-field) {
+		padding-inline: 10px 4px;
+	}
+
+	.pos-list-pagination__page-size :deep(.v-field__input) {
+		padding-inline: 0;
+		min-width: 0;
+	}
+
+	.pos-list-pagination__page-size :deep(.v-field__append-inner) {
+		padding-inline-start: 0;
+	}
+
+	.pos-list-pagination__controls {
+		gap: 0;
+	}
+
+	.pos-list-pagination__page-btn {
+		min-width: 28px !important;
+		width: 28px;
+		padding: 0 !important;
+	}
+
+	.pos-list-pagination__controls :deep(.v-btn--icon) {
+		width: 28px;
+		height: 28px;
+	}
 }
 
 .pos-list-pagination__page {
@@ -1484,6 +1556,38 @@
 	text-decoration: underline;
 }
 
+/* Phones / installed app on a phone: Document Information in two columns
+   (minmax(220px) above only fits one), with a smaller icon to make room. */
+@media (max-width: 600px) {
+	.pos-detail-meta-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 14px 10px;
+		padding: 12px;
+	}
+
+	.pos-detail-meta-field {
+		gap: 8px;
+	}
+
+	.pos-detail-meta-field__icon {
+		width: 26px;
+		height: 26px;
+	}
+
+	.pos-detail-meta-field__icon :deep(.v-icon) {
+		font-size: 16px;
+	}
+
+	.pos-detail-meta-field__label {
+		font-size: 0.64rem;
+		letter-spacing: 0.04em;
+	}
+
+	.pos-detail-meta-field__value {
+		font-size: 0.84rem;
+	}
+}
+
 .pos-detail-table-wrap {
 	flex: 0 0 auto;
 	overflow-x: auto;
@@ -1583,9 +1687,10 @@
 		gap: 10px;
 	}
 
+	/* Two filters per row on phones / the installed app (gap is 10px). */
 	.pos-list-filter-field {
-		flex: 1 1 100%;
-		max-width: none;
+		flex: 1 1 calc(50% - 5px);
+		max-width: calc(50% - 5px);
 		min-width: 0;
 	}
 

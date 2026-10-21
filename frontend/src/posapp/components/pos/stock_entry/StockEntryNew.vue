@@ -1,7 +1,12 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell txn-shell">
+	<div class="pa-0 h-100 invoice-shell txn-shell" :style="responsiveStyles">
 		<v-row class="h-100 ma-0">
-			<v-col cols="12" md="6" class="h-100 pa-0 txn-col txn-col--form">
+			<v-col
+				v-show="showInvoicePanel"
+				cols="12"
+				:md="invoiceCols"
+				class="h-100 pa-0 txn-col txn-col--form txn-col--invoice"
+			>
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
@@ -193,7 +198,7 @@
 						</div>
 					</v-card-text>
 
-					<div class="purchase-bottom-bar">
+					<div v-if="!isCompact" class="purchase-bottom-bar">
 						<div class="purchase-bottom-bar__summary">
 							<span class="purchase-bottom-bar__label">{{ __("Total Qty") }}</span>
 							<strong class="purchase-bottom-bar__amount">{{ formatFloat(totalQty) }}</strong>
@@ -217,8 +222,9 @@
 			</v-col>
 
 			<v-col
+				v-show="showSelectorPanel"
 				cols="12"
-				md="6"
+				:md="selectorCols"
 				class="h-100 pa-0 border-s txn-col txn-col--selector"
 			>
 				<ItemsSelectorWithGroups
@@ -227,6 +233,61 @@
 				/>
 			</v-col>
 		</v-row>
+
+		<!-- Phones / installed app: one panel at a time with the Browse / Cart /
+		     Submit dock, same as Sales Invoice and Requisition. -->
+		<div v-if="isCompact" class="mobile-pos-stack txn-bottom-dock">
+			<div class="mobile-sale-dock">
+				<div class="mobile-sale-dock__copy">
+					<span class="mobile-sale-dock__eyebrow">{{ __("Total Qty") }}</span>
+					<strong class="mobile-sale-dock__amount">{{ formatFloat(totalQty) }}</strong>
+					<span class="mobile-sale-dock__meta">
+						{{ rows.length }} {{ rows.length === 1 ? __("item") : __("items") }}
+					</span>
+				</div>
+				<v-btn
+					:loading="submitLoading"
+					:disabled="submitLoading || !canSubmit"
+					color="primary"
+					variant="flat"
+					class="text-none txn-dock-pay-btn"
+					prepend-icon="mdi-send"
+					@click="submit"
+				>
+					{{ isIssue ? __("Submit Issue") : __("Submit Receipt") }}
+				</v-btn>
+			</div>
+			<div class="mobile-pos-dock">
+				<button
+					type="button"
+					class="mobile-pos-dock__item"
+					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'selector' }"
+					@click="setPanel('selector')"
+				>
+					<v-icon icon="mdi-magnify" size="20" />
+					<span>{{ __("Browse") }}</span>
+				</button>
+				<button
+					type="button"
+					class="mobile-pos-dock__item mobile-pos-dock__item--cart"
+					:class="{ 'mobile-pos-dock__item--active': compactPanel === 'invoice' }"
+					@click="setPanel('invoice')"
+				>
+					<span v-if="rows.length" class="mobile-pos-dock__pill">{{ rows.length }}</span>
+					<v-icon icon="mdi-cart-outline" size="22" />
+					<span>{{ __("Cart") }}</span>
+				</button>
+				<button
+					type="button"
+					class="mobile-pos-dock__item mobile-pos-dock__item--pay"
+					:disabled="submitLoading || !canSubmit"
+					@click="submit"
+				>
+					<v-icon icon="mdi-send" size="20" />
+					<span>{{ __("Submit") }}</span>
+				</button>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -242,6 +303,7 @@ import { useItemsStore } from '../../../stores/itemsStore';
 import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 import { stockEntryBasePath } from './stockEntryRoutes';
 import ItemsSelectorWithGroups from '../items/ItemsSelectorWithGroups.vue';
+import { useCompactTransactionPanel } from '../../../composables/core/useCompactTransactionPanel';
 
 const API = 'posawesome.posawesome.api.stock_entries';
 const ITEM_API = 'posawesome.posawesome.api.material_transfers';
@@ -262,6 +324,16 @@ export default {
 		// This screen loads its own warehouse's catalogue -- don't show the
 		// previous screen's items or load the POS Profile default first.
 		itemsStore.beginWarehouseResolution();
+		const {
+			responsiveStyles,
+			isCompact,
+			compactPanel,
+			showInvoicePanel,
+			showSelectorPanel,
+			invoiceCols,
+			selectorCols,
+			setPanel,
+		} = useCompactTransactionPanel('invoice');
 		const isIssue = computed(() => props.purpose === 'Material Issue');
 		const basePath = computed(() => stockEntryBasePath(props.purpose));
 
@@ -484,6 +556,14 @@ export default {
 		});
 
 		return {
+			responsiveStyles,
+			isCompact,
+			compactPanel,
+			showInvoicePanel,
+			showSelectorPanel,
+			invoiceCols,
+			selectorCols,
+			setPanel,
 			isIssue,
 			warehouseOptions,
 			warehouse,
