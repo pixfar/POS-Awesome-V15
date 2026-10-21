@@ -98,8 +98,27 @@ export const compareItemsByCodeAsc = (
 	);
 };
 
+// The item grid sorts the whole catalogue (1,000+ items) by code on every
+// recompute, several times per change. The catalogue is normally already in
+// code order (the server returns it that way), so check that in one pass
+// before sorting, and reuse the result for the same array.
+const sortedByCodeCache = new WeakMap<object, SortableItem[]>();
+
 export function sortItemsByCodeAsc<T extends SortableItem>(items: T[] = []) {
-	return [...items].sort(compareItemsByCodeAsc);
+	const cached = sortedByCodeCache.get(items);
+	if (cached && cached.length === items.length) {
+		return cached.slice() as T[];
+	}
+	let alreadySorted = true;
+	for (let i = 1; i < items.length; i++) {
+		if (compareItemsByCodeAsc(items[i - 1] as SortableItem, items[i] as SortableItem) > 0) {
+			alreadySorted = false;
+			break;
+		}
+	}
+	const sorted = alreadySorted ? [...items] : [...items].sort(compareItemsByCodeAsc);
+	sortedByCodeCache.set(items, sorted);
+	return sorted.slice() as T[];
 }
 
 export function sortItemsForSearchTerm<T extends SortableItem>(

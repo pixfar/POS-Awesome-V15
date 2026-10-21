@@ -154,4 +154,14 @@ export default createVuetify({
 			dark: darkTheme,
 		},
 	},
+	// Expand animations measure the element mid-transition, which forces a
+	// full-page layout each time. On POS pages (large DOM) that happens on
+	// every page load -- e.g. each clearable field's (x) icon slides in when
+	// a default warehouse/account is filled -- and was the main remaining
+	// stall when switching pages on phones. Show them instantly instead.
+	// (Keys are the transitions' internal component names.)
+	defaults: {
+		"expand-transition": { disabled: true },
+		"expand-x-transition": { disabled: true },
+	},
 });

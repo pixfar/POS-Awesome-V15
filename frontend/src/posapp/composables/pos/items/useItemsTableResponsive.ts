@@ -206,30 +206,36 @@ export function useItemsTableResponsive(
 
 	const setupResizeObserver = () => {
 		if (typeof ResizeObserver !== "undefined" && containerRef.value) {
-			const debouncedResizeHandler = _.debounce(
-				(entries: ResizeObserverEntry[]) => {
-					for (let entry of entries) {
-						const { width, height } = entry.contentRect;
-						if (
-							containerWidth.value !== width ||
-							containerHeight.value !== height
-						) {
-							containerWidth.value = width;
-							containerHeight.value = height;
-							breakpoint.value = updateBreakpoint(width);
-						}
+			const applyEntries = (entries: ResizeObserverEntry[]) => {
+				for (let entry of entries) {
+					const { width, height } = entry.contentRect;
+					if (
+						containerWidth.value !== width ||
+						containerHeight.value !== height
+					) {
+						containerWidth.value = width;
+						containerHeight.value = height;
+						breakpoint.value = updateBreakpoint(width);
 					}
-				},
-				100,
-			);
+				}
+			};
+			const debouncedResizeHandler = _.debounce(applyEntries, 100);
 
-			resizeObserver = new ResizeObserver(debouncedResizeHandler);
+			// The observer reports the initial size on its own right after the
+			// browser's next layout -- apply that first report immediately.
+			// (Reading getBoundingClientRect() here, during mount, forced an
+			// extra synchronous layout of the whole page on every Sales Invoice
+			// load -- ~300 ms on a phone.)
+			let firstReport = true;
+			resizeObserver = new ResizeObserver((entries) => {
+				if (firstReport) {
+					firstReport = false;
+					applyEntries(entries);
+					return;
+				}
+				debouncedResizeHandler(entries);
+			});
 			resizeObserver.observe(containerRef.value);
-			// Initial call
-			const rect = containerRef.value.getBoundingClientRect();
-			containerWidth.value = rect.width;
-			containerHeight.value = rect.height;
-			breakpoint.value = updateBreakpoint(rect.width);
 		}
 	};
 

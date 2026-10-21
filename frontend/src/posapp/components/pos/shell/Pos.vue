@@ -508,8 +508,17 @@ export default {
 
 		onMounted(() => {
 			if (typeof window !== "undefined" && "ResizeObserver" in window) {
-				mobileDockObserver = new ResizeObserver(() => {
-					updateBottomDockHeight();
+				// Use the size the observer reports (no forced layout): reading
+				// offsetHeight here and on mount made the browser lay out the
+				// whole Sales Invoice page synchronously (~150 ms on a phone).
+				mobileDockObserver = new ResizeObserver((entries) => {
+					const entry = entries[entries.length - 1];
+					const size = entry?.borderBoxSize?.[0]?.blockSize ?? entry?.contentRect?.height;
+					if (!showBottomDock.value || !size) {
+						updateBottomDockHeight();
+						return;
+					}
+					bottomDockHeight.value = size + 28;
 				});
 			}
 			if (eventBus) {
@@ -520,9 +529,11 @@ export default {
 				eventBus.on("set_compact_panel", setCompactPanel);
 			}
 			nextTick(() => {
-				updateBottomDockHeight();
+				// The observer reports the dock's initial size itself.
 				if (mobileDockObserver && mobileDock.value) {
 					mobileDockObserver.observe(mobileDock.value);
+				} else {
+					updateBottomDockHeight();
 				}
 			});
 		});
@@ -580,7 +591,9 @@ export default {
 					if (mobileDockObserver) {
 						mobileDockObserver.disconnect();
 						if (showBottomDock.value && mobileDock.value) {
+							// observe() reports the current size -- no forced read needed.
 							mobileDockObserver.observe(mobileDock.value);
+							return;
 						}
 					}
 					updateBottomDockHeight();

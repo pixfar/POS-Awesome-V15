@@ -27,7 +27,17 @@
 						@click="togglePinned"
 					/>
 				</div>
-				<v-list density="compact" nav v-model:selected="activeItem" selected-class="active-item">
+				<!-- Only while the menu is visible: a closed (off-screen) menu still
+				     re-opened/collapsed its groups on every page change, and each
+				     expand animation forces a full-page layout -- the main cause of
+				     page switches stalling on phones. -->
+				<v-list
+					v-if="drawerOpen || docked"
+					density="compact"
+					nav
+					v-model:selected="activeItem"
+					selected-class="active-item"
+				>
 					<template v-for="(item, index) in items" :key="item.text">
 						<!-- Item with sub-menu -->
 						<v-list-group v-if="item.children && item.children.length" :value="item.text">
