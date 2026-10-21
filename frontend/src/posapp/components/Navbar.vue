@@ -347,8 +347,12 @@ export default {
 			immediate: true,
 		},
 		posProfile: {
-			handler() {
+			handler(profile) {
 				this.updateNavigationItems();
+				// Employees are per profile -- only refetch when it changes.
+				const name = profile?.name || "";
+				if (name === this._employeesProfileName) return;
+				this._employeesProfileName = name;
 				void this.fetchTerminalEmployees();
 			},
 			deep: true,

@@ -304,7 +304,7 @@ export default {
 		let searchTimeout = null;
 
 		const page = ref(1);
-		const pageSize = ref(20);
+		const pageSize = ref(10);
 		const hasMore = ref(false);
 		const totalQty = ref(0);
 		const totalValue = ref(0);

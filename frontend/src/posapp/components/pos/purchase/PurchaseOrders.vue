@@ -489,6 +489,9 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
+		// This screen loads its own warehouse's catalogue -- don't show the
+		// previous screen's items or load the POS Profile default first.
+		itemsStore.beginWarehouseResolution();
 		const router = useRouter();
 		const route = useRoute();
 		const eventBus = inject("eventBus");
@@ -1233,13 +1236,20 @@ export default {
 				const { message } = await frappe.call({
 					method: "posawesome.posawesome.api.purchase_invoices.get_buying_price_list",
 				});
-				if (message) await itemsStore.updatePriceList(message);
+				// skipReload: the warehouse catalogue load below (loadWarehouses)
+				// already uses this price list -- reloading here too would only
+				// load the catalogue twice.
+				if (message) await itemsStore.updatePriceList(message, { skipReload: true });
 			} catch (e) {
 				console.error("Failed price list load", e);
 			}
 
 			resetForm();
-			await Promise.all([searchSuppliers(""), loadSupplierGroups(), loadWarehouses()]);
+			try {
+				await Promise.all([searchSuppliers(""), loadSupplierGroups(), loadWarehouses()]);
+			} finally {
+				itemsStore.endWarehouseResolution();
+			}
 			// /purchase-invoices/new?draft=<name> -- "Load Draft" from the list page.
 			if (route.query.draft) {
 				await loadDraft(String(route.query.draft));

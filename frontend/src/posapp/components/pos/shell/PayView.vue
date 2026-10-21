@@ -206,6 +206,7 @@ import {
 	getPendingOfflinePaymentCount,
 	syncOfflinePayments,
 } from "../../../../offline/index";
+import { ONLINE_ONLY_MODE } from "../../../config/runtime";
 import {
 	isDebugPrintEnabled,
 	appendDebugPrintParam,
@@ -720,8 +721,11 @@ export default {
 		};
 
 		const check_opening_entry = async () => {
-			await initPromise;
-			await checkDbHealth();
+			// Online-only: never wait on IndexedDB (it can stall behind another tab).
+			if (!ONLINE_ONLY_MODE) {
+				await initPromise;
+				await checkDbHealth();
+			}
 			const cachedOpening = getValidCachedOpeningForCurrentUser(
 				getOpeningStorage(),
 				frappe?.session?.user,

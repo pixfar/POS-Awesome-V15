@@ -700,6 +700,10 @@ export default {
 				(newProfile) => {
 					if (newProfile && newProfile.name) {
 						this.pos_profile = newProfile;
+						// Same profile re-set (cached copy, server copy, shift
+						// checks): offers are per profile -- don't refetch.
+						if (newProfile.name === this._offersProfileName) return;
+						this._offersProfileName = newProfile.name;
 						this.get_offers(newProfile.name, newProfile);
 					}
 				},

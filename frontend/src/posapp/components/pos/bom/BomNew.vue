@@ -334,6 +334,9 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
+		// This screen loads its own warehouse's catalogue -- don't show the
+		// previous screen's items or load the POS Profile default first.
+		itemsStore.beginWarehouseResolution();
 		const {
 			responsiveStyles,
 			isCompact,
@@ -635,12 +638,16 @@ export default {
 		};
 
 		onMounted(async () => {
-			await Promise.all([
-				loadDefaultManufactureItems(),
-				loadDefaultRawMaterialItems(),
-				loadWarehouses(),
-				ensureCatalogReady(),
-			]);
+			try {
+				await Promise.all([
+					loadDefaultManufactureItems(),
+					loadDefaultRawMaterialItems(),
+					loadWarehouses(),
+					ensureCatalogReady(),
+				]);
+			} finally {
+				itemsStore.endWarehouseResolution();
+			}
 		});
 
 		return {

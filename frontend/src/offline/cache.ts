@@ -56,8 +56,9 @@
  */
 
 import { refreshBootstrapSnapshotFromCaches } from "./bootstrapSnapshot";
-import { memory, persist, db, checkDbHealth } from "./db";
+import { memory, persist, persistSoon, db, checkDbHealth } from "./db";
 import { emitBootstrapSnapshotUpdated } from "../posapp/utils/bootstrapRuntimeEvents";
+import { ONLINE_ONLY_MODE } from "../posapp/config/runtime";
 
 const normalizeScope = (scope: unknown): string => String(scope || "");
 const hasScope = (scope: unknown): boolean => normalizeScope(scope).length > 0;
@@ -461,7 +462,8 @@ export function saveItemUOMs(itemCode, uoms) {
 		const cleanUoms = JSON.parse(JSON.stringify(uoms));
 		cache[itemCode] = cleanUoms;
 		memory.uom_cache = cache;
-		persist("uom_cache");
+		// Called once per item while a catalogue loads -- write once per burst.
+		persistSoon("uom_cache");
 	} catch (e) {
 		console.error("Failed to cache UOMs", e);
 	}
@@ -668,6 +670,8 @@ export function removeCachedPriceListItems(
 }
 
 export function saveItemDetailsCache(profileName, priceList, items) {
+	// Live data only: stock / rates are never served from a local copy.
+	if (ONLINE_ONLY_MODE) return;
 	try {
 		const cache = memory.item_details_cache || {};
 		const profileCache = cache[profileName] || {};
@@ -727,6 +731,11 @@ export async function getCachedItemDetails(
 	itemCodes: string[],
 	ttl = 15 * 60 * 1000,
 ) {
+	// Live data only: every item's stock / rate comes from the server (and no
+	// IndexedDB read -- which can stall behind another open tab -- is needed).
+	if (ONLINE_ONLY_MODE) {
+		return { cached: [], missing: [...itemCodes] };
+	}
 	try {
 		const cache = memory.item_details_cache || {};
 		const priceCache = cache[profileName]?.[priceList] || {};

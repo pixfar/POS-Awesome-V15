@@ -574,6 +574,23 @@ export function scheduleIdleOfflinePruning() {
 	}
 }
 
+// Coalesced persist: for caches updated once per item in a loop (e.g. UOMs
+// for a 1,000+ item catalogue). persist() serialises the *whole* cache each
+// call, so per-item calls were quadratic and froze the page for seconds;
+// this writes the latest value once after the burst instead.
+const pendingPersistKeys = new Set<string>();
+let pendingPersistTimer: ReturnType<typeof setTimeout> | null = null;
+export function persistSoon(key: string) {
+	pendingPersistKeys.add(key);
+	if (pendingPersistTimer) return;
+	pendingPersistTimer = setTimeout(() => {
+		pendingPersistTimer = null;
+		const keys = Array.from(pendingPersistKeys);
+		pendingPersistKeys.clear();
+		keys.forEach((pendingKey) => persist(pendingKey));
+	}, 300);
+}
+
 export function persist(key: string, value: unknown = memory[key]) {
 	if (!shouldPersistToIndexedDb(key) && !shouldPersistToLocalStorage(key)) {
 		if (typeof localStorage !== "undefined") {

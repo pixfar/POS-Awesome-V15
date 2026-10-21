@@ -143,6 +143,7 @@ import {
 	initPromise,
 	checkDbHealth,
 } from "../../../../offline/index";
+import { ONLINE_ONLY_MODE } from "../../../config/runtime";
 import { createBootstrapSnapshotFromRegisterData } from "../../../../offline/bootstrapSnapshot";
 import authService from "../../../services/authService";
 
@@ -222,8 +223,11 @@ watch(pos_profile, (val) => {
 });
 
 async function get_opening_dialog_data() {
-	await initPromise;
-	await checkDbHealth();
+	// Online-only: never wait on IndexedDB (it can stall behind another tab).
+	if (!ONLINE_ONLY_MODE) {
+		await initPromise;
+		await checkDbHealth();
+	}
 
 	// Load cached data first for offline usage
 	const cached = getOpeningDialogStorage();

@@ -23,6 +23,7 @@ import { pinia } from "./stores";
 import { useToastStore } from "./stores/toastStore";
 import { useSocketStore } from "./stores/socketStore";
 import { useNotificationLogStore } from "./stores/notificationLogStore";
+import { useUpdateStore } from "./stores/updateStore";
 import { createPosAppRouter } from "./router";
 import {
 	installGlobalErrorHandlers,
@@ -38,6 +39,7 @@ import {
 import { finalizePendingBundleActivation } from "./utils/bundleVersionActivation";
 import { reconcileBuildChangeOnStartup } from "./utils/buildCacheReconciler";
 import { ONLINE_ONLY_MODE } from "./config/runtime";
+import { installCsrfGuard } from "./utils/csrfGuard";
 import { initPromise, isOffline } from "../offline";
 import App from "./App.vue";
 // @ts-ignore
@@ -60,6 +62,9 @@ if (typeof frappe === "undefined") {
 	console.error("Frappe is not defined");
 } else {
 	frappe.provide("frappe.PosApp");
+	// Stale CSRF token -> refresh + retry once, instead of "Invalid Request"
+	// on every save until the page is reloaded.
+	installCsrfGuard();
 }
 
 export async function initPosStorage() {
@@ -88,29 +93,30 @@ async function startOptionalRuntimeServices() {
 	const notificationLogStore = useNotificationLogStore();
 	notificationLogStore.init();
 
-	await import("../sw-updater").catch((error) => {
-		console.warn("Failed to initialize POS service worker updater", error);
-	});
+	// The app works on live data only, so it no longer installs a service
+	// worker: one that served cached pages/assets on a slow connection caused
+	// "Invalid Request" (stale CSRF token) and half-loaded, unresponsive
+	// pages. Remove any worker / caches left from earlier versions.
+	void removeLegacyServiceWorker();
 
-	if (!document.querySelector('link[rel="manifest"]')) {
-		const link = document.createElement("link");
-		link.rel = "manifest";
-		link.href = "/manifest.json";
-		document.head.appendChild(link);
-	}
+	// "New version available" banner: a plain reload picks up the new build.
+	useUpdateStore().setReloadAction(() => window.location.reload());
+}
 
-	if (
-		("serviceWorker" in navigator &&
-			window.location.protocol === "https:") ||
-		window.location.hostname === "localhost" ||
-		window.location.hostname === "127.0.0.1"
-	) {
-		navigator.serviceWorker
-			.register("/sw.js")
-			.then((registration) => {
-				console.log("SW registered successfully", registration);
-			})
-			.catch((err) => console.error("SW registration failed", err));
+async function removeLegacyServiceWorker() {
+	try {
+		if ("serviceWorker" in navigator && navigator.serviceWorker.getRegistrations) {
+			const registrations = await navigator.serviceWorker.getRegistrations();
+			await Promise.all(registrations.map((registration) => registration.unregister()));
+		}
+		if (typeof caches !== "undefined") {
+			const keys = await caches.keys();
+			await Promise.all(
+				keys.filter((key) => key.startsWith("posawesome-cache-")).map((key) => caches.delete(key)),
+			);
+		}
+	} catch (error) {
+		console.warn("Failed to remove legacy service worker", error);
 	}
 }
 

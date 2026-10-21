@@ -116,7 +116,7 @@ const form = reactive({
 	enable_background_sync: false,
 	background_sync_interval: 30,
 	enable_custom_items_per_page: false,
-	items_per_page: 50,
+	items_per_page: 12,
 	force_server_items: false,
 });
 

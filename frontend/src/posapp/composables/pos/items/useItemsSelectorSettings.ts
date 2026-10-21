@@ -114,23 +114,26 @@ export const useItemsSelectorSettings = ({
 			"enable_custom_items_per_page",
 			vm.temp_enable_custom_items_per_page,
 		);
-		const itemsPerPage = getValue("items_per_page", vm.temp_items_per_page);
-		if (vm.enable_custom_items_per_page) {
-			vm.items_per_page = parseInt(itemsPerPage) || 50;
-		} else {
-			vm.items_per_page = 50;
-		}
-		vm.itemsPerPage = vm.items_per_page;
-		vm.pos_profile.posa_force_server_items = getValue(
-			"force_server_items",
-			vm.temp_force_server_items,
-		)
-			? 1
-			: 0;
-		savePosProfileSetting(
-			"posa_force_server_items",
-			vm.pos_profile.posa_force_server_items,
+		// Keep the entered value even when the switch is off; the grid uses it
+		// only while "Custom items per page" is on (default page size is 12).
+		const itemsPerPage = parseInt(
+			String(getValue("items_per_page", vm.temp_items_per_page)),
+			10,
 		);
+		vm.items_per_page =
+			Number.isFinite(itemsPerPage) && itemsPerPage > 0 ? itemsPerPage : 12;
+		if (vm.pos_profile) {
+			vm.pos_profile.posa_force_server_items = getValue(
+				"force_server_items",
+				vm.temp_force_server_items,
+			)
+				? 1
+				: 0;
+			savePosProfileSetting(
+				"posa_force_server_items",
+				vm.pos_profile.posa_force_server_items,
+			);
+		}
 		if (!vm.show_last_invoice_rate) {
 			vm.clearLastInvoiceRateCache();
 		} else {
@@ -174,9 +177,9 @@ export const useItemsSelectorSettings = ({
 		if (typeof opts.enable_custom_items_per_page === "boolean") {
 			vm.enable_custom_items_per_page = opts.enable_custom_items_per_page;
 		}
-		if (typeof opts.items_per_page === "number") {
-			vm.items_per_page = opts.items_per_page;
-			vm.itemsPerPage = vm.items_per_page;
+		const savedItemsPerPage = parseInt(String(opts.items_per_page), 10);
+		if (Number.isFinite(savedItemsPerPage) && savedItemsPerPage > 0) {
+			vm.items_per_page = savedItemsPerPage;
 		}
 	};
 

@@ -259,6 +259,9 @@ export default {
 		const toastStore = useToastStore();
 		const uiStore = useUIStore();
 		const itemsStore = useItemsStore();
+		// This screen loads its own warehouse's catalogue -- don't show the
+		// previous screen's items or load the POS Profile default first.
+		itemsStore.beginWarehouseResolution();
 		const isIssue = computed(() => props.purpose === 'Material Issue');
 		const basePath = computed(() => stockEntryBasePath(props.purpose));
 
@@ -382,7 +385,8 @@ export default {
 			}
 			if (!resolvedProfile?.name) return;
 			try {
-				await itemsStore.initialize(resolvedProfile);
+				// This screen loads its own warehouse's catalogue right after.
+				await itemsStore.initialize(resolvedProfile, null, null, { skipInitialLoad: true });
 			} catch (error) {
 				console.error('Failed to initialize items store:', error);
 			}
@@ -459,21 +463,24 @@ export default {
 		};
 
 		onMounted(async () => {
-			if (!isFundTransferManager()) {
-				router.replace(`${basePath.value}/list`);
-				return;
+			try {
+				if (!isFundTransferManager()) {
+					router.replace(`${basePath.value}/list`);
+					return;
+				}
+				loadWarehouseOptions();
+				await ensureItemsStoreInitialized(uiStore.posProfile);
+				// Landing here directly, the POS Profile (and so its warehouse) may
+				// only be known after the store initialized.
+				if (!warehouse.value) {
+					warehouse.value = itemsStore.posProfile?.warehouse || null;
+				}
+				// Load the warehouse's full catalogue like the other entry
+				// screens (and the warehouse picker) do.
+				await onWarehouseChange();
+			} finally {
+				itemsStore.endWarehouseResolution();
 			}
-			loadWarehouseOptions();
-			await ensureItemsStoreInitialized(uiStore.posProfile);
-			// Landing here directly, the POS Profile (and so its warehouse) may
-			// only be known after the store initialized.
-			if (!warehouse.value) {
-				warehouse.value = itemsStore.posProfile?.warehouse || null;
-			}
-			// initialize() alone only fetches the 20-item first page; load the
-			// warehouse's full catalogue like the other entry screens (and the
-			// warehouse picker) do.
-			await onWarehouseChange();
 		});
 
 		return {

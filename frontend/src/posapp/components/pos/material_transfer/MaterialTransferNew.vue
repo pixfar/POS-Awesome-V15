@@ -312,6 +312,9 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
+		// This screen loads its own warehouse's catalogue -- don't show the
+		// previous screen's items or load the POS Profile default first.
+		itemsStore.beginWarehouseResolution();
 		const {
 			responsiveStyles,
 			isCompact,
@@ -782,7 +785,8 @@ export default {
 			if (!resolvedProfile?.name) return;
 			pos_profile.value = resolvedProfile;
 			try {
-				await itemsStore.initialize(resolvedProfile);
+				// This screen loads its own warehouse's catalogue right after.
+				await itemsStore.initialize(resolvedProfile, null, null, { skipInitialLoad: true });
 			} catch (error) {
 				console.error('Failed to initialize items store:', error);
 			}
@@ -795,9 +799,13 @@ export default {
 			} else if (uiStore.posProfile?.name) {
 				pos_profile.value = uiStore.posProfile;
 			}
-			await ensureItemsStoreInitialized(pos_profile.value);
-			initWarehousesFromProfile();
-			await loadWarehouses();
+			try {
+				await ensureItemsStoreInitialized(pos_profile.value);
+				initWarehousesFromProfile();
+				await loadWarehouses();
+			} finally {
+				itemsStore.endWarehouseResolution();
+			}
 		});
 
 		return {

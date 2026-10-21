@@ -431,6 +431,7 @@ import { useInvoiceUI } from "../../composables/pos/invoice/useInvoiceUI";
 import { useInvoicePrinting } from "../../composables/pos/invoice/useInvoicePrinting";
 import { useInvoiceStock } from "../../composables/pos/invoice/useInvoiceStock";
 import { usePaymentPrinting } from "../../composables/pos/payments/usePaymentPrinting";
+import { loadSaleDefaults, saveSaleDefaults } from "../../utils/saleDefaultsCache";
 import {
 	createInvoiceShortcutListeners,
 	registerInvoiceShortcutListener,
@@ -711,6 +712,9 @@ export default {
 	},
 
 	methods: {
+		// Non-switcher: the one warehouse this user works in. Returns
+		// { name, label } (or the POS Profile's warehouse when the lookup
+		// fails); resolveSaleWarehouse applies it.
 		async loadActiveWarehouseLabel() {
 			try {
 				const result = await frappe.call({
@@ -723,55 +727,101 @@ export default {
 					},
 				});
 				const row = result.message || {};
-				if (row.name) {
-					this.sale_warehouse = row.name;
-					this.sale_warehouse_label =
-						row.warehouse_name || row.name;
-					this.itemsStore?.setActiveSaleWarehouse?.(row.name);
-					this.syncCartWarehouse(row.name);
-					await this.reloadItemsForWarehouse(row.name);
-				}
+				return row.name ? { name: row.name, label: row.warehouse_name || row.name } : null;
 			} catch (e) {
 				console.error("Failed to load active warehouse", e);
 				const profileWh = this.pos_profile?.warehouse || null;
-				if (profileWh) {
-					this.sale_warehouse = profileWh;
-					this.sale_warehouse_label = profileWh;
-					this.itemsStore?.setActiveSaleWarehouse?.(profileWh);
-					this.syncCartWarehouse(profileWh);
-					await this.reloadItemsForWarehouse(profileWh);
-				}
+				return profileWh ? { name: profileWh, label: profileWh } : null;
 			}
 		},
 		async reloadItemsForWarehouse(warehouse) {
 			if (!warehouse || typeof this.itemsStore?.refreshItems !== "function") {
 				return;
 			}
-			// The first catalog load already waited for this warehouse
-			// (itemsStore.beginWarehouseResolution) -- reloading it again
-			// would only blank and refill the same grid.
-			if (this.itemsStore.catalogWarehouse === warehouse) {
-				return;
-			}
 			await this.itemsStore.refreshItems({ warehouse, forceServer: true });
 		},
-		async fetchWarehouses() {
-			try {
-				await this.resolveSaleWarehouse();
-			} finally {
-				// Release the item catalog even if no warehouse could be
-				// resolved -- but not on the mounted() call that runs before
-				// the POS Profile is registered, which can't resolve anything.
-				if (this.pos_profile?.name) {
-					this.itemsStore?.endWarehouseResolution?.();
-				}
+		fetchWarehouses() {
+			// mounted() and profile registration both call this at load -- share
+			// one in-flight resolution instead of resolving (and reloading the
+			// item catalogue) twice.
+			const profileName = this.pos_profile?.name || "";
+			if (this._fetchWarehousesPromise && this._fetchWarehousesProfile === profileName) {
+				return this._fetchWarehousesPromise;
 			}
+			this._fetchWarehousesProfile = profileName;
+			const promise = (async () => {
+				try {
+					await this.resolveSaleWarehouse();
+				} finally {
+					if (this._fetchWarehousesPromise === promise) {
+						this._fetchWarehousesPromise = null;
+					}
+					// Release the item catalog even if no warehouse could be
+					// resolved -- but not on the mounted() call that runs before
+					// the POS Profile is registered, which can't resolve anything.
+					if (this.pos_profile?.name) {
+						this.itemsStore?.endWarehouseResolution?.();
+					}
+				}
+			})();
+			this._fetchWarehousesPromise = promise;
+			return promise;
 		},
 		async resolveSaleWarehouse() {
+			// Nothing to resolve before the POS Profile is registered: without
+			// it the server answers with just the first permitted warehouse,
+			// and when that answer arrived after the real one it replaced the
+			// correct warehouse/account (e.g. Asif Engineering / Cash - BSP
+			// instead of Store Room).
+			const profileName = this.pos_profile?.name;
+			if (!profileName) {
+				return;
+			}
+			// Only the newest lookup may apply its result, and never over a
+			// warehouse the cashier has already picked by hand.
+			const token = (this._warehouseResolveToken || 0) + 1;
+			this._warehouseResolveToken = token;
+			const isCurrent = () =>
+				token === this._warehouseResolveToken && !this._userPickedWarehouse;
 			const profileWh = this.pos_profile?.warehouse || null;
+
+			// Last server-resolved default for this user + profile: applied at
+			// once so the screen and its catalogue start on the right warehouse
+			// and account without waiting for the lookups below, which still
+			// run and correct it if the default has changed.
+			const cached = this._userPickedWarehouse ? null : loadSaleDefaults(profileName);
+			if (cached) {
+				this.applySaleWarehouse(cached.warehouse, cached.warehouse_label);
+				if (this.canEditPaymentAccount && cached.account) {
+					this.paymentAccountOverride = cached.account;
+				}
+				void this.reloadItemsForWarehouse(cached.warehouse);
+			}
+
+			const applyResolved = async (warehouse, label, { syncAccount }) => {
+				if (!warehouse || !isCurrent()) return;
+				if (warehouse !== cached?.warehouse) {
+					this.applySaleWarehouse(warehouse, label);
+					if (syncAccount) await this.syncAccountForWarehouse(warehouse);
+					if (!isCurrent()) return;
+					await this.reloadItemsForWarehouse(warehouse);
+				} else if (syncAccount && !cached?.account) {
+					await this.syncAccountForWarehouse(warehouse);
+				}
+				if (!isCurrent()) return;
+				saveSaleDefaults(profileName, {
+					warehouse,
+					warehouse_label: label || warehouse,
+					account: this.canEditPaymentAccount ? this.paymentAccountOverride : null,
+				});
+			};
+
 			if (!this.canChangePosWarehouse) {
 				this.warehouses = [];
-				await this.loadActiveWarehouseLabel();
+				const active = await this.loadActiveWarehouseLabel();
+				if (active) {
+					await applyResolved(active.name, active.label, { syncAccount: false });
+				}
 				return;
 			}
 			try {
@@ -784,6 +834,7 @@ export default {
 							: null,
 					},
 				});
+				if (token !== this._warehouseResolveToken) return;
 				const msg = result.message || {};
 				const warehouseList = Array.isArray(msg) ? msg : (msg.warehouses || []);
 				const suggestedDefault = Array.isArray(msg) ? null : (msg.default_warehouse || null);
@@ -800,23 +851,13 @@ export default {
 					defaultWh = this.warehouses[0].value;
 				}
 				if (defaultWh) {
-					this.sale_warehouse = defaultWh;
-					this.itemsStore?.setActiveSaleWarehouse?.(defaultWh);
-					// Without this, when the resolved default here differs from
-					// pos_profile.warehouse (e.g. a per-user warehouse
-					// restriction), the item catalog and stock coordinator stay
-					// primed against the POS profile's default warehouse forever
-					// -- they only ever get told about a warehouse change when
-					// the user explicitly touches the dropdown (onSaleWarehouseUpdate
-					// -> handleSaleWarehouseChange), which never fires for a
-					// value that was already correct on load. That mismatch is
-					// exactly what caused negative "Stock Qty" and a false
-					// "Insufficient stock" rejection at Pay against the wrong
-					// warehouse. loadActiveWarehouseLabel (the non-canChangePosWarehouse
-					// sibling of this function) already does this.
-					this.syncCartWarehouse(defaultWh);
-					await this.syncAccountForWarehouse(defaultWh);
-					await this.reloadItemsForWarehouse(defaultWh);
+					// Also pushes the warehouse into the item catalogue / stock
+					// coordinator (setActiveSaleWarehouse) and the cart -- without
+					// that, a default differing from pos_profile.warehouse left
+					// stock figures primed against the profile's warehouse (false
+					// "Insufficient stock" at Pay).
+					const label = this.warehouses.find((w) => w.value === defaultWh)?.label;
+					await applyResolved(defaultWh, label, { syncAccount: true });
 				}
 			} catch (e) {
 				console.error("Failed to fetch warehouses", e);
@@ -826,11 +867,17 @@ export default {
 				this.warehouses = [
 					{ value: profileWh, label: profileWh },
 				];
-				this.sale_warehouse = profileWh;
-				this.itemsStore?.setActiveSaleWarehouse?.(profileWh);
-				this.syncCartWarehouse(profileWh);
-				await this.reloadItemsForWarehouse(profileWh);
+				await applyResolved(profileWh, profileWh, { syncAccount: false });
 			}
+		},
+		applySaleWarehouse(warehouse, label) {
+			this.sale_warehouse = warehouse;
+			this.sale_warehouse_label = label || warehouse;
+			if (this.canChangePosWarehouse && !this.warehouses.some((w) => w.value === warehouse)) {
+				this.warehouses = [{ value: warehouse, label: label || warehouse }, ...this.warehouses];
+			}
+			this.itemsStore?.setActiveSaleWarehouse?.(warehouse);
+			this.syncCartWarehouse(warehouse);
 		},
 		onSaleWarehouseUpdate(val) {
 			if (!this.canChangePosWarehouse) {
@@ -839,6 +886,9 @@ export default {
 			if (!val || val === this.sale_warehouse) {
 				return;
 			}
+			// A hand-picked warehouse is never replaced by a default lookup
+			// still running in the background.
+			this._userPickedWarehouse = true;
 			this.sale_warehouse = val;
 			this.handleSaleWarehouseChange(val);
 		},
@@ -1310,13 +1360,33 @@ export default {
 		},
 
 		handleRegisterPosProfile(data) {
+			// The deep watcher on uiStore.posProfile (mounted) fires on every
+			// replacement of the profile object -- cached copy, then server
+			// copy, then each shift check -- with the same profile. Re-running
+			// the full registration each time re-fetched warehouses, price
+			// lists, currencies, drafts, cash accounts and the whole item
+			// catalogue 3-4 times per page load, blocking the page (and its
+			// menu) for seconds. Same profile + company + opening shift: only
+			// refresh the local copies below.
+			const registrationKey = [
+				data.pos_profile?.name,
+				data.pos_profile?.company,
+				data.pos_opening_shift?.name,
+			].join("|");
+			const alreadyRegistered = registrationKey === this._posProfileRegistrationKey;
+			this._posProfileRegistrationKey = registrationKey;
+
 			this.pos_profile = data.pos_profile;
 			this.company = data.company || null;
-			this.customer = data.pos_profile.customer;
 			this.pos_opening_shift = data.pos_opening_shift;
 			this.stock_settings = data.stock_settings;
 
 			this.invoiceType = this.pos_profile.posa_default_sales_order ? "Order" : "Invoice";
+
+			if (alreadyRegistered) {
+				return;
+			}
+			this.customer = data.pos_profile.customer;
 
 			// Seed warehouse from POS profile if user hasn't picked one yet.
 			// Only an already-resolved warehouse goes to the item store here --

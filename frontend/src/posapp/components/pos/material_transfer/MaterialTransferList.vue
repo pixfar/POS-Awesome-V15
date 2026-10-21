@@ -431,7 +431,7 @@ export default {
 		const deleteTransferName = ref('');
 
 		const page = ref(1);
-		const pageSize = ref(20);
+		const pageSize = ref(10);
 		const total = ref(0);
 		const totalPages = computed(() => Math.max(1, Math.ceil(total.value / (pageSize.value || 1))));
 		const hasMore = ref(false);

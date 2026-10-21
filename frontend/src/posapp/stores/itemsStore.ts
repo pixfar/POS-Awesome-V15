@@ -8,6 +8,7 @@ import { ref, computed, watch } from "vue";
 import type { Item, POSProfile } from "../types/models";
 import itemService from "../services/itemService";
 import { refreshBootstrapSnapshotFromCacheState } from "../../offline/index";
+import { setItemsLastSync } from "../../offline/cache";
 
 // Composables
 import { useItemsCache } from "../composables/pos/items/store/useItemsCache";
@@ -111,24 +112,48 @@ export const useItemsStore = defineStore("items", () => {
 	const lastSearch = ref("");
 	const posProfile = ref<POSProfile | null>(null);
 	const activeSaleWarehouse = ref<string | null>(null);
-	// Warehouse the catalog was last (or is currently being) loaded for --
-	// lets the Sales screen skip a redundant full reload once it resolves the
-	// warehouse the first load already used.
-	const catalogWarehouse = ref<string | null>(null);
 
-	// The Sales screen only knows the cashier's real warehouse after a server
-	// round trip (get_pos_warehouses / get_pos_active_warehouse); until then
-	// all it has is the POS Profile's static default. Without this gate
-	// initialize() loaded the catalog for that default first, then the whole
-	// grid swapped to the real warehouse's items a few seconds later. The
-	// screen opens the gate with beginWarehouseResolution() before the item
-	// selector initialises; setActiveSaleWarehouse() (or
-	// endWarehouseResolution() on failure) closes it, and initialize() waits
-	// for it -- capped, so a stuck request never leaves the grid empty.
+	// Create screens (Sales Invoice, Requisition, Material Transfer, Stock
+	// Entry, Purchase Order, BOM) own their catalogue: each resolves its
+	// warehouse (a server round trip) and then loads that warehouse's items
+	// (setActiveSaleWarehouse + refreshItems). The screen calls
+	// beginWarehouseResolution() when it is set up -- before the item
+	// selector initialises -- which clears the previous screen's items (the
+	// store is shared, so they would otherwise show until the new load
+	// finished) and makes initialize()/loadItems() wait for the real
+	// warehouse instead of loading the POS Profile's default first.
+	// setActiveSaleWarehouse() (or endWarehouseResolution() on failure)
+	// closes the gate; the wait is capped so a stuck request never leaves the
+	// grid empty.
 	const WAREHOUSE_GATE_TIMEOUT_MS = 8000;
+	// Items per page of the item grid (Item Selector Settings > Custom items
+	// per page, default 12) -- the first request of a full catalogue load
+	// fetches exactly one grid page so it shows immediately (see loadItems).
+	const DEFAULT_DISPLAY_PAGE_SIZE = 12;
+	const displayPageSize = ref(DEFAULT_DISPLAY_PAGE_SIZE);
+	const setDisplayPageSize = (size: unknown) => {
+		const parsed = parseInt(String(size), 10);
+		displayPageSize.value =
+			Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DISPLAY_PAGE_SIZE;
+	};
+	// Warehouse whose stock the catalogue in `items` currently carries (null
+	// when empty) -- lets initialize() keep a catalogue a screen already
+	// loaded instead of replacing it.
+	const catalogWarehouse = ref<string | null>(null);
 	let warehouseGate: { promise: Promise<void>; resolve: () => void } | null = null;
+	// True from beginWarehouseResolution() until the screen's own catalogue
+	// load starts (refreshItems) -- initialize() must not start a competing
+	// load in between (the newer request would win and leave a partial grid).
+	let pageCatalogPending = false;
 
 	const beginWarehouseResolution = () => {
+		pageCatalogPending = true;
+		// Never show the previous screen's / warehouse's items on this one.
+		if (items.value.length) {
+			setItems([], { totalCount: 0 });
+		}
+		itemsLoaded.value = false;
+		catalogWarehouse.value = null;
 		if (warehouseGate) return;
 		let resolve: () => void = () => {};
 		const promise = new Promise<void>((r) => {
@@ -137,11 +162,20 @@ export const useItemsStore = defineStore("items", () => {
 		warehouseGate = { promise, resolve };
 	};
 
-	const endWarehouseResolution = () => {
+	const releaseWarehouseGate = () => {
 		if (!warehouseGate) return;
 		const gate = warehouseGate;
 		warehouseGate = null;
 		gate.resolve();
+	};
+
+	// Called by a screen once its warehouse resolution is over. If the screen
+	// never started its own catalogue load (no warehouse resolved),
+	// initialize() falls back to loading the POS Profile's default; a load
+	// already running or done is kept (see initialize()).
+	const endWarehouseResolution = () => {
+		pageCatalogPending = false;
+		releaseWarehouseGate();
 	};
 
 	const waitForWarehouseResolution = async () => {
@@ -365,7 +399,7 @@ export const useItemsStore = defineStore("items", () => {
 			stockCoordinator.clearAll();
 		}
 		if (resolved) {
-			endWarehouseResolution();
+			releaseWarehouseGate();
 		}
 	};
 
@@ -501,6 +535,7 @@ export const useItemsStore = defineStore("items", () => {
 		profile: POSProfile,
 		cust: string | null = null,
 		priceList: string | null = null,
+		options: { skipInitialLoad?: boolean } = {},
 	) => {
 		// `profile` is the POS Profile's own raw document (e.g. from
 		// uiStore.posProfile), carrying its static default warehouse --
@@ -521,12 +556,35 @@ export const useItemsStore = defineStore("items", () => {
 		// instead of trusting posProfile.value.warehouse -- preserving it
 		// here closes it at the source instead, so every other consumer of
 		// posProfile.value.warehouse doesn't need its own workaround too.
-		await waitForWarehouseResolution();
+		// skipInitialLoad: a screen that loads its own warehouse's catalogue
+		// right after (setActiveSaleWarehouse + refreshItems) only needs the
+		// profile set here -- and must not wait on its own gate.
+		if (!options.skipInitialLoad) {
+			await waitForWarehouseResolution();
+		}
 		posProfile.value = activeSaleWarehouse.value
 			? { ...profile, warehouse: activeSaleWarehouse.value }
 			: profile;
 		customer.value = cust;
 		customerPriceList.value = priceList;
+
+		// Keep a catalogue the screen already loaded (or is loading) for this
+		// warehouse: loadCachedItems() below empties the grid in online mode
+		// and the fallback load is only a 20-item first page.
+		const catalogIsCurrent =
+			items.value.length > 0 &&
+			catalogWarehouse.value !== null &&
+			catalogWarehouse.value === resolveLoadItemsWarehouse();
+		if (
+			options.skipInitialLoad ||
+			pageCatalogPending ||
+			catalogIsCurrent ||
+			forcedLoadsInFlight > 0
+		) {
+			await loadItemGroups(posProfile.value);
+			if (catalogIsCurrent) itemsLoaded.value = true;
+			return;
+		}
 
 		await Promise.all([
 			loadItemGroups(posProfile.value),
@@ -536,7 +594,6 @@ export const useItemsStore = defineStore("items", () => {
 		void assessCacheHealth();
 
 		if (!itemsLoaded.value || items.value.length === 0) {
-			catalogWarehouse.value = resolveLoadItemsWarehouse();
 			await loadItems({ forceServer: false });
 		}
 		itemsLoaded.value = true;
@@ -771,13 +828,56 @@ export const useItemsStore = defineStore("items", () => {
 				return [];
 			}
 
-			const fetchedItems = await itemService.getItemsData(
-				args,
-				abortController.signal,
-			);
+			// A full (forceServer) catalogue load is ~1,200+ rows: fetching it in
+			// one request left the grid blank for seconds. Fetch the first page
+			// and show it straight away, then the rest after that page's last
+			// item_code. Same filters and item_code order on the server, so the
+			// combined list is exactly what one request would have returned.
+			const progressive =
+				forceServer &&
+				!searchValue &&
+				!limitSearchEnabled.value &&
+				!request.resolvedLimit &&
+				(args as any).sort_by === "item_code";
 
-			if (requestToken.value !== currentRequestToken) {
-				return;
+			let fetchedItems: any[];
+			if (progressive) {
+				const firstPage = await itemService.getItemsData(
+					{ ...args, limit: displayPageSize.value } as any,
+					abortController.signal,
+				);
+				if (requestToken.value !== currentRequestToken) {
+					return;
+				}
+				const firstPageWarehouse =
+					(args as any)?.warehouse || resolveLoadItemsWarehouse(options) || null;
+				firstPage.forEach((it: any) => {
+					if (it) it._stockWarehouse = firstPageWarehouse;
+				});
+				setItems(firstPage);
+				catalogWarehouse.value = firstPageWarehouse;
+				itemsLoaded.value = true;
+
+				fetchedItems = firstPage;
+				const lastCode = firstPage[firstPage.length - 1]?.item_code;
+				if (firstPage.length >= displayPageSize.value && lastCode) {
+					const rest = await itemService.getItemsData(
+						{ ...args, start_after: lastCode } as any,
+						abortController.signal,
+					);
+					if (requestToken.value !== currentRequestToken) {
+						return;
+					}
+					fetchedItems = firstPage.concat(rest || []);
+				}
+			} else {
+				fetchedItems = await itemService.getItemsData(
+					args,
+					abortController.signal,
+				);
+				if (requestToken.value !== currentRequestToken) {
+					return;
+				}
 			}
 
 			// The server's get_items response never carries a warehouse field
@@ -802,7 +902,15 @@ export const useItemsStore = defineStore("items", () => {
 			cachedPagination.value.total = fetchedItems.length;
 			cachedPagination.value.loading = false;
 			setItems(fetchedItems);
+			catalogWarehouse.value = searchValue ? null : stockWarehouse;
 			itemsLoaded.value = true;
+			if (!searchValue) {
+				// The catalogue is now live as of this load -- drop any older
+				// background-sync cursor (it is kept in browser storage and can be
+				// weeks old) so the next delta sync starts from the server's
+				// current baseline instead of re-pulling everything since then.
+				setItemsLastSync(null);
+			}
 
 			const shouldCacheFetchedItems =
 				!limitSearchEnabled.value && !isInitialBootstrapRequest;
@@ -1377,7 +1485,7 @@ export const useItemsStore = defineStore("items", () => {
 	};
 
 	const refreshItems = async (options: LoadItemsOptions = {}) => {
-		catalogWarehouse.value = resolveLoadItemsWarehouse(options);
+		pageCatalogPending = false;
 		await clearAllCaches();
 		itemsLoaded.value = false;
 		resetCachedPagination();
@@ -1445,7 +1553,12 @@ export const useItemsStore = defineStore("items", () => {
 	const refreshModifiedItems = async (
 		priceListOverride: string | null = null,
 	) => {
-		if (!itemsLoaded.value) return { size: 0, count: 0, items: [] };
+		// Never while the catalogue is empty or still loading: the delta rows
+		// would otherwise become the whole grid (a few hundred "changed"
+		// items, often 0 in stock) instead of updating the real catalogue.
+		if (!itemsLoaded.value || isLoading.value || items.value.length === 0) {
+			return { size: 0, count: 0, items: [] };
+		}
 		const resolvedPriceList =
 			typeof priceListOverride === "string" &&
 			priceListOverride.trim().length > 0
@@ -1457,7 +1570,13 @@ export const useItemsStore = defineStore("items", () => {
 			resolvedPriceList,
 			customer.value,
 			getStorageScope(),
-			(updates) => updateItemsInPlace(updates),
+			// Live data: the delta only refreshes price / stock of items already
+			// in the catalogue -- it never adds rows (new items come with the
+			// next catalogue load).
+			(updates) =>
+				updateItemsInPlace(
+					(updates || []).filter((row: any) => row?.item_code && itemsMap.value.has(row.item_code)),
+				),
 			itemsMap.value,
 			// Not getActiveWarehouse() -- that falls back to the "no_warehouse"
 			// sentinel used internally for cache-scoping keys, never meant to
@@ -1566,9 +1685,10 @@ export const useItemsStore = defineStore("items", () => {
 		posProfile,
 		activeSaleWarehouse,
 		setActiveSaleWarehouse,
-		catalogWarehouse,
 		beginWarehouseResolution,
 		endWarehouseResolution,
+		displayPageSize,
+		setDisplayPageSize,
 		customer,
 		customerPriceList,
 		cacheHealth,

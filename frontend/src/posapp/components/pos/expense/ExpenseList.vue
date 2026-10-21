@@ -358,7 +358,7 @@ export default {
 		let searchTimeout = null;
 
 		const page = ref(1);
-		const pageSize = ref(20);
+		const pageSize = ref(10);
 		// Covers every page, not just the rows on screen -- from the server.
 		const totalClaimed = ref(0);
 		const total = ref(0);

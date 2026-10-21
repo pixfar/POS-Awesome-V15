@@ -236,7 +236,7 @@ export default {
 
 		const hasActiveFilters = computed(() => Boolean(searchQuery.value || fromDate.value || toDate.value));
 		const page = ref(1);
-		const pageSize = ref(20);
+		const pageSize = ref(10);
 		// Header stats cover every submitted record, not just this page -- from the server.
 		const totalWastageKg = ref(0);
 		const totalPenalty = ref(0);

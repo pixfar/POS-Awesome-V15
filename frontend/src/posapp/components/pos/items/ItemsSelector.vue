@@ -81,7 +81,7 @@
 								v-if="items_view === 'card'"
 								ref="itemsContainer"
 								:displayed-items="displayedItems"
-								:is-loading="isLoadingOrSyncing"
+								:is-loading="isLoadingOrSyncing && !displayedItems.length"
 								:search-input="search_input"
 								:item-group="item_group"
 								:is-overflowing="isOverflowing"
@@ -382,7 +382,10 @@ const search_input = ref("");
 const first_search = ref("");
 const uom_filter = ref("ALL");
 const items_view = ref("card");
-const itemsPerPage = ref(12);
+// Item grid page size: 12 unless Item Selector Settings > Custom items per
+// page is on (pageSize below).
+const DEFAULT_ITEMS_PER_PAGE = 12;
+const itemsPerPage = ref(DEFAULT_ITEMS_PER_PAGE);
 const clearingSearch = ref(false);
 const isDragging = ref(false);
 const new_line = ref(false);
@@ -407,7 +410,7 @@ const show_last_invoice_rate = ref(false);
 const enable_background_sync = ref(false);
 const background_sync_interval = ref(30);
 const enable_custom_items_per_page = ref(false);
-const items_per_page = ref(50);
+const items_per_page = ref(DEFAULT_ITEMS_PER_PAGE);
 
 // Temporary Settings Refs (for dialog)
 const show_item_settings = ref(false);
@@ -416,7 +419,7 @@ const temp_hide_qty_decimals = ref(false);
 const temp_hide_zero_rate_items = ref(false);
 const temp_hide_zero_stock_items = ref(false);
 const temp_enable_custom_items_per_page = ref(false);
-const temp_items_per_page = ref(50);
+const temp_items_per_page = ref(DEFAULT_ITEMS_PER_PAGE);
 const temp_force_server_items = ref(false);
 const temp_show_last_invoice_rate = ref(false);
 const temp_enable_background_sync = ref(false);
@@ -496,9 +499,14 @@ const {
 // cumulatively revealed everything up to the current page. `items`/`filteredItems`
 // (the full catalog cache used by search/scan) keep growing via
 // appendCachedItemsPage as before; only the small render window advances.
-const pageSize = computed(() =>
-	enable_custom_items_per_page.value ? items_per_page.value : itemsPerPage.value,
-);
+const pageSize = computed(() => {
+	const custom = parseInt(String(items_per_page.value), 10);
+	return enable_custom_items_per_page.value && Number.isFinite(custom) && custom > 0
+		? custom
+		: DEFAULT_ITEMS_PER_PAGE;
+});
+// The first request of a catalogue load fetches exactly one grid page.
+watch(pageSize, (size) => itemsIntegration.itemsStore?.setDisplayPageSize?.(size), { immediate: true });
 const currentPage = ref(1);
 const isLoadingMorePages = ref(false);
 
@@ -739,6 +747,9 @@ watch(first_search, (term) => {
 });
 
 const itemsSelectorSettings = useItemsSelectorSettings({ getVM: () => settingsContext, itemSync });
+// Apply saved settings (items per page etc.) before the first render / first
+// catalogue request, not only after initialisation finishes.
+itemsSelectorSettings.loadItemSettings();
 const itemsSelectorFocus = useItemsSelectorFocus({
 	getVM: () => vmInstance?.proxy,
 	scannerInput,
@@ -1132,7 +1143,7 @@ onMounted(async () => {
 			return usesLimitSearch.value;
 		},
 		get itemsPageLimit() {
-			return enable_custom_items_per_page.value ? items_per_page.value : itemsPerPage.value;
+			return pageSize.value;
 		},
 		getBackgroundSyncPriceList: () => {
 			const customerPriceList =
