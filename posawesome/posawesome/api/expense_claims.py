@@ -11,6 +11,7 @@ from frappe.utils import flt, today
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	is_system_manager,
 	is_privileged_invoice_viewer,
+	is_read_only_viewer,
 	ensure_can_create,
 )
 from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
@@ -83,12 +84,25 @@ def _sum_not_cancelled(doctype, field, filters, or_filters):
 
 @frappe.whitelist()
 def get_current_employee():
-	"""Employee record linked to the logged-in POS user, used to prefill the Expense form."""
+	"""Employee record linked to the logged-in POS user, used to prefill the Expense form.
+
+	System Manager / BSP Admin / BSP Viewer often have no Employee record of
+	their own: return None for them instead of throwing (the throw showed an
+	"Employee Not Found" pop-up even though the form handles it). BSP Admin
+	and System Manager pick the employee in the form's employee picker."""
+	if is_privileged_invoice_viewer() or is_read_only_viewer():
+		employee = frappe.db.get_value(
+			"Employee",
+			{"user_id": frappe.session.user, "status": "Active"},
+			_EMPLOYEE_FIELDS,
+			as_dict=True,
+		)
+		return employee or None
 	return _get_employee_for_user()
 
 
 @frappe.whitelist()
-def search_employees(search_text=None, limit=20):
+def search_employees(search_text=None, limit=20, page_start=0):
 	"""Employee search for the Expense form's admin-only "From Employee"
 	override (System Manager / BSP Admin) -- lets them create an Expense
 	Claim on behalf of a different employee instead of only their own.
@@ -97,7 +111,8 @@ def search_employees(search_text=None, limit=20):
 	if not is_privileged_invoice_viewer():
 		frappe.throw(_('Not permitted'), exc=frappe.PermissionError)
 
-	limit = max(1, min(int(limit or 20), 50))
+	limit = max(1, min(int(limit or 20), 200))
+	page_start = max(0, int(page_start or 0))
 	filters = {'status': 'Active'}
 	or_filters = None
 	if search_text and len(search_text.strip()) >= 2:
@@ -109,7 +124,8 @@ def search_employees(search_text=None, limit=20):
 		filters=filters,
 		or_filters=or_filters,
 		fields=_EMPLOYEE_FIELDS,
-		order_by='employee_name asc',
+		order_by='employee_name asc, name asc',
+		limit_start=page_start,
 		limit_page_length=limit,
 		ignore_permissions=True,
 	)

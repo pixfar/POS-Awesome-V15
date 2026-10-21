@@ -229,6 +229,7 @@
 			>
 				<ItemsSelectorWithGroups
 					:context="isIssue ? 'material_transfer' : 'purchase'"
+					hide-new-item
 					@add-item="addItem"
 				/>
 			</v-col>

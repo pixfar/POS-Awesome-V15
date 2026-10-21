@@ -27,6 +27,7 @@
 			<div class="dynamic-padding">
 				<v-card flat class="selector-section-card selector-header-card pos-themed-card">
 					<ItemHeader
+						:hide-new-item="hideNewItem"
 						v-model:search-input="search_input"
 						v-model:qty-input="debounce_qty"
 						:pos-profile="pos_profile"
@@ -301,6 +302,11 @@ const props = defineProps({
 	context: {
 		type: String,
 		default: "pos",
+	},
+	// Hide the header's "New Item" button (e.g. Material Receipt).
+	hideNewItem: {
+		type: Boolean,
+		default: false,
 	},
 	showOnlyBarcodeItems: {
 		type: Boolean,

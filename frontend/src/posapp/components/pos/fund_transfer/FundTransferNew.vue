@@ -1,7 +1,8 @@
 <template>
 	<div class="pa-0 h-100 invoice-shell txn-shell">
 		<v-row class="h-100 ma-0 justify-center">
-			<v-col cols="12" md="9" lg="7" class="h-100 pa-0">
+			<!-- Full width, same layout as the other screens. -->
+			<v-col cols="12" class="h-100 pa-0">
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">

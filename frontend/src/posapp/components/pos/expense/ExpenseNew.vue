@@ -1,7 +1,8 @@
 <template>
 	<div class="pa-0 h-100 invoice-shell txn-shell">
 		<v-row class="h-100 ma-0 justify-center">
-			<v-col cols="12" md="9" lg="7" class="h-100 pa-0">
+			<!-- Full width, same layout as the other screens. -->
+			<v-col cols="12" class="h-100 pa-0">
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
@@ -32,7 +33,17 @@
 											prepend-inner-icon="mdi-account-outline"
 											class="pos-themed-input mb-2"
 											@update:search="handleEmployeeSearchUpdate"
+											@update:menu="onEmployeeMenu"
 										>
+											<template #append-item>
+												<div
+													v-if="employeeHasMore"
+													v-intersect="onEmployeeListIntersect"
+													class="pa-2 text-center text-caption text-medium-emphasis"
+												>
+													{{ __("Loading more...") }}
+												</div>
+											</template>
 											<template #item="{ props: itemProps, item }">
 												<v-list-item v-bind="itemProps" :title="undefined">
 													<v-list-item-title>{{ item.raw.employee_name }}</v-list-item-title>
@@ -146,10 +157,10 @@
 								<v-table density="comfortable" class="expense-rows-table">
 									<thead>
 										<tr>
-											<th style="width: 40px">{{ __("No.") }}</th>
-											<th style="min-width: 180px">{{ __("Expense Claim Type") }}</th>
+											<th style="width: 48px">{{ __("No.") }}</th>
+											<th style="width: 34%; min-width: 180px">{{ __("Expense Claim Type") }}</th>
 											<th style="min-width: 200px">{{ __("Description") }}</th>
-											<th style="width: 140px">{{ __("Amount") }}</th>
+											<th style="width: 18%; min-width: 150px" class="text-right">{{ __("Amount") }}</th>
 											<th style="width: 48px"></th>
 										</tr>
 									</thead>
@@ -203,7 +214,7 @@
 													density="compact"
 													variant="outlined"
 													hide-details
-													class="pos-themed-input"
+													class="pos-themed-input expense-amount-input"
 													@update:model-value="syncSanctionedAmount(row)"
 												/>
 											</td>
@@ -485,6 +496,9 @@ export default {
 					selectedEmployee.value = employee.value.name;
 					employeeOptions.value = [employee.value];
 				}
+				if (canSelectEmployee.value) {
+					loadEmployeeOptions();
+				}
 			} catch (e) {
 				// An admin with no Employee record of their own can still create
 				// an expense for someone else via the picker below -- only treat
@@ -498,23 +512,65 @@ export default {
 			}
 		};
 
+		// BSP Admin / System Manager: list active employees straight away (not
+		// only after typing) -- 10 at a time, the next 10 loading as the list
+		// is scrolled to the bottom. Keeps the already-selected one.
+		const EMPLOYEE_PAGE = 10;
+		const employeeHasMore = ref(false);
+		let employeeSearchText = '';
+		const loadEmployeeOptions = async (searchText = '', { append = false } = {}) => {
+			if (!canSelectEmployee.value) return;
+			if (append && (employeeSearchLoading.value || !employeeHasMore.value)) return;
+			employeeSearchText = searchText;
+			employeeSearchLoading.value = true;
+			try {
+				const pageStart = append ? employeeOptions.value.filter((e) => !e?._pinned).length : 0;
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.api.expense_claims.search_employees',
+					args: { search_text: searchText, limit: EMPLOYEE_PAGE, page_start: pageStart },
+				});
+				if (searchText !== employeeSearchText) return; // a newer search replaced this one
+				const rows = message || [];
+				employeeHasMore.value = rows.length === EMPLOYEE_PAGE;
+				if (append) {
+					const known = new Set(employeeOptions.value.map((e) => e?.name));
+					employeeOptions.value = [...employeeOptions.value, ...rows.filter((e) => !known.has(e.name))];
+					return;
+				}
+				const selected = employeeOptions.value.find((e) => e?.name === selectedEmployee.value);
+				employeeOptions.value =
+					selected && !rows.some((e) => e.name === selected.name)
+						? [{ ...selected, _pinned: true }, ...rows]
+						: rows;
+			} catch (e) {
+				console.error('Failed to search employees', e);
+			} finally {
+				employeeSearchLoading.value = false;
+			}
+		};
+		const onEmployeeListIntersect = (a) => {
+			const isIntersecting = typeof a === 'boolean' ? a : Array.isArray(a) && !!a[0]?.isIntersecting;
+			if (isIntersecting) loadEmployeeOptions(employeeSearchText, { append: true });
+		};
+
+		// Opening the picker always shows the full employee list.
+		let employeeListIsFiltered = false;
+		const onEmployeeMenu = (open) => {
+			if (open && (employeeListIsFiltered || employeeOptions.value.length <= 1)) {
+				employeeListIsFiltered = false;
+				loadEmployeeOptions();
+			}
+		};
+
 		const handleEmployeeSearchUpdate = (term) => {
 			if (employeeSearchTimeout) clearTimeout(employeeSearchTimeout);
-			if (!term || term.trim().length < 2) return;
-			employeeSearchTimeout = setTimeout(async () => {
-				employeeSearchLoading.value = true;
-				try {
-					const { message } = await frappe.call({
-						method: 'posawesome.posawesome.api.expense_claims.search_employees',
-						args: { search_text: term.trim(), limit: 20 },
-					});
-					employeeOptions.value = message || [];
-				} catch (e) {
-					console.error('Failed to search employees', e);
-				} finally {
-					employeeSearchLoading.value = false;
-				}
-			}, 300);
+			const text = (term || '').trim();
+			// Typing the selected employee's name into the box isn't a new search.
+			const selected = employeeOptions.value.find((e) => e?.name === selectedEmployee.value);
+			if (selected && (text === selected.employee_name || text === selected.name)) return;
+			if (text.length === 1) return;
+			employeeListIsFiltered = Boolean(text);
+			employeeSearchTimeout = setTimeout(() => loadEmployeeOptions(text), 300);
 		};
 
 		const loadExpenseTypes = async () => {
@@ -842,6 +898,9 @@ export default {
 			canSelectEmployee,
 			selectedEmployee,
 			employeeOptions,
+			onEmployeeMenu,
+			employeeHasMore,
+			onEmployeeListIntersect,
 			employeeSearchQuery,
 			employeeSearchLoading,
 			handleEmployeeSearchUpdate,
@@ -898,6 +957,12 @@ export default {
 	padding: 8px 10px 10px;
 	background: #e6f4f6;
 	border-top: 1px solid rgba(0, 151, 167, 0.18);
+}
+
+/* Amount wide enough to read and right-aligned like other money columns. */
+.expense-amount-input :deep(input) {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
 }
 
 .expense-attachments {
