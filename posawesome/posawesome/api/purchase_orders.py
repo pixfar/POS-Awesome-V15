@@ -328,12 +328,20 @@ def search_suppliers(search_text=None, limit=20):
             "name": ["like", like_value],
             "supplier_name": ["like", like_value],
         }
+        if frappe.get_meta("Supplier").has_field("mobile_no"):
+            or_filters["mobile_no"] = ["like", like_value]
+
+    fields = ["name", "supplier_name", "supplier_group", "supplier_type", "default_currency"]
+    # Mobile number shown under each supplier in the POS search (like the
+    # customer search on Sales) and searchable.
+    if frappe.get_meta("Supplier").has_field("mobile_no"):
+        fields.append("mobile_no")
 
     suppliers = frappe.get_all(
         "Supplier",
         filters=filters,
         or_filters=or_filters,
-        fields=["name", "supplier_name", "supplier_group", "supplier_type", "default_currency"],
+        fields=fields,
         order_by="supplier_name asc",
         limit_page_length=limit,
     )

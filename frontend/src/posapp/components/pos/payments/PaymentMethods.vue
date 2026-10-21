@@ -1,6 +1,19 @@
 <template>
 	<div v-if="payments && payments.length" class="payment-methods">
-		<div v-for="payment in payments" :key="payment.name" class="payment-method-card">
+		<div
+			v-for="payment in payments"
+			:key="payment.name"
+			:class="[
+				'payment-method-card',
+				{
+					'payment-method-card--wide':
+						isMpesaC2bPayment(payment) ||
+						(payment.default === 1 &&
+							isCashLikePayment(payment) &&
+							getVisibleDenominations(payment).length),
+				},
+			]"
+		>
 			<div class="payment-method-card__header">
 				<div>
 					<p class="payment-method-card__label">{{ frappe._("Method") }}</p>
@@ -20,7 +33,7 @@
 			</div>
 
 			<v-row class="payments ma-0" dense>
-				<v-col cols="12" md="7" v-if="!isMpesaC2bPayment(payment)">
+				<v-col cols="12" v-if="!isMpesaC2bPayment(payment)">
 					<v-text-field
 						density="compact"
 						variant="solo"
@@ -36,7 +49,7 @@
 						:readonly="isGiftCardPayment(payment)"
 					></v-text-field>
 				</v-col>
-				<v-col cols="12" md="5" v-if="!isMpesaC2bPayment(payment)">
+				<v-col cols="12" v-if="!isMpesaC2bPayment(payment)">
 					<div class="payment-method-actions">
 						<v-btn
 							block
@@ -149,9 +162,11 @@ const handlePrimaryAction = (payment) => {
 </script>
 
 <style scoped>
+/* Two methods per row; a method with quick-amount buttons (default cash)
+   spans the full row. Amount field above its action button in each card. */
 .payment-methods {
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: var(--pos-space-2);
 }
 
@@ -159,10 +174,24 @@ const handlePrimaryAction = (payment) => {
 	background: var(--pos-surface-raised);
 	border: 1px solid var(--pos-border-light);
 	border-radius: var(--pos-radius-md);
-	padding: var(--pos-space-3);
+	padding: var(--pos-space-2) var(--pos-space-3) var(--pos-space-3);
 	display: flex;
 	flex-direction: column;
-	gap: var(--pos-space-3);
+	gap: var(--pos-space-2);
+	min-width: 0;
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.payment-method-card--wide {
+	grid-column: 1 / -1;
+}
+
+.payment-method-card :deep(.payments > .v-col) {
+	padding: 3px 0 !important;
+}
+
+.payment-method-card__header .payment-method-card__label {
+	display: none;
 }
 
 .payment-method-card__header {

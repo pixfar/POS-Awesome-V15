@@ -327,6 +327,7 @@
 </template>
 
 <script>
+import { useMobileErrorToast } from '../../../composables/core/useMobileErrorToast';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import VueDatePicker from '@vuepic/vue-datepicker';
@@ -779,6 +780,9 @@ export default {
 				loadDefaultManufacturingWarehouse(),
 			]);
 		});
+
+		// Errors visible on phones too (the inline alert sits under the bottom bar).
+		useMobileErrorToast(errorMessage);
 
 		return {
 			pos_profile,

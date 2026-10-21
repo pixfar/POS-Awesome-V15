@@ -203,6 +203,7 @@
 </template>
 
 <script>
+import { useMobileErrorToast } from '../../../composables/core/useMobileErrorToast';
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
@@ -531,6 +532,9 @@ export default {
 			});
 			await Promise.all([loadUser(), loadWarehouses(), loadDepositTypes(), loadBanks()]);
 		});
+
+		// Errors visible on phones too (the inline alert sits under the bottom bar).
+		useMobileErrorToast(errorMessage);
 
 		return {
 			userDisplay,

@@ -504,6 +504,7 @@
 </template>
 
 <script>
+import { useMobileErrorToast } from "../../../composables/core/useMobileErrorToast";
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { sortItemGroupsBanglaFirst } from '../../../utils/itemGroupSort';
 import { useRoute, useRouter } from "vue-router";
@@ -847,6 +848,9 @@ export default {
 			await Promise.all(jobs);
 			if (context.can_change_warehouse) loadWarehouseOptions();
 		});
+
+		// Errors visible on phones too (the inline alert sits under the bottom bar).
+		useMobileErrorToast(errorMessage);
 
 		return {
 			responsiveStyles,

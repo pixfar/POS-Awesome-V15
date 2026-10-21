@@ -19,6 +19,14 @@
 				class="sleek-field pos-themed-input"
 				clearable
 			>
+				<template #item="{ props: itemProps, item }">
+					<v-list-item v-bind="itemProps" :title="undefined">
+						<v-list-item-title>{{ item.raw.supplier_name || item.raw.name }}</v-list-item-title>
+						<v-list-item-subtitle v-if="item.raw.mobile_no">
+							<v-icon size="14" class="mr-1">mdi-phone-outline</v-icon>{{ item.raw.mobile_no }}
+						</v-list-item-subtitle>
+					</v-list-item>
+				</template>
 				<template #append-inner>
 					<v-tooltip text="Add new supplier">
 						<template #activator="{ props }">

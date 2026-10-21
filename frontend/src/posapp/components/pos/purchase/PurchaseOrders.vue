@@ -352,17 +352,20 @@
 						{{ purchaseItems.length }} {{ purchaseItems.length === 1 ? __("item") : __("items") }}
 					</span>
 				</div>
-				<v-btn
-					:loading="submitLoading"
-					:disabled="submitLoading"
-					color="primary"
-					variant="flat"
-					class="text-none txn-dock-pay-btn"
-					prepend-icon="mdi-credit-card"
-					@click="openPaymentDialog"
-				>
-					{{ __("PAY") }}
-				</v-btn>
+				<!-- Discount here (same as Sales); the Pay button is in the dock below. -->
+				<div class="mobile-sale-dock__field">
+					<v-text-field
+						v-model.number="discountAmount"
+						type="number"
+						min="0"
+						:label="__('Additional Discount')"
+						prepend-inner-icon="mdi-cash-minus"
+						variant="solo"
+						density="compact"
+						color="warning"
+						hide-details
+					/>
+				</div>
 			</div>
 			<div class="mobile-pos-dock">
 				<button
@@ -402,6 +405,7 @@
 			:currency="supplierCurrency"
 			:pos-profile="pos_profile"
 			:is-paid="customIsPaid"
+			:initial-discount="discountAmount"
 			@submit="handlePaymentSubmit"
 		/>
 

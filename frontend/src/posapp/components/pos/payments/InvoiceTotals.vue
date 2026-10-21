@@ -1,19 +1,20 @@
 <template>
 	<v-row v-if="invoice_doc" class="invoice-totals-grid">
-		<v-col cols="12" sm="6">
+		<v-col cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"
 				color="primary"
 				:label="frappe._('Net Total')"
 				class="sleek-field pos-themed-input"
+				hide-details
 				:model-value="formatCurrency(invoice_doc.net_total, displayCurrency)"
 				readonly
 				:prefix="currencySymbol()"
 				persistent-placeholder
 			></v-text-field>
 		</v-col>
-		<v-col cols="12" sm="6">
+		<v-col cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"
@@ -27,7 +28,7 @@
 				persistent-placeholder
 			></v-text-field>
 		</v-col>
-		<v-col cols="12" sm="6">
+		<v-col cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"
@@ -41,7 +42,7 @@
 				persistent-placeholder
 			></v-text-field>
 		</v-col>
-		<v-col cols="12" sm="6">
+		<v-col cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"
@@ -57,7 +58,7 @@
 				persistent-placeholder
 			></v-text-field>
 		</v-col>
-		<v-col cols="12" sm="6">
+		<v-col cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"
@@ -94,7 +95,7 @@
 				</template>
 			</v-text-field>
 		</v-col>
-		<v-col cols="12" sm="6">
+		<v-col cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"
@@ -108,7 +109,7 @@
 				persistent-placeholder
 			></v-text-field>
 		</v-col>
-		<v-col cols="12" sm="6">
+		<v-col cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"
@@ -122,7 +123,7 @@
 				persistent-placeholder
 			></v-text-field>
 		</v-col>
-		<v-col cols="12" sm="6">
+		<v-col cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"
@@ -136,7 +137,7 @@
 				persistent-placeholder
 			></v-text-field>
 		</v-col>
-		<v-col v-if="invoice_doc && invoice_doc.rounded_total" cols="12" sm="6">
+		<v-col v-if="invoice_doc && invoice_doc.rounded_total" cols="6">
 			<v-text-field
 				density="compact"
 				variant="solo"

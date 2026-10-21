@@ -1,5 +1,5 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell txn-shell" :style="responsiveStyles">
+	<div class="pa-0 h-100 invoice-shell txn-shell" :style="[responsiveStyles, isCompact ? { '--bottom-safe-space': '100px' } : null]">
 		<v-row class="h-100 ma-0">
 			<v-col
 				v-show="showInvoicePanel"
@@ -262,26 +262,8 @@
 		</v-row>
 
 		<div v-if="isCompact" class="mobile-pos-stack txn-bottom-dock">
-			<div class="mobile-sale-dock">
-				<div class="mobile-sale-dock__copy">
-					<span class="mobile-sale-dock__eyebrow">{{ __("Raw Materials") }}</span>
-					<strong class="mobile-sale-dock__amount">{{ rawMaterials.length }}</strong>
-					<span class="mobile-sale-dock__meta">
-						{{ rawMaterials.length === 1 ? __("line") : __("lines") }}
-					</span>
-				</div>
-				<v-btn
-					:loading="submitLoading"
-					:disabled="submitLoading || !manufactureItem.item_code || !rawMaterials.length"
-					color="primary"
-					variant="flat"
-					class="text-none txn-dock-pay-btn"
-					prepend-icon="mdi-send"
-					@click="submitBom"
-				>
-					{{ __("Create BOM") }}
-				</v-btn>
-			</div>
+			<!-- No Total Qty / Submit panel here: the form shows Total Qty and the
+			     dock below has Submit. -->
 			<div class="mobile-pos-dock">
 				<button
 					type="button"
@@ -316,6 +298,7 @@
 </template>
 
 <script>
+import { useMobileErrorToast } from '../../../composables/core/useMobileErrorToast';
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUIStore } from '../../../stores/uiStore.js';
@@ -649,6 +632,9 @@ export default {
 				itemsStore.endWarehouseResolution();
 			}
 		});
+
+		// Errors visible on phones too (the inline alert sits under the bottom bar).
+		useMobileErrorToast(errorMessage);
 
 		return {
 			responsiveStyles,

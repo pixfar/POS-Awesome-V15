@@ -152,6 +152,7 @@
 </template>
 
 <script>
+import { useMobileErrorToast } from '../../../composables/core/useMobileErrorToast';
 import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
@@ -355,6 +356,9 @@ export default {
 		onMounted(async () => {
 			await Promise.all([loadPaidFrom(), loadPaidToOptions(), loadModeOfPaymentOptions()]);
 		});
+
+		// Errors visible on phones too (the inline alert sits under the bottom bar).
+		useMobileErrorToast(errorMessage);
 
 		return {
 			paidFrom,

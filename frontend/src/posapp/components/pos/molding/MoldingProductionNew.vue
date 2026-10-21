@@ -196,6 +196,7 @@
 </template>
 
 <script>
+import { useMobileErrorToast } from '../../../composables/core/useMobileErrorToast';
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
@@ -346,6 +347,9 @@ export default {
 			}
 			loadDefaultRate();
 		});
+
+		// Errors visible on phones too (the inline alert sits under the bottom bar).
+		useMobileErrorToast(errorMessage);
 
 		return {
 			productionDate,

@@ -1103,8 +1103,10 @@ export default {
 }
 
 @media (max-width: 560px) {
+	/* Amount on the left, Additional Discount on the right -- one row. */
 	.mobile-sale-dock {
-		grid-template-columns: 1fr;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+		gap: 8px;
 	}
 
 	.mobile-sale-dock,

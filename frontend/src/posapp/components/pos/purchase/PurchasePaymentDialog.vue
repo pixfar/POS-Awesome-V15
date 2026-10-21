@@ -181,6 +181,12 @@ const props = defineProps({
 		type: Boolean,
 		default: true,
 	},
+	// Discount entered in the purchase screen's bottom bar (phones / app);
+	// still editable here.
+	initialDiscount: {
+		type: Number,
+		default: 0,
+	},
 });
 
 const emit = defineEmits(["update:modelValue", "submit"]);
@@ -297,7 +303,7 @@ function formatCurrency(value, precision) {
 }
 
 function initializePayments() {
-	additionalDiscount.value = 0;
+	additionalDiscount.value = Math.max(Number(props.initialDiscount) || 0, 0);
 
 	const modes = props.posProfile.payments || [];
 	paymentLines.value = modes.map((m) => ({

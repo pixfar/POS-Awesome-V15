@@ -1,5 +1,5 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell txn-shell" :style="responsiveStyles">
+	<div class="pa-0 h-100 invoice-shell txn-shell" :style="[responsiveStyles, isCompact ? { '--bottom-safe-space': '100px' } : null]">
 		<v-row class="h-100 ma-0">
 			<v-col
 				v-show="showInvoicePanel"
@@ -220,27 +220,8 @@
 		</v-row>
 
 		<div v-if="isCompact" class="mobile-pos-stack txn-bottom-dock">
-			<div class="mobile-sale-dock">
-				<div class="mobile-sale-dock__copy">
-					<span class="mobile-sale-dock__eyebrow">{{ __("Total Qty") }}</span>
-					<strong class="mobile-sale-dock__amount">{{ totalQty }}</strong>
-					<span class="mobile-sale-dock__meta">
-						{{ requisitionItems.length }}
-						{{ requisitionItems.length === 1 ? __("item") : __("items") }}
-					</span>
-				</div>
-				<v-btn
-					:loading="submitLoading"
-					:disabled="submitLoading || !requisitionItems.length"
-					color="primary"
-					variant="flat"
-					class="text-none txn-dock-pay-btn"
-					prepend-icon="mdi-send"
-					@click="submitRequisition"
-				>
-					{{ editName ? __("Save Changes") : __("Send Requisition") }}
-				</v-btn>
-			</div>
+			<!-- No Total Qty / Submit panel here: the form shows Total Qty and the
+			     dock below has Submit. -->
 			<div class="mobile-pos-dock">
 				<button
 					type="button"
@@ -275,6 +256,7 @@
 </template>
 
 <script>
+import { useMobileErrorToast } from '../../../composables/core/useMobileErrorToast';
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import VueDatePicker from '@vuepic/vue-datepicker';
@@ -757,6 +739,9 @@ export default {
 			}
 			if (editName.value) await loadForEdit(editName.value);
 		});
+
+		// Errors visible on phones too (the inline alert sits under the bottom bar).
+		useMobileErrorToast(errorMessage);
 
 		return {
 			responsiveStyles,

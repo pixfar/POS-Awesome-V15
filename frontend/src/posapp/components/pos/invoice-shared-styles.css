@@ -681,8 +681,10 @@
 }
 
 @media (max-width: 560px) {
+	/* Total on the left, discount field / action on the right -- one row. */
 	.txn-bottom-dock .mobile-sale-dock {
-		grid-template-columns: 1fr;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+		gap: 8px;
 	}
 
 	.txn-bottom-dock .txn-dock-pay-btn {
