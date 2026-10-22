@@ -152,17 +152,19 @@
 					<template #item.creation_ampm="{ item }">
 						<span class="pos-list-cell-muted">{{ $posTimeAmPm(item.creation) }}</span>
 					</template>
+					<template #item.expense_types="{ item }">
+						<span class="pos-list-cell-expense-types" :title="item.expense_types || ''">
+							{{ item.expense_types || "—" }}
+						</span>
+					</template>
 					<template #item.remark="{ item }">
-						<!-- Remarks can be long: one line with "…", full text on hover. -->
+						<!-- Narrow column: one line with "…", full text on hover. -->
 						<v-tooltip v-if="item.remark" :text="item.remark" location="top" max-width="420">
 							<template #activator="{ props: tipProps }">
 								<span v-bind="tipProps" class="pos-list-cell-remarks">{{ item.remark }}</span>
 							</template>
 						</v-tooltip>
 						<span v-else>—</span>
-					</template>
-					<template #item.expense_types="{ item }">
-						<span class="pos-list-cell-truncate" :title="item.expense_types">{{ item.expense_types || "—" }}</span>
 					</template>
 					<template #item.grand_total="{ item }">
 						{{ formatCurrency(item.grand_total) }}
@@ -376,10 +378,15 @@ export default {
 			{ title: __('Warehouse'), key: 'warehouse', sortable: true },
 			{ title: __('Date'), key: 'posting_date', sortable: true },
 			{ title: __('Time'), key: 'creation_ampm', sortable: false },
-			{ title: __('Remark'), key: 'remark', sortable: false , headerProps: { class: 'pos-list-col-flex' } },
-			{ title: __('Expense Type'), key: 'expense_types', sortable: false },
-			{ title: __('Amount'), key: 'grand_total', sortable: true, align: 'end' },
-			{ title: __('Status'), key: 'status', sortable: true },
+			{
+				title: __('Expense Type'),
+				key: 'expense_types',
+				sortable: false,
+				headerProps: { class: 'pos-list-col-flex' },
+			},
+			{ title: __('Amount'), key: 'grand_total', sortable: true, align: 'end', width: '110px' },
+			{ title: __('Remark'), key: 'remark', sortable: false, width: '140px' },
+			{ title: __('Status'), key: 'status', sortable: true, width: '110px' },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 

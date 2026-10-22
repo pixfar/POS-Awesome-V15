@@ -1031,8 +1031,9 @@
 	border-bottom: 1px solid var(--pos-panel-border) !important;
 	font-size: 0.72rem !important;
 	font-weight: 700 !important;
-	text-transform: uppercase;
-	letter-spacing: 0.03em;
+	/* Title Case from column titles (e.g. Total Purchase), not ALL CAPS */
+	text-transform: none;
+	letter-spacing: 0.02em;
 	color: var(--pos-table-head-text) !important;
 }
 

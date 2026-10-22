@@ -22,6 +22,21 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 
+def _total_paid_from_outstanding(row):
+	"""Amount settled against an invoice.
+
+	`paid_amount` is only filled for immediate pay at submit; Payment Entry
+	settlements leave it at 0. Use grand_total - outstanding instead.
+	"""
+	status = row.get("status")
+	if status in ("Draft", "Cancelled"):
+		return 0.0
+	docstatus = row.get("docstatus")
+	if docstatus is not None and cint(docstatus) in (0, 2):
+		return 0.0
+	return flt(row.get("grand_total")) - flt(row.get("outstanding_amount"))
+
+
 def _resolve_pos_profile(pos_profile):
     if isinstance(pos_profile, dict):
         return pos_profile
@@ -1120,6 +1135,7 @@ def get_purchase_invoices_list(
     receipt_statuses = get_receipt_statuses(deferred_names)
     for row in rows:
         row["receipt_status"] = None
+        row["paid_amount"] = _total_paid_from_outstanding(row)
     for row in eligible_rows:
         if cint(row.get("update_stock")):
             row["receipt_status"] = "Received"
@@ -1235,7 +1251,14 @@ def get_purchase_invoice_detail(name):
         "total_weight": flt(total_weight),
         "discount_amount": flt(doc.get("discount_amount")),
         "grand_total": flt(doc.grand_total),
-        "paid_amount": flt(doc.get("paid_amount")),
+        "paid_amount": _total_paid_from_outstanding(
+            {
+                "status": doc.status,
+                "docstatus": doc.docstatus,
+                "grand_total": doc.grand_total,
+                "outstanding_amount": doc.outstanding_amount,
+            }
+        ),
         "outstanding_amount": flt(doc.outstanding_amount),
         "remarks": doc.get("remarks"),
         "owner": owner_name,

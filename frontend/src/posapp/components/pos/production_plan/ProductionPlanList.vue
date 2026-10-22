@@ -25,7 +25,7 @@
 			<div class="pos-list-stats">
 				<div class="pos-list-stat pos-list-stat--primary">
 					<span class="pos-list-stat__label">{{ __("Total") }}</span>
-					<strong class="pos-list-stat__value">{{ total }}</strong>
+					<strong class="pos-list-stat__value">{{ totalAcrossStatuses }}</strong>
 				</div>
 				<div class="pos-list-stat pos-list-stat--warning">
 					<span class="pos-list-stat__label">{{ __("Work In Progress") }}</span>
@@ -346,6 +346,11 @@ export default {
 		const totalPages = computed(() => Math.max(1, Math.ceil(total.value / (pageSize.value || 1))));
 		const hasMore = ref(false);
 		const statusCounts = ref({});
+		// Total card matches status cards: ignore the Status filter so TOTAL
+		// does not collapse to 0 when e.g. Cancelled is selected with no rows.
+		const totalAcrossStatuses = computed(() =>
+			Object.values(statusCounts.value).reduce((sum, count) => sum + (Number(count) || 0), 0),
+		);
 
 		const statusOptions = ['Draft', 'Work In Progress', 'Production Complete', 'Cancelled'];
 		const statusFilter = ref(null);
@@ -668,6 +673,7 @@ export default {
 			page,
 			pageSize,
 			total,
+			totalAcrossStatuses,
 			totalPages,
 			pageNumbers,
 			hasMore,

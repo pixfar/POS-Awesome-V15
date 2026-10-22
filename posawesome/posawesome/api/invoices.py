@@ -52,6 +52,23 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 
+def _total_paid_from_outstanding(row):
+	"""Amount settled against an invoice.
+
+	`paid_amount` on Sales/Purchase Invoice is only filled for POS/immediate
+	pay at submit. Invoices settled later via Payment Entry keep paid_amount
+	at 0 while outstanding_amount is updated correctly. Total Paid for the
+	list is therefore grand_total - outstanding (0 for Draft/Cancelled).
+	"""
+	status = row.get("status")
+	if status in ("Draft", "Cancelled"):
+		return 0.0
+	docstatus = row.get("docstatus")
+	if docstatus is not None and cint(docstatus) in (0, 2):
+		return 0.0
+	return flt(row.get("grand_total")) - flt(row.get("outstanding_amount"))
+
+
 @frappe.whitelist()
 def get_draft_invoices(
     pos_opening_shift=None,
@@ -242,6 +259,9 @@ def get_sales_invoices_list(
     for row in rows:
         row["doctype"] = doctype
         row["delivery_status"] = None
+        # paid_amount on the invoice is only set for POS/immediate pay; PE
+        # settlements leave it at 0. Derive Total Paid from outstanding.
+        row["paid_amount"] = _total_paid_from_outstanding(row)
 
     if doctype == "Sales Invoice":
         eligible_rows = [
@@ -384,7 +404,14 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
         "discount_amount": flt(doc.get("discount_amount")),
         "additional_discount_percentage": flt(doc.get("additional_discount_percentage")),
         "grand_total": flt(doc.grand_total),
-        "paid_amount": flt(doc.paid_amount),
+        "paid_amount": _total_paid_from_outstanding(
+            {
+                "status": doc.status,
+                "docstatus": doc.docstatus,
+                "grand_total": doc.grand_total,
+                "outstanding_amount": doc.outstanding_amount,
+            }
+        ),
         "outstanding_amount": flt(doc.outstanding_amount),
         "change_amount": flt(doc.get("change_amount")),
         "is_return": doc.is_return,

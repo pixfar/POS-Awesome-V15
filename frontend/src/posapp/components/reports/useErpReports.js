@@ -86,6 +86,46 @@ const reportGroups = [
 				name: 'Item-wise Sales Register',
 				icon: 'mdi-package-variant',
 			},
+			{
+				title: 'Item Wise Sales Summary Report',
+				name: 'Item Wise Sales Summary Report',
+				icon: 'mdi-chart-bar',
+			},
+			{
+				title: 'Warehouse Wise Top Selling Items Report',
+				name: 'Warehouse Wise Top Selling Items Report',
+				icon: 'mdi-finance',
+			},
+			{
+				title: 'Top Selling Report by Warehouse',
+				name: 'Top Selling Report by Warehouse',
+				icon: 'mdi-storefront-outline',
+			},
+			{
+				title: 'Warehouse Wise Total Sales Value Report',
+				name: 'Warehouse Wise Total Sales Value Report',
+				icon: 'mdi-chart-bar-stacked',
+			},
+			{
+				title: 'Top Customer Report',
+				name: 'Top Customer Report',
+				icon: 'mdi-account-star-outline',
+			},
+			{
+				title: 'Customer Product Return Summary Report',
+				name: 'Customer Product Return Summary Report',
+				icon: 'mdi-keyboard-return',
+			},
+			{
+				title: 'N Poly RFL Product Purchase and Sale History',
+				name: 'N Poly RFL Product Purchase and Sale History',
+				icon: 'mdi-pipe',
+			},
+			{
+				title: 'N Poly RFL Product Purchase and Sale Summary',
+				name: 'N Poly RFL Product Purchase and Sale Summary',
+				icon: 'mdi-pipe-disconnected',
+			},
 		],
 	},
 	{
@@ -106,6 +146,21 @@ const reportGroups = [
 				title: 'DO Sales & Purchase Tracking Report',
 				name: 'DO Sales Purchase Report',
 				icon: 'mdi-truck-check-outline',
+			},
+			{
+				title: 'Item Wise Purchase Summary Report',
+				name: 'Item Wise Purchase Summary Report',
+				icon: 'mdi-chart-bar',
+			},
+			{
+				title: 'Top Supplier Report',
+				name: 'Top Supplier Report',
+				icon: 'mdi-truck-check-outline',
+			},
+			{
+				title: 'Supplier Product Return Summary Report',
+				name: 'Supplier Product Return Summary Report',
+				icon: 'mdi-keyboard-return',
 			},
 		],
 	},
@@ -153,6 +208,31 @@ const reportGroups = [
 				name: 'Low Stock and Stock Summary Report',
 				icon: 'mdi-clipboard-list-outline',
 			},
+			{
+				title: 'Item Wise Transfer Received Summary Report',
+				name: 'Item Wise Transfer Received Summary Report',
+				icon: 'mdi-bank-transfer',
+			},
+			{
+				title: 'Item Wise Material Receipt Summary Report',
+				name: 'Item Wise Material Receipt Summary Report',
+				icon: 'mdi-package-variant',
+			},
+			{
+				title: 'Item Wise Material Issue Summary Report',
+				name: 'Item Wise Material Issue Summary Report',
+				icon: 'mdi-package-variant-closed',
+			},
+			{
+				title: 'Warehouse Wise Requisition Summary Report',
+				name: 'Warehouse Wise Requisition Summary Report',
+				icon: 'mdi-clipboard-list-outline',
+			},
+			{
+				title: 'Warehouse Wise Transfer Summary Report',
+				name: 'Warehouse Wise Transfer Summary Report',
+				icon: 'mdi-swap-horizontal',
+			},
 		],
 	},
 	{
@@ -169,12 +249,28 @@ const reportGroups = [
 				name: 'Production Report',
 				icon: 'mdi-chart-bar',
 			},
+			{
+				title: 'Production Progress Report',
+				name: 'Production Progress Report',
+				icon: 'mdi-progress-check',
+			},
+			{
+				title: 'Molding Production Report',
+				name: 'Molding Production Report',
+				icon: 'mdi-factory',
+			},
 		],
 	},
 	{
 		title: 'Accounts',
 		icon: 'mdi-finance',
 		reports: [
+			{
+				title: 'Warehouse Wise Management Summary Report',
+				name: 'Warehouse Wise Management Summary Report',
+				icon: 'mdi-briefcase-outline',
+				roles: ['BSP Admin', 'System Manager', 'BSP Viewer'],
+			},
 			{
 				title: 'Customer Ledger Summary',
 				name: 'Customer Ledger Summary',
@@ -246,6 +342,11 @@ const reportGroups = [
 				title: 'Product Weight Report Summary',
 				name: 'Product Weight Report Summary',
 				icon: 'mdi-weight-kilogram',
+			},
+			{
+				title: 'Item Wise Weight Summary Report',
+				name: 'Item Wise Weight Summary Report',
+				icon: 'mdi-weight',
 			},
 		],
 	},
