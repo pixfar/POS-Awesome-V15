@@ -18,7 +18,7 @@
 							:key="doctype.name"
 							type="button"
 							class="erp-report-card"
-							@click="openDoctype(doctype.name)"
+							@click="openDoctype(doctype)"
 						>
 							<div class="erp-report-card__icon">
 								<v-icon size="22">{{ doctype.icon }}</v-icon>
@@ -46,6 +46,21 @@ const __ = window.__ || ((text) => text);
 const canAccess = isFundTransferManager();
 
 const groups = [
+	{
+		title: "Users & Permissions",
+		icon: "mdi-shield-account-outline",
+		doctypes: [
+			{ name: "User", icon: "mdi-account-outline" },
+			{ name: "User Permission", icon: "mdi-account-key-outline" },
+			// Desk page, not a DocType — route is /app/permission-manager.
+			{
+				name: "Role Permissions Manager",
+				icon: "mdi-shield-key-outline",
+				route: "/app/permission-manager",
+			},
+			{ name: "POS Profile", icon: "mdi-cash-register" },
+		],
+	},
 	{
 		title: "Masters",
 		icon: "mdi-database-outline",
@@ -85,11 +100,36 @@ const groups = [
 		icon: "mdi-tools",
 		doctypes: [{ name: "Data Import", icon: "mdi-database-import-outline" }],
 	},
+	{
+		title: "Accounts",
+		icon: "mdi-book-open-variant",
+		doctypes: [
+			// Tree view of Account, same route as the Chart of Accounts shortcut.
+			{
+				name: "Chart of Accounts",
+				icon: "mdi-file-tree-outline",
+				route: "/app/account/view/tree",
+			},
+			{ name: "Bank", icon: "mdi-bank-outline" },
+		],
+	},
+	{
+		title: "Expenses",
+		icon: "mdi-cash-minus",
+		doctypes: [
+			{ name: "Expense Claim", icon: "mdi-receipt-text-outline" },
+			{ name: "Expense Claim Type", icon: "mdi-tag-outline" },
+		],
+	},
 ];
 
 function openDoctype(doctype) {
+	if (doctype.route) {
+		window.location.assign(doctype.route);
+		return;
+	}
 	// Desk route slug, same as frappe.router.slug(): lower-case, spaces -> "-".
-	const slug = doctype.toLowerCase().replace(/ /g, "-");
+	const slug = doctype.name.toLowerCase().replace(/ /g, "-");
 	window.location.assign(`/app/${slug}`);
 }
 </script>
