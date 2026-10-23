@@ -12,12 +12,12 @@
 						<h4 class="erp-reports-group__title">{{ __(group.title) }}</h4>
 					</div>
 					<div class="erp-reports-grid">
-						<button
+						<a
 							v-for="report in group.reports"
 							:key="report.name"
-							type="button"
 							class="erp-report-card"
-							@click="openReport(report)"
+							:href="reportHref(report)"
+							@click="onReportClick($event, report)"
 						>
 							<div class="erp-report-card__icon">
 								<v-icon size="22">{{ report.icon }}</v-icon>
@@ -26,7 +26,7 @@
 								<p class="erp-report-card__title">{{ __(report.title) }}</p>
 							</div>
 							<v-icon size="18" class="erp-report-card__arrow">mdi-arrow-right</v-icon>
-						</button>
+						</a>
 					</div>
 				</section>
 			</div>
@@ -37,7 +37,7 @@
 <script setup>
 import { useErpReports } from './useErpReports';
 
-const { __, visibleReportGroups, openReport } = useErpReports();
+const { __, visibleReportGroups, reportHref, onReportClick } = useErpReports();
 </script>
 
 <style scoped>

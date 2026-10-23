@@ -10,7 +10,7 @@ doctype -- see each _collect_* helper), with date-range filtering only.
 """
 
 import frappe
-from frappe.utils import cint, flt, today
+from frappe.utils import add_days, cint, flt, get_first_day, getdate, today
 
 from posawesome.posawesome.api.fund_transfer import _list_filters as _fund_transfer_filters
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
@@ -311,6 +311,59 @@ def _collect_expenses(company, start_date, end_date, warehouse, is_admin):
     return {"total": flt(row.get("total")), "count": cint(row.get("count"))}
 
 
+def _cash_balance_warehouses(company, warehouse, is_admin):
+    """Warehouses whose tills feed Opening / Closing Balance on the dashboard."""
+    if warehouse:
+        return [warehouse]
+    warehouses = _company_warehouses(company)
+    if not is_admin:
+        permitted = get_expanded_permitted_warehouses()
+        if permitted is not None:
+            warehouses = [name for name in warehouses if name in permitted]
+    return warehouses
+
+
+def _sum_opening_balances(company, warehouses, as_of_date):
+    """Sum Daily Cash Summary opening balances for the given warehouses.
+
+    `get_opening_balances(company, None, date)` already returns every mapped
+    warehouse; we only keep the ones in scope so a warehouse filter / non-admin
+    scope matches the rest of the dashboard.
+    """
+    if not company or not warehouses:
+        return 0.0
+    from bsp_engineering.bsp_engineering.report.daily_cash_summary_report.daily_cash_summary_report import (
+        get_opening_balances,
+    )
+
+    # One warehouse: pass it through so GL + formula paths stay warehouse-scoped.
+    # Many warehouses: fetch company-wide once, then sum only the scoped set.
+    if len(warehouses) == 1:
+        balances = get_opening_balances(company, warehouses[0], as_of_date)
+        return flt(balances.get(warehouses[0]))
+
+    balances = get_opening_balances(company, None, as_of_date)
+    return sum(flt(balances.get(name)) for name in warehouses)
+
+
+def _collect_cash_balances(company, start_date, end_date, warehouse, is_admin):
+    """Opening = till balance at start of start_date; Closing = till balance
+    at end of end_date. Same helpers as Daily Cash Summary / Management Summary.
+    """
+    warehouses = _cash_balance_warehouses(company, warehouse, is_admin)
+    opening = _sum_opening_balances(company, warehouses, start_date)
+    # Opening of the day after end_date == closing of end_date.
+    closing = _sum_opening_balances(company, warehouses, add_days(getdate(end_date), 1))
+    return {"opening_balance": opening, "closing_balance": closing}
+
+
+def _collect_monthly_sales(company, end_date, warehouse, is_admin):
+    """Calendar-month sales through end_date (month of the selected end date)."""
+    month_start = get_first_day(getdate(end_date) or getdate(today()))
+    month_end = getdate(end_date) or getdate(today())
+    return _collect_sales(company, month_start, month_end, warehouse, is_admin)
+
+
 def _collect_deposits(company, start_date, end_date, warehouse, is_admin):
     doctype = "BSP Daily Deposit"
     filters = {
@@ -522,6 +575,9 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
     sales = _collect_sales(company, start_date, end_date, warehouse, is_admin)
     purchase = _collect_purchase(company, start_date, end_date, warehouse, is_admin)
     expenses = _collect_expenses(company, start_date, end_date, warehouse, is_admin)
+    deposits = _collect_deposits(company, start_date, end_date, warehouse, is_admin)
+    cash_balances = _collect_cash_balances(company, start_date, end_date, warehouse, is_admin)
+    monthly_sales = _collect_monthly_sales(company, end_date, warehouse, is_admin)
 
     return {
         "scope": "all" if is_admin else "own",
@@ -529,6 +585,9 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
         "end_date": end_date,
         "warehouse": warehouse,
         "currency": currency,
+        "opening_balance": cash_balances["opening_balance"],
+        "closing_balance": cash_balances["closing_balance"],
+        "monthly_sales": monthly_sales,
         "sales": sales,
         "purchase": purchase,
         "sales_return": _collect_sales_return(company, start_date, end_date, warehouse, is_admin),
@@ -544,7 +603,7 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
             else None
         ),
         "expenses": expenses,
-        "deposits": _collect_deposits(company, start_date, end_date, warehouse, is_admin),
+        "deposits": deposits,
         "fund_transfers": _collect_fund_transfers(company, start_date, end_date, warehouse),
         "top_items": _collect_top_items(company, start_date, end_date, warehouse, is_admin),
         "top_items_by_qty": _collect_top_items(

@@ -185,6 +185,9 @@ const activeShortcut = ref('daily');
 const dashboard = reactive({
 	scope: 'own',
 	currency: '',
+	opening_balance: 0,
+	closing_balance: 0,
+	monthly_sales: { total: 0, count: 0 },
 	sales: { total: 0, collection: 0, due: 0, count: 0 },
 	purchase: { total: 0, collection: 0, due: 0, count: 0 },
 	sales_return: { total: 0, count: 0 },
@@ -297,6 +300,53 @@ const cardSections = computed(() => {
 	}
 
 	return [
+		{
+			key: 'cash_position',
+			title: __('Cash Position'),
+			icon: 'mdi-wallet-outline',
+			items: [
+				{
+					key: 'opening_balance',
+					label: __('Opening Balance'),
+					value: formatAmount(dashboard.opening_balance),
+					hint: __('Till balance at start of range'),
+					icon: 'mdi-cash',
+					color: 'blue',
+				},
+				{
+					key: 'closing_balance',
+					label: __('Closing Balance'),
+					value: formatAmount(dashboard.closing_balance),
+					hint: __('Till balance at end of range'),
+					icon: 'mdi-cash-lock',
+					color: 'indigo',
+				},
+				{
+					key: 'monthly_sales',
+					label: __('Monthly Total Sales'),
+					value: formatAmount(dashboard.monthly_sales?.total),
+					hint: __('{0} invoices · month of end date', [dashboard.monthly_sales?.count || 0]),
+					icon: 'mdi-calendar-month',
+					color: 'primary',
+				},
+				{
+					key: 'bank_deposit',
+					label: __('Bank Deposit'),
+					value: formatAmount(dashboard.deposits.total),
+					hint: __('{0} deposits', [dashboard.deposits.count]),
+					icon: 'mdi-bank-outline',
+					color: 'success',
+				},
+				{
+					key: 'cash_expenses',
+					label: __('Expenses'),
+					value: formatAmount(dashboard.expenses.total),
+					hint: __('{0} claims', [dashboard.expenses.count]),
+					icon: 'mdi-receipt-text-edit-outline',
+					color: 'error',
+				},
+			],
+		},
 		{
 			key: 'sales',
 			title: __('Sales'),
@@ -456,22 +506,6 @@ const cardSections = computed(() => {
 					hint: __('Gross Profit - Total Expenses'),
 					icon: 'mdi-cash-check',
 					color: 'primary',
-				},
-				{
-					key: 'expenses',
-					label: __('Total Expenses'),
-					value: formatAmount(dashboard.expenses.total),
-					hint: __('{0} claims', [dashboard.expenses.count]),
-					icon: 'mdi-receipt-text-edit-outline',
-					color: 'error',
-				},
-				{
-					key: 'deposits',
-					label: __('Total Deposits'),
-					value: formatAmount(dashboard.deposits.total),
-					hint: __('{0} deposits', [dashboard.deposits.count]),
-					icon: 'mdi-bank-outline',
-					color: 'success',
 				},
 				{
 					key: 'fund_transfers',

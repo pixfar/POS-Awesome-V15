@@ -46,6 +46,8 @@
 	background: var(--pos-card-bg, #fff);
 	text-align: left;
 	cursor: pointer;
+	text-decoration: none;
+	color: inherit;
 	transition:
 		border-color 0.15s ease,
 		box-shadow 0.15s ease,

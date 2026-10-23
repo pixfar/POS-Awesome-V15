@@ -367,6 +367,14 @@ export function useErpReports() {
 			.filter((group) => group.reports.length > 0)
 	);
 
+	function reportHref(report) {
+		if (report.route) {
+			const path = report.route.startsWith('/') ? report.route : `/${report.route}`;
+			return `/app/posapp${path}`;
+		}
+		return `/app/query-report/${encodeURIComponent(report.name)}`;
+	}
+
 	function openReport(report) {
 		if (report.route) {
 			router.push(report.route);
@@ -375,8 +383,18 @@ export function useErpReports() {
 		// Open in the current window with a full page load. frappe.set_route()
 		// only changes the URL here: POS Awesome owns the page, so the desk
 		// never renders the report underneath it.
-		window.location.assign(`/app/query-report/${encodeURIComponent(report.name)}`);
+		window.location.assign(reportHref(report));
 	}
 
-	return { __, visibleReportGroups, openReport };
+	/** Plain left-click stays in-app; Ctrl/Cmd/Shift/middle-click use the
+	 *  real <a href> so the browser can open a new tab. */
+	function onReportClick(event, report) {
+		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+			return;
+		}
+		event.preventDefault();
+		openReport(report);
+	}
+
+	return { __, visibleReportGroups, openReport, reportHref, onReportClick };
 }
