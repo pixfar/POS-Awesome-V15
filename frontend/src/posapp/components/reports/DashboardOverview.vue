@@ -187,7 +187,6 @@ const dashboard = reactive({
 	currency: '',
 	opening_balance: 0,
 	closing_balance: 0,
-	monthly_sales: { total: 0, count: 0 },
 	sales: { total: 0, collection: 0, due: 0, count: 0 },
 	purchase: { total: 0, collection: 0, due: 0, count: 0 },
 	sales_return: { total: 0, count: 0 },
@@ -256,15 +255,17 @@ function formatWeight(value) {
 	});
 }
 
-const scopeSubtitle = computed(() => {
-	const rangeLabel =
-		startDate.value === endDate.value
-			? formatDisplayDate(startDate.value)
-			: `${formatDisplayDate(startDate.value)} – ${formatDisplayDate(endDate.value)}`;
-	return dashboard.scope === 'all'
-		? __('Company-wide overview · {0}', [rangeLabel])
-		: __('Your data · {0}', [rangeLabel]);
-});
+const rangeLabel = computed(() =>
+	startDate.value === endDate.value
+		? formatDisplayDate(startDate.value)
+		: `${formatDisplayDate(startDate.value)} – ${formatDisplayDate(endDate.value)}`,
+);
+
+const scopeSubtitle = computed(() =>
+	dashboard.scope === 'all'
+		? __('Company-wide overview · {0}', [rangeLabel.value])
+		: __('Your data · {0}', [rangeLabel.value]),
+);
 
 // Each section groups the cards that belong together so it's obvious at a
 // glance which figure applies to which area of the business, mirroring the
@@ -309,7 +310,7 @@ const cardSections = computed(() => {
 					key: 'opening_balance',
 					label: __('Opening Balance'),
 					value: formatAmount(dashboard.opening_balance),
-					hint: __('Till balance at start of range'),
+					hint: __('As of {0}', [formatDisplayDate(startDate.value)]),
 					icon: 'mdi-cash',
 					color: 'blue',
 				},
@@ -317,23 +318,15 @@ const cardSections = computed(() => {
 					key: 'closing_balance',
 					label: __('Closing Balance'),
 					value: formatAmount(dashboard.closing_balance),
-					hint: __('Till balance at end of range'),
+					hint: __('As of {0}', [formatDisplayDate(endDate.value)]),
 					icon: 'mdi-cash-lock',
 					color: 'indigo',
-				},
-				{
-					key: 'monthly_sales',
-					label: __('Monthly Total Sales'),
-					value: formatAmount(dashboard.monthly_sales?.total),
-					hint: __('{0} invoices · month of end date', [dashboard.monthly_sales?.count || 0]),
-					icon: 'mdi-calendar-month',
-					color: 'primary',
 				},
 				{
 					key: 'bank_deposit',
 					label: __('Bank Deposit'),
 					value: formatAmount(dashboard.deposits.total),
-					hint: __('{0} deposits', [dashboard.deposits.count]),
+					hint: __('{0} deposits · {1}', [dashboard.deposits.count, rangeLabel.value]),
 					icon: 'mdi-bank-outline',
 					color: 'success',
 				},
@@ -341,7 +334,7 @@ const cardSections = computed(() => {
 					key: 'cash_expenses',
 					label: __('Expenses'),
 					value: formatAmount(dashboard.expenses.total),
-					hint: __('{0} claims', [dashboard.expenses.count]),
+					hint: __('{0} claims · {1}', [dashboard.expenses.count, rangeLabel.value]),
 					icon: 'mdi-receipt-text-edit-outline',
 					color: 'error',
 				},

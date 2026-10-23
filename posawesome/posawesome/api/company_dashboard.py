@@ -10,7 +10,7 @@ doctype -- see each _collect_* helper), with date-range filtering only.
 """
 
 import frappe
-from frappe.utils import add_days, cint, flt, get_first_day, getdate, today
+from frappe.utils import add_days, cint, flt, getdate, today
 
 from posawesome.posawesome.api.fund_transfer import _list_filters as _fund_transfer_filters
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
@@ -357,13 +357,6 @@ def _collect_cash_balances(company, start_date, end_date, warehouse, is_admin):
     return {"opening_balance": opening, "closing_balance": closing}
 
 
-def _collect_monthly_sales(company, end_date, warehouse, is_admin):
-    """Calendar-month sales through end_date (month of the selected end date)."""
-    month_start = get_first_day(getdate(end_date) or getdate(today()))
-    month_end = getdate(end_date) or getdate(today())
-    return _collect_sales(company, month_start, month_end, warehouse, is_admin)
-
-
 def _collect_deposits(company, start_date, end_date, warehouse, is_admin):
     doctype = "BSP Daily Deposit"
     filters = {
@@ -577,7 +570,6 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
     expenses = _collect_expenses(company, start_date, end_date, warehouse, is_admin)
     deposits = _collect_deposits(company, start_date, end_date, warehouse, is_admin)
     cash_balances = _collect_cash_balances(company, start_date, end_date, warehouse, is_admin)
-    monthly_sales = _collect_monthly_sales(company, end_date, warehouse, is_admin)
 
     return {
         "scope": "all" if is_admin else "own",
@@ -587,7 +579,6 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
         "currency": currency,
         "opening_balance": cash_balances["opening_balance"],
         "closing_balance": cash_balances["closing_balance"],
-        "monthly_sales": monthly_sales,
         "sales": sales,
         "purchase": purchase,
         "sales_return": _collect_sales_return(company, start_date, end_date, warehouse, is_admin),
