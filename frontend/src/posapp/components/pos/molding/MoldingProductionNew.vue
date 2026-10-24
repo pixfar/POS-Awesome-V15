@@ -59,6 +59,20 @@
 										<h3 class="invoice-section-heading__title">{{ __("Workers") }}</h3>
 									</div>
 									<div class="sale-options-body">
+										<v-autocomplete
+											v-model="department"
+											:items="departmentOptions"
+											:loading="departmentLoading"
+											:label="__('Department')"
+											:placeholder="__('Select department')"
+											prepend-inner-icon="mdi-office-building-outline"
+											variant="outlined"
+											density="compact"
+											hide-details
+											clearable
+											class="pos-themed-input mb-2"
+											autocomplete="posa-off"
+										/>
 										<div class="text-body-2 mb-1">
 											{{ __("Present") }}: <strong>{{ employees.length }}</strong>
 										</div>
@@ -72,6 +86,7 @@
 											prepend-icon="mdi-account-check-outline"
 											class="text-none"
 											:loading="attendanceLoading"
+											:disabled="!department"
 											@click="fetchAttendance"
 										>
 											{{ __("Fetch Attendance") }}
@@ -205,6 +220,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
 
 const API = 'posawesome.posawesome.api.molding';
+const FALLBACK_MOLDING_DEPARTMENT = 'Vatti (Molding) - BSP';
 const getTodayDate = () => frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
 
 export default {
@@ -218,6 +234,9 @@ export default {
 		const productionDate = ref(getTodayDate());
 		const totalWorkKg = ref(null);
 		const ratePerKg = ref(null);
+		const department = ref(FALLBACK_MOLDING_DEPARTMENT);
+		const departmentOptions = ref([]);
+		const departmentLoading = ref(false);
 		const employees = ref([]);
 		const attendanceLoading = ref(false);
 		const submitLoading = ref(false);
@@ -261,11 +280,15 @@ export default {
 
 		const fetchAttendance = async () => {
 			errorMessage.value = '';
+			if (!department.value) {
+				errorMessage.value = __('Select a department before fetching attendance');
+				return;
+			}
 			attendanceLoading.value = true;
 			try {
 				const { message } = await frappe.call({
 					method: `${API}.fetch_attendance`,
-					args: { date: productionDate.value },
+					args: { date: productionDate.value, department: department.value },
 				});
 				const added = mergeEmployees(message);
 				toastStore.show({ title: __('{0} employees added', [added]), color: added ? 'success' : 'info' });
@@ -284,7 +307,11 @@ export default {
 				try {
 					const { message } = await frappe.call({
 						method: `${API}.search_employees`,
-						args: { search_text: term.trim(), limit: 20 },
+						args: {
+							search_text: term.trim(),
+							limit: 20,
+							department: department.value || FALLBACK_MOLDING_DEPARTMENT,
+						},
 					});
 					employeeOptions.value = message || [];
 				} catch (e) {
@@ -307,6 +334,40 @@ export default {
 				if (ratePerKg.value === null) ratePerKg.value = Number(message) || 0;
 			} catch (e) {
 				console.error('Failed to load default rate per KG', e);
+			}
+		};
+
+		const loadDepartments = async () => {
+			departmentLoading.value = true;
+			try {
+				const [{ message: defaultDept }, { message: departments }] = await Promise.all([
+					frappe.call({ method: `${API}.get_default_molding_department` }),
+					frappe.call({
+						method: 'frappe.client.get_list',
+						args: {
+							doctype: 'Department',
+							fields: ['name'],
+							filters: { disabled: 0 },
+							limit_page_length: 200,
+							order_by: 'name asc',
+						},
+					}),
+				]);
+				const names = (departments || []).map((row) => row.name).filter(Boolean);
+				departmentOptions.value = names;
+				const preferred = defaultDept || FALLBACK_MOLDING_DEPARTMENT;
+				if (preferred && !names.includes(preferred)) {
+					departmentOptions.value = [preferred, ...names];
+				}
+				if (!department.value || !departmentOptions.value.includes(department.value)) {
+					department.value = preferred;
+				}
+			} catch (e) {
+				console.error('Failed to load departments', e);
+				departmentOptions.value = [FALLBACK_MOLDING_DEPARTMENT];
+				department.value = FALLBACK_MOLDING_DEPARTMENT;
+			} finally {
+				departmentLoading.value = false;
 			}
 		};
 
@@ -346,6 +407,7 @@ export default {
 				return;
 			}
 			loadDefaultRate();
+			loadDepartments();
 		});
 
 		// Errors visible on phones too (the inline alert sits under the bottom bar).
@@ -355,6 +417,9 @@ export default {
 			productionDate,
 			totalWorkKg,
 			ratePerKg,
+			department,
+			departmentOptions,
+			departmentLoading,
 			employees,
 			attendanceLoading,
 			submitLoading,

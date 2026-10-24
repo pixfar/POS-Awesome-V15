@@ -129,21 +129,39 @@ def get_default_rate_per_kg():
 
 
 @frappe.whitelist()
-def fetch_attendance(date):
-	"""Employees marked Present on `date`, with their Molding Point."""
+def get_default_molding_department():
+	_ensure_can_view()
+	from bsp_engineering.bsp_engineering.utils.molding_salary import DEFAULT_MOLDING_DEPARTMENT
+
+	return DEFAULT_MOLDING_DEPARTMENT
+
+
+@frappe.whitelist()
+def fetch_attendance(date, department=None):
+	"""Employees marked Present on `date` in `department`, with Molding Point.
+
+	`department` defaults to Vatti (Molding) - BSP on the server when omitted.
+	"""
 	_ensure_can_manage(_('create a Molding Daily Production'))
 	from bsp_engineering.bsp_engineering.doctype.molding_daily_production.molding_daily_production import (
 		fetch_attendance as _fetch_attendance,
 	)
 
-	return _fetch_attendance(date)
+	return _fetch_attendance(date, department=department)
 
 
 @frappe.whitelist()
-def search_employees(search_text=None, limit=20):
-	"""Active employees with their Molding Point, to add a worker manually."""
+def search_employees(search_text=None, limit=20, department=None):
+	"""Active employees with their Molding Point, to add a worker manually.
+
+	Scoped to `department` (default Vatti Molding) so the add-employee search
+	matches Fetch Attendance and does not surface showroom / driver staff.
+	"""
 	_ensure_can_manage(_('create a Molding Daily Production'))
+	from bsp_engineering.bsp_engineering.utils.molding_salary import DEFAULT_MOLDING_DEPARTMENT
+
 	limit = max(1, min(int(limit or 20), 50))
+	department = (department or '').strip() or DEFAULT_MOLDING_DEPARTMENT
 	or_filters = None
 	if search_text and len(search_text.strip()) >= 2:
 		like = f'%{search_text.strip()}%'
@@ -151,9 +169,9 @@ def search_employees(search_text=None, limit=20):
 
 	rows = frappe.get_all(
 		'Employee',
-		filters={'status': 'Active'},
+		filters={'status': 'Active', 'department': department},
 		or_filters=or_filters,
-		fields=['name as employee', 'employee_name', 'custom_molding_point as point'],
+		fields=['name as employee', 'employee_name', 'custom_molding_point as point', 'department'],
 		order_by='employee_name asc',
 		limit_page_length=limit,
 		ignore_permissions=True,
