@@ -163,5 +163,16 @@ export default createVuetify({
 	defaults: {
 		"expand-transition": { disabled: true },
 		"expand-x-transition": { disabled: true },
+		// Browser autofill overlays fight POS search menus (customer, item,
+		// warehouse, employee, account, …). "posa-off" is a non-standard token
+		// Chrome treats as do-not-autofill more reliably than "off".
+		VTextField: { autocomplete: "posa-off" },
+		VTextarea: { autocomplete: "posa-off" },
+		VAutocomplete: { autocomplete: "posa-off" },
+		VCombobox: { autocomplete: "posa-off" },
+		VSelect: { autocomplete: "posa-off" },
+		VNumberInput: { autocomplete: "posa-off" },
+		VFileInput: { autocomplete: "posa-off" },
 	},
 });
+

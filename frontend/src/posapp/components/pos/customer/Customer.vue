@@ -9,6 +9,8 @@
 				clearable
 				variant="solo"
 				color="primary"
+				name="posa_customer_lookup"
+				autocomplete="new-password"
 				:label="customerFieldLabel"
 				:placeholder="customerFieldPlaceholder"
 				:loading="isCustomerSearchLocked || isCustomerLookupPending"

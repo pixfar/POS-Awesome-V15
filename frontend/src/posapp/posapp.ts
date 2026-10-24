@@ -18,6 +18,8 @@ import "./styles/theme.css";
 import eventBus from "./bus";
 import themePlugin from "./plugins/theme";
 import { installNativeTooltipSuppressor } from "./plugins/suppressNativeTooltips";
+import { installBrowserAutocompleteSuppressor } from "./plugins/suppressBrowserAutocomplete";
+
 import { formatDisplayTimeAmPm } from "./components/pos/shared/docStatusUtils";
 import { pinia } from "./stores";
 import { useToastStore } from "./stores/toastStore";
@@ -126,6 +128,8 @@ class PosAppController {
 	routerHistory: any;
 	$el: any;
 	disposeTooltipSuppressor: (() => void) | null = null;
+	disposeAutocompleteSuppressor: (() => void) | null = null;
+
 
 	constructor(input: any) {
 		const parent = input?.parent || input;
@@ -180,7 +184,11 @@ class PosAppController {
 
 		this.app.mount(this.$el[0]);
 		this.disposeTooltipSuppressor = installNativeTooltipSuppressor(this.$el[0]);
+		this.disposeAutocompleteSuppressor = installBrowserAutocompleteSuppressor(
+			this.$el[0],
+		);
 		clearChunkRecoveryState();
+
 		void this.router.isReady().finally(() => {
 			scheduleChunkRecoveryStateReset();
 			scheduleAfterStableBoot(() => {
@@ -200,6 +208,10 @@ class PosAppController {
 		if (this.disposeTooltipSuppressor) {
 			this.disposeTooltipSuppressor();
 			this.disposeTooltipSuppressor = null;
+		}
+		if (this.disposeAutocompleteSuppressor) {
+			this.disposeAutocompleteSuppressor();
+			this.disposeAutocompleteSuppressor = null;
 		}
 		if (this.app) {
 			// Clean up router to prevent global navigation interference
