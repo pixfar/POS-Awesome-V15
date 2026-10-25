@@ -1,6 +1,5 @@
 import _ from "lodash";
 import { shouldReloadOnSearchClear } from "../../../utils/searchUtils.js";
-import { isOffline } from "../../../../offline/index";
 import { resolveBooleanSetting } from "./selectorSearch/resolveBooleanSetting";
 
 declare const flt: (_value: unknown) => number;
@@ -13,6 +12,12 @@ type SearchDeps = {
 	setSearchInput?: (_value: string) => void;
 	isLimitSearchEnabled?: () => boolean;
 	runLimitSearch?: (_term: string) => Promise<unknown> | unknown;
+	/** Prefer this over vm.searchItems — keeps store searchTerm in sync. */
+	runCanonicalSearch?: (_term: string) => Promise<unknown> | unknown;
+	/** True while catalogue load / sync would race a typed search. */
+	isSearchBusy?: () => boolean;
+	getPendingSearch?: () => string | null | undefined;
+	setPendingSearch?: (_value: string | null) => void;
 	clearHighlightedItem?: () => void;
 };
 
@@ -24,6 +29,10 @@ export const useItemsSelectorSearch = ({
 	setSearchInput,
 	isLimitSearchEnabled,
 	runLimitSearch,
+	runCanonicalSearch,
+	isSearchBusy,
+	getPendingSearch,
+	setPendingSearch,
 	clearHighlightedItem,
 }: SearchDeps) => {
 	const getVm = (): any => (typeof getVM === "function" ? getVM() : null);
@@ -303,74 +312,109 @@ export const useItemsSelectorSearch = ({
 			return;
 		}
 
-		// Require a minimum of three characters before running a search
+		// Require at least 2 characters before running a search
 		if (!trimmedQuery || trimmedQuery.length < 2) {
 			vm.search_from_scanner = false;
+			if (typeof setPendingSearch === "function") {
+				setPendingSearch(null);
+			} else {
+				vm.pendingItemSearch = null;
+			}
 			return;
 		}
 
-		// If background loading is in progress, defer the search without changing the active query
-		if (vm.isBackgroundLoading) {
-			vm.pendingItemSearch = trimmedQuery;
+		// Defer while the catalogue is loading/syncing so an in-flight page
+		// load cannot overwrite search results (and leave first_search stuck
+		// on a term that no longer matches the loaded page).
+		const busy =
+			(typeof isSearchBusy === "function" && isSearchBusy()) ||
+			Boolean(vm.isLoadingOrSyncing) ||
+			Boolean(vm.isBackgroundLoading) ||
+			Boolean(vm.loading) ||
+			Boolean(vm.isLoading);
+		if (busy) {
+			if (typeof setPendingSearch === "function") {
+				setPendingSearch(trimmedQuery);
+			} else {
+				vm.pendingItemSearch = trimmedQuery;
+			}
 			return;
+		}
+
+		if (typeof setPendingSearch === "function") {
+			setPendingSearch(null);
+		} else {
+			vm.pendingItemSearch = null;
 		}
 
 		vm.search = trimmedQuery;
 
 		const fromScanner = vm.search_from_scanner;
 
-		if (usesLimitSearch(vm)) {
-			if (typeof runLimitSearch === "function") {
-				await runLimitSearch(trimmedQuery);
-			} else {
-				const searchItems = getSearchExecutor(vm);
-				if (searchItems) {
-					await searchItems(trimmedQuery);
-				} else {
-					const getItems = getItemsLoader(vm);
-					const shouldForceServer = !hasStorageAvailable(vm) || !isOffline();
-					if (getItems) {
-						await getItems(shouldForceServer);
-					}
-				}
-			}
+		// Always go through searchItems (or limit-search) so itemsStore.searchTerm
+		// stays aligned with the UI query. The old storageAvailable →
+		// loadVisibleItems path never set searchTerm, so a later item-group
+		// click only filtered the current page locally and showed "No items".
+		const runSearch =
+			(typeof runCanonicalSearch === "function"
+				? runCanonicalSearch
+				: null) ||
+			(usesLimitSearch(vm) && typeof runLimitSearch === "function"
+				? runLimitSearch
+				: null) ||
+			getSearchExecutor(vm);
+
+		if (runSearch) {
+			await runSearch(trimmedQuery);
+		} else if (usesLimitSearch(vm) && typeof runLimitSearch === "function") {
+			await runLimitSearch(trimmedQuery);
 		} else if (hasStorageAvailable(vm)) {
 			const loadVisibleItems = getVisibleItemsLoader(vm);
 			if (loadVisibleItems) {
 				await loadVisibleItems(true);
 			}
-			triggerEnterEvent(vm);
 		} else {
-			// When local storage is disabled, always fetch items
-			// from the server so searches aren't limited to the
-			// initially loaded set.
 			const getItems = getItemsLoader(vm);
 			if (getItems) {
 				await getItems(true);
 			}
-			triggerEnterEvent(vm);
-
-			if (vm.displayedItems && vm.displayedItems.length > 0) {
-				setTimeout(() => {
-					if (
-						vm.itemDetailFetcher &&
-						typeof vm.itemDetailFetcher.update_items_details ===
-							"function"
-					) {
-						vm.itemDetailFetcher.update_items_details(
-							vm.displayedItems,
-						);
-					}
-				}, 300);
-			}
 		}
 
-		// Clear the input only when triggered via scanner
+		// Scanner / barcode flows auto-add the first match after search.
 		if (fromScanner) {
+			triggerEnterEvent(vm);
 			vm.clearSearch();
 			vm.focusItemSearch();
 			vm.search_from_scanner = false;
 		}
+	};
+
+	/** Flush a search that was deferred while the catalogue was busy. */
+	const flushPendingSearch = async () => {
+		const pending =
+			(typeof getPendingSearch === "function"
+				? getPendingSearch()
+				: getVm()?.pendingItemSearch) || null;
+		const term = String(pending || "").trim();
+		if (!term || term.length < 2) {
+			return;
+		}
+		if (typeof setPendingSearch === "function") {
+			setPendingSearch(null);
+		} else {
+			const vm = getVm();
+			if (vm) vm.pendingItemSearch = null;
+		}
+		if (typeof runCanonicalSearch === "function") {
+			await runCanonicalSearch(term);
+			return;
+		}
+		const vm = getVm();
+		if (vm) {
+			vm.first_search = term;
+			syncSearchInput(vm, term);
+		}
+		await _performSearch();
 	};
 
 	const search_onchange = _.debounce(() => {
@@ -431,6 +475,11 @@ export const useItemsSelectorSearch = ({
 		vm.search_input = "";
 		vm.first_search = "";
 		vm.search = "";
+		if (typeof setPendingSearch === "function") {
+			setPendingSearch(null);
+		} else {
+			vm.pendingItemSearch = null;
+		}
 
 		const release = () => {
 			vm.$nextTick(() => {
@@ -466,6 +515,21 @@ export const useItemsSelectorSearch = ({
 				}
 			}
 
+			release();
+			return;
+		}
+
+		// Canonical clear: resets store searchTerm and reloads the active
+		// group catalogue (online-only). Avoids a second parallel reload.
+		const clearStoreSearch =
+			(typeof runCanonicalSearch === "function" ? runCanonicalSearch : null) ||
+			getSearchExecutor(vm);
+		if (clearStoreSearch) {
+			const reloadPromise = clearStoreSearch("");
+			if (reloadPromise && typeof reloadPromise.finally === "function") {
+				reloadPromise.finally(release);
+				return reloadPromise;
+			}
 			release();
 			return;
 		}
@@ -531,6 +595,7 @@ export const useItemsSelectorSearch = ({
 		onEnter,
 		search_onchange,
 		_performSearch,
+		flushPendingSearch,
 		get_item_qty,
 		get_search,
 		clearSearch,

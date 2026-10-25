@@ -202,16 +202,6 @@
 			:reserve-bottom-dock-space="context === 'pos' && responsive.windowWidth.value < 1100"
 		/>
 
-		<!-- New Item Dialog -->
-		<NewItemDialog
-			v-model="newItemDialog"
-			:items-group="items_group"
-			:camera-enabled="!!pos_profile.posa_enable_camera_scanning"
-			:scanned-barcode="newItemDialogScannedBarcode"
-			@request-camera-scan="startNewItemBarcodeScan"
-			@item-created="handleItemCreated"
-		/>
-
 		<!-- Camera Scanner Component -->
 		<CameraScanner
 			v-if="pos_profile.posa_enable_camera_scanning"
@@ -246,7 +236,6 @@ import ItemSettingsDialog from "./ItemSettingsDialog.vue";
 import ItemHeader from "./ItemHeader.vue";
 import ItemsSelectorCards from "./ItemsSelectorCards.vue";
 import ItemsSelectorTable from "./ItemsSelectorTable.vue";
-import NewItemDialog from "./NewItemDialog.vue";
 import ScanErrorDialog from "./ScanErrorDialog.vue";
 
 import { useResponsive } from "../../../composables/core/useResponsive";
@@ -303,11 +292,12 @@ const props = defineProps({
 		type: String,
 		default: "pos",
 	},
-	// Hide the header's "New Item" button (e.g. Material Receipt).
+	// Create-item from POS is disabled site-wide; prop kept for callers.
 	hideNewItem: {
 		type: Boolean,
-		default: false,
+		default: true,
 	},
+
 	showOnlyBarcodeItems: {
 		type: Boolean,
 		default: false,
@@ -730,6 +720,8 @@ const settingsContext = reactive({
 	itemSync,
 });
 
+const pendingItemSearch = ref<string | null>(null);
+
 const itemsSelectorSearch = useItemsSelectorSearch({
 	getVM: () => vmInstance?.proxy,
 	scannerInput,
@@ -741,6 +733,12 @@ const itemsSelectorSearch = useItemsSelectorSearch({
 	},
 	isLimitSearchEnabled: () => usesLimitSearch.value,
 	runLimitSearch: (term) => itemsIntegration.searchItems(term),
+	runCanonicalSearch: (term) => itemsIntegration.searchItems(term),
+	isSearchBusy: () => Boolean(isLoadingOrSyncing.value || loading.value),
+	getPendingSearch: () => pendingItemSearch.value,
+	setPendingSearch: (value) => {
+		pendingItemSearch.value = value;
+	},
 	clearHighlightedItem: () => itemSelection.clearHighlightedItem(),
 });
 // Trigger a debounced catalog search as the user types -- not only on Enter --
@@ -749,6 +747,13 @@ const itemsSelectorSearch = useItemsSelectorSearch({
 watch(first_search, (term) => {
 	if (String(term ?? "").trim().length >= 2) {
 		itemsSelectorSearch.search_onchange();
+	}
+});
+
+// Flush a search that was typed while the catalogue was still loading.
+watch(isLoadingOrSyncing, (busy, wasBusy) => {
+	if (wasBusy && !busy) {
+		void itemsSelectorSearch.flushPendingSearch();
 	}
 });
 

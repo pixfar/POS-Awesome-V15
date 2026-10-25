@@ -22,8 +22,9 @@ export function useItemsSelectorScannerBridge({
 	const newItemDialogAwaitingScan = ref(false);
 
 	const openNewItemDialog = () => {
+		// Creating items from POS Awesome is disabled site-wide.
+		newItemDialog.value = false;
 		resetNewItemDialogState(newItemDialogScannedBarcode, newItemDialogAwaitingScan);
-		newItemDialog.value = true;
 	};
 
 	const startNewItemBarcodeScan = () => {

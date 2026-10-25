@@ -121,17 +121,6 @@
 			<div v-if="!hideTools && toolsOpen" class="tools-panel">
 				<div class="tools-panel__actions">
 					<v-btn
-						v-if="context === 'purchase' && !hideNewItem"
-						density="compact"
-						variant="text"
-						color="primary"
-						prepend-icon="mdi-plus"
-						@click="$emit('open-new-item')"
-						class="settings-btn"
-					>
-						{{ __("New Item") }}
-					</v-btn>
-					<v-btn
 						density="compact"
 						variant="text"
 						color="primary"
@@ -183,8 +172,8 @@ const props = defineProps({
 	syncProgress: { type: Number, default: 0 },
 	syncItemsCount: { type: Number, default: 0 },
 	context: { type: String, default: "pos" },
-	// Hide "New Item" where creating items isn't wanted (e.g. Material Receipt).
-	hideNewItem: { type: Boolean, default: false },
+	// Kept for callers; create-item from POS is disabled site-wide.
+	hideNewItem: { type: Boolean, default: true },
 	embedded: { type: Boolean, default: false },
 	hideTools: { type: Boolean, default: false },
 });

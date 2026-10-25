@@ -1201,14 +1201,29 @@ export const useItemsStore = defineStore("items", () => {
 	const filterByGroup = async (group: string) => {
 		itemGroup.value = group;
 
-		if (searchTerm.value) {
-			await searchItems(searchTerm.value);
+		// Keep an active typed search across group switches (searchTerm is set
+		// by searchItems). Re-query so results are for this group + term, not
+		// a local filter of whatever page happened to be loaded.
+		const activeTerm = String(searchTerm.value || "").trim();
+		if (activeTerm.length >= 2) {
+			await searchItems(activeTerm);
+			return;
+		}
+
+		// Online-only: the local catalogue is only one page — switching groups
+		// must hit the server instead of filtering the current page to empty.
+		if (forceServerItems.value) {
+			await loadItems({
+				groupFilter: group,
+				forceServer: true,
+			});
+			return;
+		}
+
+		if (cachedPagination.value.enabled && shouldUseIndexedSearch()) {
+			await resetCachedItemsForGroup(group);
 		} else {
-			if (cachedPagination.value.enabled && shouldUseIndexedSearch()) {
-				await resetCachedItemsForGroup(group);
-			} else {
-				filteredItems.value = filterItemsByGroup(items.value, group);
-			}
+			filteredItems.value = filterItemsByGroup(items.value, group);
 		}
 	};
 
