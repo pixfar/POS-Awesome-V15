@@ -1,7 +1,7 @@
 <template>
 	<div class="group-sidebar">
 		<div class="group-sidebar__title">{{ __("Item Group") }}</div>
-		<div class="group-sidebar__search">
+		<form class="group-sidebar__search" autocomplete="posa-off" @submit.prevent>
 			<v-text-field
 				v-model="search"
 				:placeholder="__('Search group')"
@@ -10,8 +10,11 @@
 				hide-details
 				clearable
 				prepend-inner-icon="mdi-folder-outline"
+				autocomplete="posa-off"
+				name="posa_item_group_search"
+				:spellcheck="false"
 			/>
-		</div>
+		</form>
 		<div class="group-sidebar__list">
 			<button
 				v-for="group in filteredGroups"
@@ -70,7 +73,8 @@ const sortGroups = (groups) => {
 };
 
 const filteredGroups = computed(() => {
-	const term = search.value.trim().toLowerCase();
+	// clearable v-text-field sets model to null on clear — never call .trim() on it.
+	const term = String(search.value ?? "").trim().toLowerCase();
 	const base =
 		!term
 			? props.itemsGroup
@@ -79,6 +83,7 @@ const filteredGroups = computed(() => {
 				);
 	return sortGroups(base);
 });
+
 
 const selectGroup = (group) => {
 	emit("update:modelValue", group || "ALL");

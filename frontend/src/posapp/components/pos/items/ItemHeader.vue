@@ -17,6 +17,9 @@
 						:label="frappe._('Search, scan or browse item')"
 						hide-details
 						:model-value="searchInput"
+						autocomplete="posa-off"
+						name="posa_item_search"
+						:spellcheck="false"
 						@update:model-value="
 							(val) => {
 								$emit('update:searchInput', val);

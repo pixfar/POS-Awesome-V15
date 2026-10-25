@@ -99,6 +99,25 @@ const hardenControl = (el: Element) => {
 	if (el.getAttribute("data-form-type") !== "other") {
 		el.setAttribute("data-form-type", "other");
 	}
+
+	// Chrome matches autofill on common name/id tokens ("search", "customer",
+	// …). Give POS search inputs a stable non-matching name when empty or
+	// still carrying a browser-friendly name.
+	if (el instanceof HTMLInputElement) {
+		const currentName = (el.getAttribute("name") || el.name || "").toLowerCase();
+		if (
+			!currentName ||
+			currentName === "search" ||
+			currentName === "q" ||
+			currentName === "query" ||
+			currentName === "customer" ||
+			currentName === "email" ||
+			currentName === "phone" ||
+			currentName === "tel"
+		) {
+			el.setAttribute("name", "posa_field");
+		}
+	}
 };
 
 const hardenForm = (el: Element) => {
