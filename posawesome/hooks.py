@@ -203,23 +203,14 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"posawesome.tasks.all"
-# 	],
-# 	"daily": [
-# 		"posawesome.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"posawesome.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"posawesome.tasks.weekly"
-# 	]
-# 	"monthly": [
-# 		"posawesome.tasks.monthly"
-# 	]
-# }
+scheduler_events = {
+    # Warm today's company-wide overview cache so /overview paints from Redis.
+    "cron": {
+        "*/10 * * * *": [
+            "posawesome.posawesome.api.company_dashboard.warm_company_dashboard_cache",
+        ],
+    },
+}
 
 # Testing
 # -------

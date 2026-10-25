@@ -120,11 +120,8 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
         )
         remaining_party = flt(bank_amount * bank_to_party, precision)
 
-    total_allocated = 0
+    prepared = []
     for inv in invoices:
-        if remaining_party <= 0:
-            break
-
         voucher_type = inv.get("voucher_type") or (
             "Purchase Invoice" if party_type == "Supplier" else "Sales Invoice"
         )
@@ -137,6 +134,7 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
         # fields to read a doc for, so its row already carries everything
         # needed (as derived at query time) instead of being looked up here.
         is_journal_due = voucher_type == "Journal Entry"
+        inv_doc = None
         if is_journal_due:
             if inv_no not in remaining_inv:
                 remaining_inv[inv_no] = flt(inv.get("outstanding_amount"))
@@ -151,7 +149,7 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
             inv_conv_rate = flt(inv_doc.conversion_rate) or 1
             inv_due_date = inv_doc.due_date
 
-        if remaining_inv[inv_no] <= 0:
+        if not remaining_inv[inv_no]:
             continue
 
         if inv_currency == party_account_currency:
@@ -191,20 +189,44 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
                 )
             )
 
-        if inv_outstanding_party <= 0:
+        if not inv_outstanding_party:
             continue
 
-        allocation = min(remaining_party, inv_outstanding_party)
-        if allocation <= 0:
-            continue
+        prepared.append(
+            {
+                "voucher_type": voucher_type,
+                "inv_no": inv_no,
+                "inv_currency": inv_currency,
+                "inv_conv_rate": inv_conv_rate,
+                "inv_due_date": inv_due_date,
+                "inv_outstanding_party": inv_outstanding_party,
+                "inv_total_party": inv_total_party,
+            }
+        )
+
+    # Allocate returns / debit notes first so their credit increases the
+    # remaining budget available for positive invoices (net payment).
+    prepared.sort(key=lambda row: (0 if row["inv_outstanding_party"] < 0 else 1))
+
+    total_allocated = 0
+    for row in prepared:
+        inv_outstanding_party = row["inv_outstanding_party"]
+        if inv_outstanding_party < 0:
+            allocation = inv_outstanding_party
+        else:
+            if remaining_party <= 0:
+                break
+            allocation = min(remaining_party, inv_outstanding_party)
+            if allocation <= 0:
+                continue
 
         pe.append(
             "references",
             {
-                "reference_doctype": voucher_type,
-                "reference_name": inv_no,
-                "due_date": inv_due_date,
-                "total_amount": inv_total_party,
+                "reference_doctype": row["voucher_type"],
+                "reference_name": row["inv_no"],
+                "due_date": row["inv_due_date"],
+                "total_amount": row["inv_total_party"],
                 "outstanding_amount": inv_outstanding_party,
                 "allocated_amount": allocation,
             },
@@ -212,6 +234,9 @@ def _allocate_payment_references(pe, party, party_type, company, invoices, posti
         remaining_party -= allocation
         total_allocated = flt(total_allocated + allocation, precision)
 
+        inv_no = row["inv_no"]
+        inv_currency = row["inv_currency"]
+        inv_conv_rate = row["inv_conv_rate"]
         if inv_currency == party_account_currency:
             remaining_inv[inv_no] -= allocation
         elif party_account_currency == company_currency:
@@ -258,9 +283,14 @@ def get_all_outstanding_invoices(
     name_field = "supplier_name" if party_type == "Supplier" else "customer_name"
 
     MAX_ROWS = 2000
-    filters = {"company": company, "docstatus": 1, "outstanding_amount": (">", 0)}
+    # Include returns / debit-credit notes (negative outstanding) so the
+    # browse-all list matches AR/AP Summary net figures.
+    filters = {"company": company, "docstatus": 1, "outstanding_amount": ("!=", 0)}
 
-    invoices = frappe.get_list(
+    # ignore_permissions: matches get_party_outstanding / party invoice list.
+    # Non-admins are owner-scoped on SI/PI at the desk; payment browse must
+    # still show every open invoice for the company.
+    invoices = frappe.get_all(
         doctype,
         filters=filters,
         fields=[
@@ -275,6 +305,7 @@ def get_all_outstanding_invoices(
         ],
         order_by="posting_date asc, name asc",
         limit_page_length=MAX_ROWS,
+        ignore_permissions=True,
     )
 
     rows = [
@@ -641,7 +672,7 @@ def get_party_outstanding(party, party_type="Customer", company=None):
         FROM `tab{doctype}`
         WHERE {party_field} = %(party)s
           AND docstatus = 1
-          AND outstanding_amount > 0
+          AND outstanding_amount != 0
           {("AND company = %(company)s" if company else "")}
         """,
         {"party": party, "company": company},
@@ -799,8 +830,9 @@ def make_payment_direct(
 
 
 def _invoices_outstanding_total(invoices, party_type):
-    """Sum of the current outstanding of the invoices / Journal Entry dues
-    being paid -- re-read from the documents, not trusted from the client."""
+    """Net outstanding of the selected invoices / Journal Entry dues
+    (returns and debit notes contribute negative amounts) -- re-read from
+    the documents, not trusted from the client."""
     total = 0
     for inv in invoices or []:
         voucher_type = inv.get("voucher_type") or (
@@ -813,14 +845,14 @@ def _invoices_outstanding_total(invoices, party_type):
             outstanding = flt(inv.get("outstanding_amount"))
         else:
             outstanding = flt(frappe.db.get_value(voucher_type, inv_no, "outstanding_amount"))
-        total += max(outstanding, 0)
+        total += outstanding
     return total
 
 
 def _cap_methods_to_outstanding(active_methods, invoices, party_type="Customer"):
     """Trim the entered payment-method amounts so their total never exceeds
-    the invoices' outstanding (no over payment / unallocated amount). Earlier
-    methods are filled first; methods left with nothing are dropped."""
+    the invoices' net outstanding (no over payment / unallocated amount).
+    Earlier methods are filled first; methods left with nothing are dropped."""
     if not invoices:
         frappe.throw(_("Please select the invoice(s) to pay. Advance / unallocated payments are not allowed."))
 

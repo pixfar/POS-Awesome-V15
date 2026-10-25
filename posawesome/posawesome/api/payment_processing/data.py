@@ -23,14 +23,19 @@ def _get_open_sales_invoices(
         "customer": customer,
         "company": company,
         "docstatus": 1,
-        "outstanding_amount": (">", 0),
+        # Include returns / credit notes (negative outstanding) so totals
+        # match Accounts Receivable / Payable Summary net outstanding.
+        "outstanding_amount": ("!=", 0),
     }
     if currency and not include_all_currencies:
         filters["currency"] = currency
     if pos_profile:
         filters["pos_profile"] = pos_profile
 
-    return frappe.get_list(
+    # ignore_permissions: desk SI list is owner-scoped for non-admins
+    # (bsp_engineering invoice_permissions), but Customer Payment must list
+    # every open invoice for the party -- same scope as get_party_outstanding.
+    return frappe.get_all(
         "Sales Invoice",
         filters=filters,
         fields=[
@@ -48,6 +53,7 @@ def _get_open_sales_invoices(
             "conversion_rate",
         ],
         order_by="posting_date desc, name desc",
+        ignore_permissions=True,
     )
 
 
@@ -61,12 +67,16 @@ def _get_open_purchase_invoices(
         "supplier": supplier,
         "company": company,
         "docstatus": 1,
-        "outstanding_amount": (">", 0),
+        # Include returns / debit notes (negative outstanding) so totals
+        # match Accounts Payable Summary net outstanding.
+        "outstanding_amount": ("!=", 0),
     }
     if currency and not include_all_currencies:
         filters["currency"] = currency
 
-    return frappe.get_list(
+    # Same as sales: payment allocation needs the party's full open set,
+    # not only invoices the current user created.
+    return frappe.get_all(
         "Purchase Invoice",
         filters=filters,
         fields=[
@@ -83,6 +93,7 @@ def _get_open_purchase_invoices(
             "conversion_rate",
         ],
         order_by="posting_date desc, name desc",
+        ignore_permissions=True,
     )
 
 
@@ -456,7 +467,7 @@ def get_outstanding_invoices(
 
             outstanding_amount = invoice_outstanding
 
-            if outstanding_amount <= 0:
+            if not outstanding_amount:
                 continue
 
             row_currency = invoice.get("currency") or currency

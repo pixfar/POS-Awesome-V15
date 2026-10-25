@@ -1041,6 +1041,15 @@ export default {
 				return String(da).localeCompare(String(db));
 			});
 
+			// Include returns / debit notes first so their credit raises the
+			// positive-invoice budget to the net amount being paid.
+			for (const inv of sorted) {
+				const outstanding = parseFloat(inv.outstanding_amount) || 0;
+				if (outstanding >= 0) continue;
+				picks.push(inv);
+				budget -= outstanding;
+			}
+
 			for (const inv of sorted) {
 				if (budget <= 0) break;
 				const outstanding = parseFloat(inv.outstanding_amount) || 0;

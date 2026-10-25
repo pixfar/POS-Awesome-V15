@@ -10,7 +10,7 @@ doctype -- see each _collect_* helper), with date-range filtering only.
 """
 
 import frappe
-from frappe.utils import add_days, cint, flt, getdate, today
+from frappe.utils import add_days, cint, flt, getdate, now_datetime, today
 
 from posawesome.posawesome.api.fund_transfer import _list_filters as _fund_transfer_filters
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
@@ -19,6 +19,33 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
     get_warehouse_doc_status_counts,
     is_privileged_invoice_viewer,
 )
+
+# Stale-while-revalidate TTL for overview payloads (15 minutes).
+DASHBOARD_CACHE_TTL = 900
+
+
+def _dashboard_cache_key(company, start_date, end_date, warehouse, is_admin, user=None):
+    """Stable Redis key. Admin/company-wide shares one key; own-scope is per user."""
+    scope = "admin" if is_admin else "own"
+    who = "shared" if is_admin else (user or frappe.session.user or "guest")
+    wh = warehouse or "all"
+    company = company or "none"
+    return f"posawesome:company_dashboard:{company}:{start_date}:{end_date}:{wh}:{scope}:{who}"
+
+
+def _read_dashboard_cache(key):
+    try:
+        return frappe.cache.get_value(key, expires=True)
+    except Exception:
+        frappe.log_error(title="Company Dashboard cache read failed")
+        return None
+
+
+def _write_dashboard_cache(key, payload):
+    try:
+        frappe.cache.set_value(key, payload, expires_in_sec=DASHBOARD_CACHE_TTL)
+    except Exception:
+        frappe.log_error(title="Company Dashboard cache write failed")
 
 
 def _resolve_company(pos_profile):
@@ -549,16 +576,8 @@ def get_dashboard_warehouses(pos_profile=None):
     )
 
 
-@frappe.whitelist()
-def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, warehouse=None):
-    company = _resolve_company(pos_profile)
-    is_admin = is_privileged_invoice_viewer()
-
-    start_date = start_date or today()
-    end_date = end_date or today()
-    if not is_admin:
-        warehouse = None
-
+def _build_company_dashboard(company, start_date, end_date, warehouse, is_admin):
+    """Compute the full overview payload (no cache)."""
     currency = (
         frappe.get_cached_value("Company", company, "default_currency")
         if company
@@ -601,4 +620,66 @@ def get_company_dashboard(pos_profile=None, start_date=None, end_date=None, ware
             company, start_date, end_date, warehouse, is_admin, order_by="qty"
         ),
         "top_warehouses": _collect_top_warehouses(company, start_date, end_date, is_admin),
+        "from_cache": False,
+        "cached_at": now_datetime().isoformat(),
     }
+
+
+@frappe.whitelist()
+def get_company_dashboard(
+    pos_profile=None,
+    start_date=None,
+    end_date=None,
+    warehouse=None,
+    refresh=0,
+):
+    """Company overview with Redis stale-while-revalidate.
+
+    refresh=0 (default): return Redis cache when present (from_cache=true).
+    refresh=1: recompute, overwrite cache, return live (from_cache=false).
+    """
+    company = _resolve_company(pos_profile)
+    is_admin = is_privileged_invoice_viewer()
+
+    start_date = start_date or today()
+    end_date = end_date or today()
+    if not is_admin:
+        warehouse = None
+
+    force_refresh = cint(refresh)
+    cache_key = _dashboard_cache_key(company, start_date, end_date, warehouse, is_admin)
+
+    if not force_refresh:
+        cached = _read_dashboard_cache(cache_key)
+        if cached:
+            payload = dict(cached)
+            payload["from_cache"] = True
+            return payload
+
+    payload = _build_company_dashboard(company, start_date, end_date, warehouse, is_admin)
+    _write_dashboard_cache(cache_key, dict(payload))
+    return payload
+
+
+def warm_company_dashboard_cache():
+    """Scheduler: precompute today's company-wide (admin) dashboard per company.
+
+    Keeps the default /overview open warm so the first paint of the day is a
+    Redis hit instead of a cold multi-collector query.
+    """
+    companies = frappe.get_all(
+        "POS Profile",
+        filters={"disabled": 0},
+        pluck="company",
+    )
+    day = today()
+    warmed = 0
+    for company in sorted({c for c in companies if c}):
+        try:
+            payload = _build_company_dashboard(company, day, day, None, True)
+            key = _dashboard_cache_key(company, day, day, None, True)
+            _write_dashboard_cache(key, dict(payload))
+            warmed += 1
+        except Exception:
+            frappe.log_error(title=f"Company Dashboard warm failed for {company}")
+    return warmed

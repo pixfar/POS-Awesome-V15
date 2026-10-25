@@ -8,14 +8,17 @@
 					<p class="pos-list-header__subtitle">{{ scopeSubtitle }}</p>
 				</div>
 				<div class="pos-list-header__actions">
+					<span v-if="statusHint" class="dashboard-cache-hint text-caption text-medium-emphasis">
+						{{ statusHint }}
+					</span>
 					<v-btn
 						variant="tonal"
 						size="small"
 						color="primary"
 						class="text-none"
 						prepend-icon="mdi-refresh"
-						:loading="loading"
-						@click="loadDashboard"
+						:loading="loading || refreshing"
+						@click="() => loadDashboard({ force: true })"
 					>
 						{{ __('Refresh') }}
 					</v-btn>
@@ -49,7 +52,7 @@
 					hide-details
 					clearable
 					class="pos-themed-input dashboard-filter-field"
-					@update:model-value="loadDashboard"
+					@update:model-value="() => loadDashboard({ force: true })"
 				/>
 				<div v-if="isAdmin" class="dashboard-shortcuts">
 					<v-btn
@@ -173,8 +176,12 @@ const shortcuts = [
 ];
 
 const loading = ref(false);
+const refreshing = ref(false);
 const loaded = ref(false);
 const error = ref(null);
+const cachedAt = ref(null);
+const fromCache = ref(false);
+let loadGeneration = 0;
 
 const startDate = ref('');
 const endDate = ref('');
@@ -266,6 +273,30 @@ const scopeSubtitle = computed(() =>
 		? __('Company-wide overview · {0}', [rangeLabel.value])
 		: __('Your data · {0}', [rangeLabel.value]),
 );
+
+function formatRelativeTime(iso) {
+	if (!iso) return '';
+	const then = new Date(iso);
+	if (Number.isNaN(then.getTime())) return '';
+	const seconds = Math.max(0, Math.round((Date.now() - then.getTime()) / 1000));
+	if (seconds < 45) return __('just now');
+	if (seconds < 3600) {
+		const mins = Math.max(1, Math.round(seconds / 60));
+		return __('{0} min ago', [mins]);
+	}
+	const hours = Math.max(1, Math.round(seconds / 3600));
+	return __('{0} hr ago', [hours]);
+}
+
+const statusHint = computed(() => {
+	if (refreshing.value) return __('Updating…');
+	if (!cachedAt.value) return '';
+	const when = formatRelativeTime(cachedAt.value);
+	if (!when) return '';
+	return fromCache.value
+		? __('Cached · {0}', [when])
+		: __('Updated {0}', [when]);
+});
 
 // Each section groups the cards that belong together so it's obvious at a
 // glance which figure applies to which area of the business, mirroring the
@@ -578,12 +609,12 @@ function applyShortcut(key) {
 		startDate.value = formatDateString(now);
 	}
 	endDate.value = formatDateString(now);
-	loadDashboard();
+	loadDashboard({ force: true });
 }
 
 function onManualDateChange() {
 	activeShortcut.value = null;
-	loadDashboard();
+	loadDashboard({ force: true });
 }
 
 async function loadWarehouses() {
@@ -599,25 +630,70 @@ async function loadWarehouses() {
 	}
 }
 
-async function loadDashboard() {
-	loading.value = true;
+function applyDashboardPayload(message) {
+	Object.assign(dashboard, message || {});
+	cachedAt.value = message?.cached_at || null;
+	fromCache.value = Boolean(message?.from_cache);
+	loaded.value = true;
+}
+
+function dashboardArgs(refresh) {
+	return {
+		pos_profile: posProfile.value?.name || undefined,
+		start_date: startDate.value || undefined,
+		end_date: endDate.value || undefined,
+		warehouse: isAdmin.value ? warehouseFilter.value || undefined : undefined,
+		refresh: refresh ? 1 : 0,
+	};
+}
+
+async function fetchDashboard(refresh) {
+	const { message } = await frappe.call({
+		method: 'posawesome.posawesome.api.company_dashboard.get_company_dashboard',
+		args: dashboardArgs(refresh),
+	});
+	return message || {};
+}
+
+async function loadDashboard({ force = false } = {}) {
+	const generation = ++loadGeneration;
 	error.value = null;
+
+	// Full-page spinner only on first paint with no tiles yet.
+	if (!loaded.value) {
+		loading.value = true;
+	} else if (force) {
+		loading.value = true;
+	}
+
 	try {
-		const { message } = await frappe.call({
-			method: 'posawesome.posawesome.api.company_dashboard.get_company_dashboard',
-			args: {
-				pos_profile: posProfile.value?.name || undefined,
-				start_date: startDate.value || undefined,
-				end_date: endDate.value || undefined,
-				warehouse: isAdmin.value ? warehouseFilter.value || undefined : undefined,
-			},
-		});
-		Object.assign(dashboard, message || {});
-		loaded.value = true;
+		const message = await fetchDashboard(force);
+		if (generation !== loadGeneration) return;
+		applyDashboardPayload(message);
+		loading.value = false;
+
+		// Cache hit on initial/soft load: keep tiles, soft-refresh to live.
+		if (!force && message?.from_cache) {
+			refreshing.value = true;
+			try {
+				const live = await fetchDashboard(true);
+				if (generation !== loadGeneration) return;
+				applyDashboardPayload(live);
+			} catch (e) {
+				console.error('Dashboard soft refresh failed', e);
+			} finally {
+				if (generation === loadGeneration) {
+					refreshing.value = false;
+				}
+			}
+		}
 	} catch (e) {
+		if (generation !== loadGeneration) return;
 		error.value = e?.message || __('Failed to load the dashboard.');
 	} finally {
-		loading.value = false;
+		if (generation === loadGeneration) {
+			loading.value = false;
+		}
 	}
 }
 
@@ -638,7 +714,8 @@ onMounted(async () => {
 	}
 
 	await loadWarehouses();
-	await loadDashboard();
+	// Cache-first mount; soft live refresh runs inside when from_cache.
+	await loadDashboard({ force: false });
 });
 </script>
 
@@ -650,6 +727,11 @@ onMounted(async () => {
 	padding: 24px;
 	display: flex;
 	justify-content: center;
+}
+
+.dashboard-cache-hint {
+	margin-right: 8px;
+	white-space: nowrap;
 }
 
 .dashboard-filters {

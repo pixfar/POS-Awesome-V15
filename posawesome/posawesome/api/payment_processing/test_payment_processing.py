@@ -847,14 +847,15 @@ class TestPosPaymentProcessing(unittest.TestCase):
         mock_frappe.get_cached_value.return_value = "Customer 727"
         mock_get_party_account.return_value = "Debtors - TC"
 
-        def fake_get_list(doctype, filters=None, fields=None, order_by=None, **kwargs):
+        def fake_get_all(doctype, filters=None, fields=None, order_by=None, **kwargs):
             self.assertEqual(doctype, "Sales Invoice")
             self.assertEqual(filters["customer"], "Customer 727")
             self.assertEqual(filters["company"], "Test Company")
             self.assertEqual(filters["docstatus"], 1)
-            self.assertEqual(filters["outstanding_amount"], (">", 0))
+            self.assertEqual(filters["outstanding_amount"], ("!=", 0))
             self.assertEqual(filters["currency"], "USD")
             self.assertEqual(filters["pos_profile"], "Main POS")
+            self.assertTrue(kwargs.get("ignore_permissions"))
             self.assertIn("outstanding_amount", fields)
             self.assertEqual(order_by, "posting_date desc, name desc")
             return [
@@ -873,7 +874,7 @@ class TestPosPaymentProcessing(unittest.TestCase):
                 )
             ]
 
-        mock_frappe.get_list.side_effect = fake_get_list
+        mock_frappe.get_all.side_effect = fake_get_all
 
         rows = self.data.get_outstanding_invoices(
             customer="Customer 727",
@@ -899,13 +900,14 @@ class TestPosPaymentProcessing(unittest.TestCase):
         mock_frappe._dict.side_effect = lambda value: AttrDict(value)
         mock_frappe.get_cached_value.return_value = "Supplier ABC"
 
-        def fake_get_list(doctype, filters=None, fields=None, order_by=None, **kwargs):
+        def fake_get_all(doctype, filters=None, fields=None, order_by=None, **kwargs):
             self.assertEqual(doctype, "Purchase Invoice")
             self.assertEqual(filters["supplier"], "SUPP-0001")
             self.assertEqual(filters["company"], "Test Company")
             self.assertEqual(filters["docstatus"], 1)
-            self.assertEqual(filters["outstanding_amount"], (">", 0))
+            self.assertEqual(filters["outstanding_amount"], ("!=", 0))
             self.assertEqual(filters["currency"], "USD")
+            self.assertTrue(kwargs.get("ignore_permissions"))
             self.assertIn("outstanding_amount", fields)
             self.assertEqual(order_by, "posting_date desc, name desc")
             return [
@@ -923,7 +925,7 @@ class TestPosPaymentProcessing(unittest.TestCase):
                 )
             ]
 
-        mock_frappe.get_list.side_effect = fake_get_list
+        mock_frappe.get_all.side_effect = fake_get_all
 
         rows = self.data.get_outstanding_invoices(
             customer="SUPP-0001",
