@@ -847,7 +847,9 @@ export const useItemsStore = defineStore("items", () => {
 					abortController.signal,
 				);
 				if (requestToken.value !== currentRequestToken) {
-					return;
+					// Still return the page so a superseded search caller can
+					// show results instead of falling back to an empty grid.
+					return firstPage;
 				}
 				const firstPageWarehouse =
 					(args as any)?.warehouse || resolveLoadItemsWarehouse(options) || null;
@@ -866,7 +868,7 @@ export const useItemsStore = defineStore("items", () => {
 						abortController.signal,
 					);
 					if (requestToken.value !== currentRequestToken) {
-						return;
+						return firstPage.concat(rest || []);
 					}
 					fetchedItems = firstPage.concat(rest || []);
 				}
@@ -876,7 +878,7 @@ export const useItemsStore = defineStore("items", () => {
 					abortController.signal,
 				);
 				if (requestToken.value !== currentRequestToken) {
-					return;
+					return Array.isArray(fetchedItems) ? fetchedItems : [];
 				}
 			}
 
@@ -1027,19 +1029,27 @@ export const useItemsStore = defineStore("items", () => {
 		lastSearch.value = term;
 
 		if (!term || term.length < 2) {
+			clearSearchCache();
 			if (limitSearchEnabled.value) {
 				return clearLimitSearchResults({ preserveItems: true });
 			}
 
-				// Online-only: a prior server search replaced items.value with just
-				// the matches, so reload the group's catalog from the server when the
-				// search is cleared instead of leaving the stale search set visible.
-				if (forceServerItems.value && previousTerm.length >= 2) {
-					await loadItems({
-						groupFilter: itemGroup.value,
-						forceServer: true,
-					});
+			// Online-only: a prior server search replaced items.value with just
+			// the matches, so reload the group's catalog from the server when the
+			// search is cleared instead of leaving the stale search set visible.
+			if (forceServerItems.value && previousTerm.length >= 2) {
+				const fetched = await loadItems({
+					groupFilter: itemGroup.value,
+					forceServer: true,
+				});
+				if (Array.isArray(fetched)) {
+					filteredItems.value = filterItemsByGroup(
+						fetched,
+						itemGroup.value,
+					);
+					return filteredItems.value;
 				}
+			}
 
 			if (!cachedPagination.value.enabled) {
 				filteredItems.value = filterItemsByGroup(
@@ -1084,19 +1094,24 @@ export const useItemsStore = defineStore("items", () => {
 		}
 
 		const cacheKey = `search_${getCacheScope()}_${activePriceList.value || "default"}_${term}_${itemGroup.value}`;
-		const cached = getCachedSearchResult(cacheKey);
-		if (cached) {
-			const sortedCached = sortItemsForSearchTerm(cached, term);
-			filteredItems.value = sortedCached;
-			performanceMetrics.value.searchHits++;
-			return sortedCached;
+		// Online-only searches always hit the server. Never reuse an in-memory
+		// hit here — a prior empty result (e.g. before digit-script matching)
+		// would stick forever because `[]` is truthy.
+		if (!forceServerItems.value) {
+			const cached = getCachedSearchResult(cacheKey);
+			if (Array.isArray(cached) && cached.length > 0) {
+				const sortedCached = sortItemsForSearchTerm(cached, term);
+				filteredItems.value = sortedCached;
+				performanceMetrics.value.searchHits++;
+				return sortedCached;
+			}
 		}
 
 		try {
 			const shouldUseIndexed = shouldUseIndexedSearch();
 			let searchResults: Item[] = [];
 
-			if (shouldUseIndexed) {
+			if (shouldUseIndexed && !forceServerItems.value) {
 				const normalizedGroup =
 					typeof itemGroup.value === "string" &&
 					itemGroup.value.length > 0
@@ -1117,19 +1132,14 @@ export const useItemsStore = defineStore("items", () => {
 				// item invisible until a manual reload. Fall back to the server
 				// automatically so no manual reload is ever required.
 				if (searchResults.length === 0 && term.length >= 2) {
-					await loadItems({
+					const fetched = await loadItems({
 						searchValue: term,
 						groupFilter: itemGroup.value,
 						forceServer: true,
 					});
-					const serverResults = performLocalSearch(
-						term,
-						items.value,
-						itemGroup.value,
-					);
-					if (serverResults.length) {
-						searchResults = serverResults;
-					}
+					searchResults = Array.isArray(fetched)
+						? fetched
+						: performLocalSearch(term, items.value, itemGroup.value);
 				}
 
 				cachedPagination.value.search = term;
@@ -1139,18 +1149,24 @@ export const useItemsStore = defineStore("items", () => {
 					searchResults.length,
 				);
 			} else if (forceServerItems.value && term.length >= 2) {
-				// Online-only mode: always query the server for the term so the
-				// results are the full set of matches, not just whatever items
-				// happen to be loaded locally.
-				await loadItems({
+				// Online-only: trust the server response directly. Re-running
+				// performLocalSearch on items.value was wrong when loadItems
+				// was superseded (returned undefined) or when a stale empty
+				// catalogue was still in memory.
+				const fetched = await loadItems({
 					searchValue: term,
 					groupFilter: itemGroup.value,
 					forceServer: true,
 				});
-				searchResults = filterItemsByGroup(
-					performLocalSearch(term, items.value, itemGroup.value),
-					itemGroup.value,
-				);
+				if (Array.isArray(fetched)) {
+					searchResults = fetched;
+				} else {
+					searchResults = performLocalSearch(
+						term,
+						items.value,
+						itemGroup.value,
+					);
+				}
 			} else {
 				const sourceItems = canRefineSearch
 					? filteredItems.value
@@ -1162,16 +1178,14 @@ export const useItemsStore = defineStore("items", () => {
 				);
 
 				if (searchResults.length === 0 && term.length >= 2) {
-					await loadItems({
+					const fetched = await loadItems({
 						searchValue: term,
 						groupFilter: itemGroup.value,
 						forceServer: true,
 					});
-					searchResults = performLocalSearch(
-						term,
-						items.value,
-						itemGroup.value,
-					);
+					searchResults = Array.isArray(fetched)
+						? fetched
+						: performLocalSearch(term, items.value, itemGroup.value);
 				}
 
 				searchResults = filterItemsByGroup(
@@ -1181,7 +1195,10 @@ export const useItemsStore = defineStore("items", () => {
 			}
 
 			searchResults = sortItemsForSearchTerm(searchResults, term);
-			setCachedSearchResult(cacheKey, searchResults);
+			// Never cache empty results — they poison later searches.
+			if (searchResults.length > 0) {
+				setCachedSearchResult(cacheKey, searchResults);
+			}
 
 			filteredItems.value = searchResults;
 			performanceMetrics.value.searchMisses++;
@@ -1213,10 +1230,15 @@ export const useItemsStore = defineStore("items", () => {
 		// Online-only: the local catalogue is only one page — switching groups
 		// must hit the server instead of filtering the current page to empty.
 		if (forceServerItems.value) {
-			await loadItems({
+			const fetched = await loadItems({
 				groupFilter: group,
 				forceServer: true,
 			});
+			// loadItems already set items/filteredItems; if the request was
+			// superseded, keep whatever is currently shown rather than blanking.
+			if (Array.isArray(fetched)) {
+				filteredItems.value = filterItemsByGroup(fetched, group);
+			}
 			return;
 		}
 

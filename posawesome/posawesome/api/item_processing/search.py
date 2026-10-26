@@ -69,6 +69,34 @@ def normalize_brand(brand: str) -> str:
     return cstr(brand).strip().lower()
 
 
+_BN_TO_EN_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789")
+_EN_TO_BN_DIGITS = str.maketrans("0123456789", "০১২৩৪৫৬৭৮৯")
+
+
+def _english_digits(text: str) -> str:
+    """Map Bengali numerals to ASCII so '৬/১৬' matches typed '6/16'."""
+    return cstr(text).translate(_BN_TO_EN_DIGITS)
+
+
+def _bengali_digits(text: str) -> str:
+    """Map ASCII numerals to Bengali so typed '6/16' matches stored '৬/১৬'."""
+    return cstr(text).translate(_EN_TO_BN_DIGITS)
+
+
+def _digit_search_variants(text: str) -> List[str]:
+    """Unique search variants covering English and Bengali digit forms."""
+    raw = cstr(text).strip()
+    if not raw:
+        return []
+    eng = _english_digits(raw)
+    ben = _bengali_digits(eng)
+    variants: List[str] = []
+    for value in (raw, eng, ben):
+        if value and value not in variants:
+            variants.append(value)
+    return variants
+
+
 def _to_positive_int(value: Any) -> Optional[int]:
     """Convert the input to a non-negative integer if possible."""
 
@@ -137,8 +165,9 @@ def _build_search_plan(
                 continue
             if len(cleaned) > len(longest_search_token):
                 longest_search_token = cleaned
-            lowered = cleaned.lower()
-            if lowered not in seen:
+            # Word filter compares against English-digit forms of item fields.
+            lowered = _english_digits(cleaned).lower()
+            if lowered and lowered not in seen:
                 seen.append(lowered)
         search_words = seen
         normalized_search_value = " ".join(search_words)
@@ -147,19 +176,28 @@ def _build_search_plan(
         base_search_term = resolved_item_code or (longest_search_token or raw_search_value)
         min_search_len = 2
 
-        if use_limit_search:
-            if len(raw_search_value) >= min_search_len:
-                or_filters = [
-                    ["name", "like", f"{base_search_term}%"],
-                    ["item_name", "like", f"{base_search_term}%"],
-                    ["item_code", "like", f"%{base_search_term}%"],
-                ]
-                item_code_for_search = base_search_term
-
-            if len(raw_search_value) < min_search_len:
-                filters["item_code"] = base_search_term
-        elif resolved_item_code:
+        if resolved_item_code and not use_limit_search:
             filters["item_code"] = resolved_item_code
+        elif len(raw_search_value) >= min_search_len:
+            # Dual-script LIKE so English "6/16" hits Bengali "৬/১৬" names
+            # (and the reverse). Same pattern as invoices.search_items.
+            or_filters = []
+            seen_filters = set()
+            for variant in _digit_search_variants(base_search_term):
+                name_like = f"{variant}%" if use_limit_search else f"%{variant}%"
+                for row in (
+                    ["name", "like", name_like],
+                    ["item_name", "like", name_like],
+                    ["item_code", "like", f"%{variant}%"],
+                ):
+                    key = tuple(row)
+                    if key in seen_filters:
+                        continue
+                    seen_filters.add(key)
+                    or_filters.append(row)
+            item_code_for_search = base_search_term
+        elif use_limit_search and len(raw_search_value) < min_search_len:
+            filters["item_code"] = base_search_term
 
     if item_group and item_group.upper() != "ALL":
         if frappe.db.get_value("Item Group", item_group, "is_group"):
@@ -292,9 +330,9 @@ def _collect_searchable_values(row: Dict[str, Any]) -> List[str]:
 
     normalized_values: List[str] = []
     for val in values:
-        normalized = cstr(val).strip()
+        normalized = _english_digits(cstr(val).strip()).lower()
         if normalized:
-            normalized_values.append(normalized.lower())
+            normalized_values.append(normalized)
     return normalized_values
 
 
@@ -306,7 +344,10 @@ def _matches_search_words(row: Dict[str, Any], search_words: Sequence[str], word
 
     searchable_values = _collect_searchable_values(row)
     for word in search_words:
-        if not any(word in value for value in searchable_values):
+        eng_word = _english_digits(cstr(word)).lower()
+        if not eng_word:
+            continue
+        if not any(eng_word in value for value in searchable_values):
             return False
     return True
 
@@ -426,14 +467,23 @@ def _run_item_query(
         )
 
         if not items_data and plan.item_code_for_search and page_start == plan.initial_page_start:
+            fallback_filters: List[Any] = []
+            seen_fallback = set()
+            for variant in _digit_search_variants(plan.item_code_for_search):
+                for row in (
+                    ["name", "like", f"%{variant}%"],
+                    ["item_name", "like", f"%{variant}%"],
+                    ["item_code", "like", f"%{variant}%"],
+                ):
+                    key = tuple(row)
+                    if key in seen_fallback:
+                        continue
+                    seen_fallback.add(key)
+                    fallback_filters.append(row)
             items_data = frappe.get_all(
                 "Item",
                 filters=plan.filters,
-                or_filters=[
-                    ["name", "like", f"%{plan.item_code_for_search}%"],
-                    ["item_name", "like", f"%{plan.item_code_for_search}%"],
-                    ["item_code", "like", f"%{plan.item_code_for_search}%"],
-                ],
+                or_filters=fallback_filters or None,
                 fields=plan.fields,
                 limit_start=page_start,
                 limit_page_length=plan.page_size,

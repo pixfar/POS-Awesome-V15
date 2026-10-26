@@ -202,7 +202,8 @@ export const useItemsSelectorSearch = ({
 
 		const searchTerm = scannedCode || vm.first_search;
 		await scannerInput.ensureScaleBarcodeSettings();
-		if (!vm.displayedItems.length || !searchTerm) {
+		const visibleItems = Array.isArray(vm.displayedItems) ? vm.displayedItems : [];
+		if (!visibleItems.length || !searchTerm) {
 			return;
 		}
 
@@ -212,7 +213,7 @@ export const useItemsSelectorSearch = ({
 		vm.search = search;
 
 		const qty = Number(get_item_qty(searchTerm));
-		const new_item = { ...vm.displayedItems[0] };
+		const new_item = { ...visibleItems[0] };
 		new_item.qty = flt(qty);
 		if (isScaleBarcode) {
 			new_item._barcode_qty = true;
@@ -473,11 +474,12 @@ export const useItemsSelectorSearch = ({
 			return;
 		}
 
+		const itemsList = Array.isArray(vm.items) ? vm.items : [];
 		const shouldReload = shouldReloadOnSearchClear({
 			currentSearch: vm.first_search,
 			previousSearch: vm.search,
 			itemsLoaded: vm.itemsLoaded,
-			itemsCount: vm.items.length,
+			itemsCount: itemsList.length,
 		});
 
 		vm.search_backup = vm.first_search;
@@ -506,8 +508,8 @@ export const useItemsSelectorSearch = ({
 
 			if (Array.isArray(preservedItems) && preservedItems.length) {
 				vm.eventBus.emit("set_all_items", preservedItems);
-			} else if (Array.isArray(vm.items) && vm.items.length) {
-				vm.eventBus.emit("set_all_items", vm.items);
+			} else if (itemsList.length) {
+				vm.eventBus.emit("set_all_items", itemsList);
 			}
 
 			if (shouldReload) {
@@ -575,10 +577,10 @@ export const useItemsSelectorSearch = ({
 			return;
 		}
 
-		if (!vm.itemsLoaded || !vm.items.length) {
+		if (!vm.itemsLoaded || !itemsList.length) {
 			vm.get_items(true);
 		} else {
-			vm.eventBus.emit("set_all_items", vm.items);
+			vm.eventBus.emit("set_all_items", itemsList);
 		}
 
 		release();
