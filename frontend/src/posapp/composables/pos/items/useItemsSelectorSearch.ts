@@ -312,13 +312,23 @@ export const useItemsSelectorSearch = ({
 			return;
 		}
 
-		// Require at least 2 characters before running a search
+		// Below 2 chars: clear store searchTerm and reload the active group.
+		// Leaving early without this left itemsStore.searchTerm stuck (e.g. "38")
+		// after the UI was cleared, so the next item-group click re-searched the
+		// stale term and showed "No items found" with phantom page counts.
 		if (!trimmedQuery || trimmedQuery.length < 2) {
 			vm.search_from_scanner = false;
 			if (typeof setPendingSearch === "function") {
 				setPendingSearch(null);
 			} else {
 				vm.pendingItemSearch = null;
+			}
+			const clearStoreSearch =
+				(typeof runCanonicalSearch === "function"
+					? runCanonicalSearch
+					: null) || getSearchExecutor(vm);
+			if (clearStoreSearch) {
+				await clearStoreSearch("");
 			}
 			return;
 		}

@@ -744,9 +744,18 @@ const itemsSelectorSearch = useItemsSelectorSearch({
 // Trigger a debounced catalog search as the user types -- not only on Enter --
 // so results aren't limited to items already loaded locally. Essential now that
 // the full catalog is never pre-cached (online-only mode).
-watch(first_search, (term) => {
-	if (String(term ?? "").trim().length >= 2) {
+// Also reset the store when the term drops below 2 chars (backspace clear),
+// which the >=2 watch previously ignored and left searchTerm sticky.
+watch(first_search, (term, prev) => {
+	if (clearingSearch.value) return;
+	const next = String(term ?? "").trim();
+	const previous = String(prev ?? "").trim();
+	if (next.length >= 2) {
 		itemsSelectorSearch.search_onchange();
+		return;
+	}
+	if (previous.length >= 2) {
+		void itemsIntegration.searchItems("");
 	}
 });
 
@@ -1329,7 +1338,7 @@ const { selectorCardStyle } = useItemsSelectorPanelSizing({
 });
 const itemSearchFocusClearGuard = createItemSearchFocusClearGuard();
 const {
-	clearSearch,
+	clearSearch: clearSearchInput,
 	handleSearchInput,
 	prepareSearchInjection,
 	appendSearchCharacter,
@@ -1353,6 +1362,14 @@ const {
 	triggerItemSearchFocus: () => uiStore.triggerItemSearchFocus(),
 });
 cleanupSearchInput = stopSearchInputWatcher;
+
+// UI-only clear left itemsStore.searchTerm sticky after add-to-cart / Clear.
+// Always reset the store so the next item-group click loads the group catalogue
+// instead of re-filtering the previous search term against that group.
+const clearSearch = () => {
+	clearSearchInput();
+	return itemsSelectorSearch.clearSearch();
+};
 
 const {
 	newItemDialog,

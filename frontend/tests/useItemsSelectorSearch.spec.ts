@@ -147,6 +147,30 @@ describe("useItemsSelectorSearch", () => {
 		expect(preventDefault).toHaveBeenCalled();
 		expect(selectHighlightedItem).toHaveBeenCalledTimes(1);
 	});
+
+	it("clears the store search when the query drops below two characters", async () => {
+		const searchItems = vi.fn().mockResolvedValue([]);
+		const vm = {
+			first_search: "",
+			search_input: "",
+			search: "38",
+			search_from_scanner: false,
+			isBackgroundLoading: false,
+			pos_profile: { posa_use_limit_search: 0 },
+		};
+
+		const api = useItemsSelectorSearch({
+			getVM: () => vm,
+			scannerInput: createScannerInput(),
+			getSearchInput: () => "",
+			runCanonicalSearch: searchItems,
+		});
+
+		await api._performSearch();
+
+		expect(searchItems).toHaveBeenCalledWith("");
+		expect(vm.search_from_scanner).toBe(false);
+	});
 });
 
 describe("resolveBooleanSetting", () => {
