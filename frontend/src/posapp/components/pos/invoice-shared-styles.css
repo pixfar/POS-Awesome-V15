@@ -17,6 +17,23 @@
 	.invoice-shell {
 		padding-bottom: calc(var(--bottom-safe-space) + var(--dynamic-xs));
 	}
+
+	/* Create forms (Material Transfer / Requisition / Material Issue /
+	   Material Receipt, etc.): the scrollable card body — not the shell —
+	   must clear the fixed Browse/Cart/Submit dock, or Remarks sits under it. */
+	.txn-shell .purchase-invoice-card > .v-card-text {
+		padding-bottom: calc(var(--bottom-safe-space, 100px) + 32px) !important;
+	}
+
+	/* Dock clearance belongs after Remarks, not inside the items card. */
+	.txn-shell .invoice-items-card {
+		padding-bottom: 8px !important;
+	}
+
+	.txn-shell .notes-section-card,
+	.txn-shell .remarks-section-card {
+		scroll-margin-bottom: calc(var(--bottom-safe-space, 100px) + 24px);
+	}
 }
 
 .invoice-main-card {

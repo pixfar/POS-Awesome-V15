@@ -1,5 +1,5 @@
 <template>
-	<div class="pa-0 h-100 invoice-shell txn-shell" :style="[responsiveStyles, isCompact ? { '--bottom-safe-space': '100px' } : null]">
+	<div class="pa-0 h-100 invoice-shell txn-shell" :style="[responsiveStyles, isCompact ? { '--bottom-safe-space': '120px' } : null]">
 		<v-row class="h-100 ma-0">
 			<v-col
 				v-show="showInvoicePanel"
