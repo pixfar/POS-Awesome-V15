@@ -286,6 +286,16 @@ def get_requisition_detail(requisition):
 
 	stock_visibility = attach_warehouse_stock(items, doc.source_warehouse, doc.target_warehouse)
 
+	material_transfers = []
+	if frappe.db.has_column('Material Transfer', 'requisition'):
+		material_transfers = frappe.get_all(
+			'Material Transfer',
+			filters={'requisition': doc.name, 'docstatus': ['<', 2]},
+			fields=['name', 'transfer_status', 'from_warehouse', 'to_warehouse', 'transaction_date', 'docstatus'],
+			order_by='creation desc',
+			ignore_permissions=True,
+		)
+
 	return {
 		**stock_visibility,
 		'name': doc.name,
@@ -304,10 +314,14 @@ def get_requisition_detail(requisition):
 		'total_weight': flt(total_weight),
 		'item_count': len(doc.items),
 		'items': items,
+		'material_transfers': material_transfers,
 		'can_manage_status': bool(is_system_manager())
 		and doc.transfer_status in ('Sent', 'Seen'),
 		'docstatus': doc.docstatus,
 		'can_edit': can_edit_requisition(doc),
+		'can_create_material_transfer': bool(
+			doc.docstatus != 2 and doc.transfer_status in ('Sent', 'Seen')
+		),
 	}
 
 

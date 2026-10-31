@@ -74,6 +74,11 @@ def create_material_transfer(data):
 	doc.transaction_date = transaction_date
 	doc.from_warehouse = from_warehouse
 	doc.to_warehouse = to_warehouse
+	requisition = (data.get('requisition') or '').strip() or None
+	if requisition:
+		if not frappe.db.exists('Requisition', requisition):
+			frappe.throw(_('Requisition {0} was not found.').format(requisition))
+		doc.requisition = requisition
 	doc.custom_do_number = (data.get('custom_do_number') or '').strip() or None
 	doc.notes = data.get('notes')
 
@@ -283,6 +288,7 @@ def get_material_transfer_detail(transfer):
 		'requested_by': doc.requested_by,
 		'from_warehouse': doc.from_warehouse,
 		'to_warehouse': doc.to_warehouse,
+		'requisition': doc.get('requisition'),
 		'transfer_status': doc.transfer_status,
 		'custom_do_number': doc.get('custom_do_number'),
 		'notes': doc.notes,

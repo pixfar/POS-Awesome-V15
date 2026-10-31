@@ -15,6 +15,7 @@
 		:totals="totals"
 		:actions="actions"
 		@back="goBack"
+		@navigate="(path) => router.push(path)"
 	/>
 
 	<ConfirmReceiptDialog
@@ -140,9 +141,16 @@ export default {
 				{ label: __('From Warehouse'), value: detail.value.from_warehouse },
 				{ label: __('To Warehouse'), value: detail.value.to_warehouse },
 				{ label: __('Created By'), value: detail.value.created_by },
-			{ label: __('Last Modified By'), value: detail.value.last_modified_by },
+				{ label: __('Last Modified By'), value: detail.value.last_modified_by },
 				{ label: __('Created On'), value: formatDisplayDateTime(detail.value.creation) },
 			];
+			if (detail.value.requisition) {
+				fields.push({
+					label: __('Requisition'),
+					value: detail.value.requisition,
+					to: `/requisitions/${encodeURIComponent(detail.value.requisition)}`,
+				});
+			}
 			if (detail.value.custom_do_number) {
 				fields.push({ label: __('DO Number'), value: detail.value.custom_do_number });
 			}
@@ -391,6 +399,7 @@ export default {
 
 		return {
 			name,
+			router,
 			loading,
 			notFound,
 			detail,

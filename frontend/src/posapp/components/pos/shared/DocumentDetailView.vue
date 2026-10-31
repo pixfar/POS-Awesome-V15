@@ -129,7 +129,15 @@
 								<span class="pos-detail-meta-field__label">{{ field.label }}</span>
 								<!-- Optional `href`: shown as a link opening in a new tab (e.g. an attachment). -->
 								<a
-									v-if="field.href"
+									v-if="field.to"
+									href="#"
+									class="pos-detail-meta-field__value pos-detail-meta-field__link"
+									@click.prevent="$emit('navigate', field.to)"
+								>
+									{{ field.value || field.to }}
+								</a>
+								<a
+									v-else-if="field.href"
 									:href="field.href"
 									target="_blank"
 									rel="noopener noreferrer"
@@ -157,11 +165,28 @@
 						</span>
 						<h4 class="pos-detail-section__title">{{ __("Items") }}</h4>
 						<span class="pos-detail-section__badge">{{ items.length }}</span>
+						<div v-if="selectable && items.length" class="pos-detail-section__select-actions ms-auto">
+							<v-btn size="x-small" variant="text" class="text-none" @click="selectAllItems">
+								{{ __("Select All") }}
+							</v-btn>
+							<v-btn size="x-small" variant="text" class="text-none" @click="clearSelectedItems">
+								{{ __("Clear") }}
+							</v-btn>
+						</div>
 					</header>
 					<div class="pos-detail-table-wrap">
 						<v-table density="comfortable" class="pos-themed-table pos-detail-items-table">
 							<thead>
 								<tr>
+									<th v-if="selectable" class="pos-detail-select-col">
+										<v-checkbox
+											:model-value="allSelected"
+											:indeterminate="someSelected && !allSelected"
+											density="compact"
+											hide-details
+											@update:model-value="toggleSelectAll"
+										/>
+									</th>
 									<th
 										v-for="col in itemColumns"
 										:key="col.key"
@@ -172,7 +197,20 @@
 								</tr>
 							</thead>
 							<tbody>
-								<tr v-for="(row, idx) in items" :key="idx">
+								<tr
+									v-for="(row, idx) in items"
+									:key="rowKey(row, idx)"
+									:class="{ 'pos-detail-row--selected': selectable && isSelected(row, idx) }"
+									@click="selectable && toggleRow(row, idx)"
+								>
+									<td v-if="selectable" class="pos-detail-select-col" @click.stop>
+										<v-checkbox
+											:model-value="isSelected(row, idx)"
+											density="compact"
+											hide-details
+											@update:model-value="(val) => setRowSelected(row, idx, val)"
+										/>
+									</td>
 									<td
 										v-for="col in itemColumns"
 										:key="col.key"
@@ -195,7 +233,10 @@
 									</td>
 								</tr>
 								<tr v-if="!items.length">
-									<td :colspan="itemColumns.length || 1" class="text-center text-medium-emphasis py-4">
+									<td
+										:colspan="(itemColumns.length || 1) + (selectable ? 1 : 0)"
+										class="text-center text-medium-emphasis py-4"
+									>
 										{{ __("No items") }}
 									</td>
 								</tr>
@@ -241,11 +282,14 @@ export default {
 		items: { type: Array, default: () => [] },
 		totals: { type: Array, default: () => [] },
 		actions: { type: Array, default: () => [] },
+		// When true, items table shows checkboxes; selection is v-model:selected-keys.
+		selectable: { type: Boolean, default: false },
+		selectedKeys: { type: Array, default: () => [] },
 		// { doctype, name, printFormat } -- shows a "Share" button that sends
 		// this document's PDF (WhatsApp, email, ...). Omit to hide it.
 		share: { type: Object, default: null },
 	},
-	emits: ["back"],
+	emits: ["back", "navigate", "update:selectedKeys"],
 	data() {
 		return { shareOpen: false };
 	},
@@ -255,6 +299,18 @@ export default {
 		},
 		totalTiles() {
 			return this.totals.map((total, index) => ({ ...total, ...totalIcon(total, index) }));
+		},
+		selectedKeySet() {
+			return new Set((this.selectedKeys || []).map(String));
+		},
+		allItemKeys() {
+			return (this.items || []).map((row, idx) => this.rowKey(row, idx));
+		},
+		allSelected() {
+			return this.allItemKeys.length > 0 && this.allItemKeys.every((key) => this.selectedKeySet.has(key));
+		},
+		someSelected() {
+			return this.allItemKeys.some((key) => this.selectedKeySet.has(key));
 		},
 		shareText() {
 			return buildShareText({
@@ -268,6 +324,34 @@ export default {
 	},
 	methods: {
 		isCodeColumn,
+		rowKey(row, idx) {
+			return String(row?.name || row?.item_code || idx);
+		},
+		isSelected(row, idx) {
+			return this.selectedKeySet.has(this.rowKey(row, idx));
+		},
+		setSelectedKeys(keys) {
+			this.$emit("update:selectedKeys", [...keys]);
+		},
+		setRowSelected(row, idx, selected) {
+			const key = this.rowKey(row, idx);
+			const next = new Set(this.selectedKeySet);
+			if (selected) next.add(key);
+			else next.delete(key);
+			this.setSelectedKeys(next);
+		},
+		toggleRow(row, idx) {
+			this.setRowSelected(row, idx, !this.isSelected(row, idx));
+		},
+		toggleSelectAll(selected) {
+			this.setSelectedKeys(selected ? this.allItemKeys : []);
+		},
+		selectAllItems() {
+			this.setSelectedKeys(this.allItemKeys);
+		},
+		clearSelectedItems() {
+			this.setSelectedKeys([]);
+		},
 		// Raw numbers from the server (weights, quantities) arrive unformatted,
 		// so 12 x 0.6 kg shows as 7.199999999999999. Money/measure columns get
 		// two decimals ("7.20", "1,116.00"); other fractional numbers too;

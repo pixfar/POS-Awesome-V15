@@ -1638,6 +1638,27 @@
 	color: var(--pos-accent-violet);
 }
 
+.pos-detail-section__select-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.pos-detail-select-col {
+	width: 44px;
+	min-width: 44px;
+	padding-inline: 8px !important;
+	vertical-align: middle;
+}
+
+.pos-detail-row--selected {
+	background: color-mix(in srgb, var(--pos-primary, #0097a7) 8%, transparent);
+}
+
+.pos-detail-items-table tbody tr.pos-detail-row--selected:hover {
+	background: color-mix(in srgb, var(--pos-primary, #0097a7) 12%, transparent);
+}
+
 .pos-detail-meta-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

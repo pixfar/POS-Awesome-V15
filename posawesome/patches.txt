@@ -23,3 +23,4 @@ posawesome.patches.add_requisition_seen_status
 posawesome.patches.add_posawesome_as_default_app
 posawesome.patches.add_requisition_draft_status
 posawesome.patches.backfill_material_transfer_received_by
+posawesome.patches.add_material_transfer_requisition_link

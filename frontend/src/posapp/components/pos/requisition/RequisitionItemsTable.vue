@@ -5,15 +5,16 @@
 				<tr>
 					<th>{{ __("Item") }}</th>
 					<th class="text-center">{{ __("UOM") }}</th>
+					<th v-if="showRequisitionQty" class="text-center">{{ __("Requisition Qty") }}</th>
 					<th v-if="showStockQty" class="text-center">{{ __("Stock Qty") }}</th>
-					<th class="text-center">{{ __("Qty") }}</th>
+					<th class="text-center">{{ transferQtyLabel }}</th>
 					<th class="text-center">{{ __("Weight") }}</th>
 					<th class="text-center" style="width: 48px;"></th>
 				</tr>
 			</thead>
 			<tbody>
 				<tr v-if="!items.length">
-					<td :colspan="showStockQty ? 6 : 5" class="text-center text-medium-emphasis py-4">
+					<td :colspan="emptyColspan" class="text-center text-medium-emphasis py-4">
 						{{ __("Add items from the selector or search above") }}
 					</td>
 				</tr>
@@ -23,7 +24,16 @@
 						<div class="text-caption text-medium-emphasis">{{ item.item_code }}</div>
 					</td>
 					<td class="text-center text-caption">{{ item.uom }}</td>
-					<td v-if="showStockQty" class="text-center text-caption">{{ remainingStockQty(item) }}</td>
+					<td v-if="showRequisitionQty" class="text-center text-caption font-weight-medium">
+						{{ formatQty(item.requisition_qty) }}
+					</td>
+					<td
+						v-if="showStockQty"
+						class="text-center text-caption"
+						:class="{ 'text-error': showRequisitionQty && stockShort(item) }"
+					>
+						{{ stockColumnValue(item) }}
+					</td>
 					<td class="text-center" style="max-width: 100px;">
 						<v-text-field
 							:model-value="item.qty"
@@ -60,20 +70,36 @@ export default {
 		// warehouse's current stock) keeps its existing table unchanged --
 		// only Material Transfer passes this in.
 		showStockQty: { type: Boolean, default: false },
+		// When loading from a Requisition, show requested qty separately so
+		// Stock Qty / transfer Qty stay easy to compare.
+		showRequisitionQty: { type: Boolean, default: false },
 	},
 	emits: ['update-qty', 'remove-item'],
-	methods: {
-		// item.stock_qty stays the true, independently-fetched on-hand qty
-		// (re-fetched whenever the From Warehouse changes) -- what's shown
-		// here is a live preview of what would remain after this transfer,
-		// same as Sales showing stock count down as items go into the cart,
-		// recomputed from that fixed base every time so repeatedly editing
-		// qty (4, then 2, then 6...) never compounds.
-		remainingStockQty(item) {
-			return Math.max(0, Number(item.stock_qty || 0) - Number(item.qty || 0));
+	computed: {
+		emptyColspan() {
+			return 5 + (this.showStockQty ? 1 : 0) + (this.showRequisitionQty ? 1 : 0);
 		},
-		// qty * the item's own custom_default_weigt_of_measure (weight per
-		// unit, set on the Item master).
+		transferQtyLabel() {
+			return this.showRequisitionQty ? __('Transfer Qty') : __('Qty');
+		},
+	},
+	methods: {
+		formatQty(value) {
+			const n = Number(value || 0);
+			return Number.isInteger(n) ? n : n.toFixed(2);
+		},
+		// From-requisition flow: show true on-hand so the cashier compares
+		// against Requisition Qty. Normal transfer: show remaining after this
+		// cart line (same live preview Sales uses).
+		stockColumnValue(item) {
+			if (this.showRequisitionQty) {
+				return this.formatQty(item.stock_qty);
+			}
+			return this.formatQty(Math.max(0, Number(item.stock_qty || 0) - Number(item.qty || 0)));
+		},
+		stockShort(item) {
+			return Number(item.stock_qty || 0) < Number(item.qty || 0);
+		},
 		lineWeight(item) {
 			const weight = Number(item.qty || 0) * Number(item.custom_default_weigt_of_measure || 0);
 			return weight ? weight.toFixed(2) : 0;

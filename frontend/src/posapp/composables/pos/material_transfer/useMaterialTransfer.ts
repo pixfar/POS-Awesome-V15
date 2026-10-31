@@ -9,6 +9,8 @@ export interface MaterialTransferItem {
 	item_group: string;
 	uom: string;
 	qty: number;
+	// Set when the line was seeded from a Requisition (requested amount).
+	requisition_qty?: number;
 	// On-hand qty in the current From Warehouse -- 0 until refreshStockQty()
 	// (or the fetch onAddItem kicks off) fills it in; not the qty being
 	// transferred (that's `qty` above).

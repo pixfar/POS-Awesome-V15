@@ -97,8 +97,32 @@
 							</v-card>
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
-								<div class="invoice-section-heading">
-									<h3 class="invoice-section-heading__title">{{ __("Transfer Items") }}</h3>
+								<div class="invoice-section-heading d-flex align-center justify-space-between flex-wrap ga-2">
+									<h3 class="invoice-section-heading__title">
+										{{ __("Transfer Items") }}
+										<v-chip
+											v-if="sourceRequisition"
+											size="small"
+											color="primary"
+											variant="tonal"
+											class="ml-2"
+											closable
+											:title="__('Loaded from this Requisition')"
+											@click:close="sourceRequisition = null"
+										>
+											{{ __("Requisition") }}: {{ sourceRequisition }}
+										</v-chip>
+									</h3>
+									<v-btn
+										v-if="sourceRequisition"
+										size="small"
+										variant="text"
+										color="primary"
+										class="text-none"
+										@click="router.push(`/requisitions/${encodeURIComponent(sourceRequisition)}`)"
+									>
+										{{ __("Open Requisition") }}
+									</v-btn>
 								</div>
 								<div class="purchase-search-toolbar">
 									<v-autocomplete
@@ -143,6 +167,7 @@
 								<RequisitionItemsTable
 									:items="transferItems"
 									show-stock-qty
+									:show-requisition-qty="Boolean(sourceRequisition)"
 									@update-qty="({ item, value }) => updateItemQty(item, value)"
 									@remove-item="removeItem"
 								/>
@@ -243,7 +268,7 @@
 
 <script>
 import { useMobileErrorToast } from '../../../composables/core/useMobileErrorToast';
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import VueDatePicker from '@vuepic/vue-datepicker';
 import format from '../../../format';
@@ -261,6 +286,8 @@ import { useCompactTransactionPanel } from '../../../composables/core/useCompact
 const getTodayDate = () =>
 	frappe?.datetime?.nowdate?.() || new Date().toISOString().slice(0, 10);
 
+const MT_FROM_REQUISITION_KEY = 'posawesome:mt-from-requisition';
+
 export default {
 	name: 'MaterialTransferNew',
 	mixins: [format],
@@ -274,6 +301,8 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 		const itemsStore = useItemsStore();
+		const sourceRequisition = ref(null);
+		const seedingFromRequisition = ref(false);
 		// This screen loads its own warehouse's catalogue -- don't show the
 		// previous screen's items or load the POS Profile default first.
 		itemsStore.beginWarehouseResolution();
@@ -679,6 +708,7 @@ export default {
 							transaction_date: requiredDate.value,
 							from_warehouse: resolvedFrom,
 							to_warehouse: toWarehouse.value,
+							requisition: sourceRequisition.value || null,
 							custom_do_number: customDoNumber.value,
 							notes: notes.value,
 							items: transferItems.value.map((row) => ({
@@ -700,6 +730,7 @@ export default {
 				});
 				resetForm();
 				customDoNumber.value = '';
+				sourceRequisition.value = null;
 				await router.push('/material-transfers/list');
 			} catch (e) {
 				errorMessage.value = e?.message || __('Failed to submit material transfer');
@@ -712,7 +743,12 @@ export default {
 			if (nextFrom && toWarehouse.value === nextFrom) {
 				toWarehouse.value = null;
 			}
-			if (prevFrom && prevFrom !== nextFrom && transferItems.value.length) {
+			if (
+				!seedingFromRequisition.value &&
+				prevFrom &&
+				prevFrom !== nextFrom &&
+				transferItems.value.length
+			) {
 				transferItems.value = [];
 			}
 			await refreshCatalogForWarehouse(nextFrom);
@@ -757,6 +793,77 @@ export default {
 			}
 		};
 
+		const applyRequisitionSeed = async () => {
+			let raw = null;
+			try {
+				raw = sessionStorage.getItem(MT_FROM_REQUISITION_KEY);
+				if (raw) sessionStorage.removeItem(MT_FROM_REQUISITION_KEY);
+			} catch {
+				raw = null;
+			}
+			if (!raw) return;
+			let payload = null;
+			try {
+				payload = JSON.parse(raw);
+			} catch {
+				return;
+			}
+			if (!payload?.requisition || !Array.isArray(payload.items) || !payload.items.length) {
+				return;
+			}
+
+			seedingFromRequisition.value = true;
+			try {
+				sourceRequisition.value = payload.requisition;
+				if (payload.from_warehouse) {
+					fromWarehouse.value = payload.from_warehouse;
+					fromWarehouseLabel.value = payload.from_warehouse;
+					if (
+						canChangePosWarehouse.value &&
+						!fromWarehouseOptions.value.some((row) => row.name === payload.from_warehouse)
+					) {
+						fromWarehouseOptions.value.unshift({
+							name: payload.from_warehouse,
+							warehouse_name: payload.from_warehouse,
+						});
+					}
+				}
+				if (payload.to_warehouse) {
+					toWarehouse.value = payload.to_warehouse;
+					if (!warehouseOptions.value.some((row) => row.name === payload.to_warehouse)) {
+						warehouseOptions.value.unshift({
+							name: payload.to_warehouse,
+							warehouse_name: payload.to_warehouse,
+						});
+					}
+				}
+				await nextTick();
+				transferItems.value = payload.items.map((row, idx) => ({
+					line_id: `mt_req_${Date.now()}_${idx}`,
+					item_code: row.item_code,
+					item_name: row.item_name,
+					stock_uom: row.stock_uom || row.uom,
+					item_group: row.item_group,
+					uom: row.uom || row.stock_uom,
+					requisition_qty: Number(row.requisition_qty ?? row.qty) || 0,
+					qty: Number(row.qty) || 0,
+					stock_qty: 0,
+					custom_default_weigt_of_measure: row.custom_default_weigt_of_measure || 0,
+				}));
+				await refreshCatalogForWarehouse(fromWarehouse.value);
+				await refreshStockQty(fromWarehouse.value);
+				toastStore.show({
+					title: __('Loaded {0} item(s) from {1}', [
+						transferItems.value.length,
+						payload.requisition,
+					]),
+					color: 'success',
+				});
+			} finally {
+				seedingFromRequisition.value = false;
+			}
+		};
+
 		onMounted(async () => {
 			const opening = getOpeningStorage();
 			if (opening?.pos_profile) {
@@ -768,6 +875,7 @@ export default {
 				await ensureItemsStoreInitialized(pos_profile.value);
 				initWarehousesFromProfile();
 				await loadWarehouses();
+				await applyRequisitionSeed();
 			} finally {
 				itemsStore.endWarehouseResolution();
 			}
@@ -777,6 +885,7 @@ export default {
 		useMobileErrorToast(errorMessage);
 
 		return {
+			router,
 			responsiveStyles,
 			isCompact,
 			compactPanel,
@@ -790,6 +899,7 @@ export default {
 			canEditPostingDate,
 			customDoNumber,
 			doNumberLookupLoading,
+			sourceRequisition,
 			fromWarehouse,
 			fromWarehouseLabel,
 			fromWarehouseOptions,

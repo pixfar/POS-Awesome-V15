@@ -14,7 +14,10 @@
 			:items="itemRows"
 			:totals="totals"
 			:actions="actions"
+			:selectable="canCreateTransfer"
+			v-model:selected-keys="selectedItemKeys"
 			@back="goBack"
+			@navigate="(path) => router.push(path)"
 		/>
 
 		<ConfirmActionDialog
@@ -30,7 +33,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { formatDisplayTimeAmPm } from '../shared/docStatusUtils';
 import { useRoute, useRouter } from 'vue-router';
 import { useToastStore } from '../../../stores/toastStore';
@@ -52,6 +55,8 @@ const CONFIRM_COLOR_BY_STATUS = {
 	Rejected: 'error',
 };
 
+const MT_FROM_REQUISITION_KEY = 'posawesome:mt-from-requisition';
+
 export default {
 	name: 'RequisitionDetail',
 	components: { DocumentDetailView, ConfirmActionDialog },
@@ -65,6 +70,7 @@ export default {
 		const notFound = ref(false);
 		const detail = ref({});
 		const actionLoading = ref(false);
+		const selectedItemKeys = ref([]);
 
 		const formatDisplayDate = (value) => {
 			if (!value) return '—';
@@ -79,6 +85,8 @@ export default {
 			return timePart ? `${date} ${formatDisplayTimeAmPm(timePart)}` : date;
 		};
 
+		const canCreateTransfer = computed(() => Boolean(detail.value.can_create_material_transfer));
+
 		const metaFields = computed(() => {
 			const fields = [
 				{ label: __('Posting Date'), value: formatDisplayDate(detail.value.transaction_date) },
@@ -86,9 +94,16 @@ export default {
 				{ label: __('From Warehouse'), value: detail.value.source_warehouse },
 				{ label: __('Target Warehouse'), value: detail.value.target_warehouse },
 				{ label: __('Created By'), value: detail.value.created_by },
-			{ label: __('Last Modified By'), value: detail.value.last_modified_by },
+				{ label: __('Last Modified By'), value: detail.value.last_modified_by },
 				{ label: __('Created On'), value: formatDisplayDateTime(detail.value.creation) },
 			];
+			(detail.value.material_transfers || []).forEach((row) => {
+				fields.push({
+					label: __('Material Transfer'),
+					value: `${row.name}${row.transfer_status ? ` · ${__(row.transfer_status)}` : ''}`,
+					to: `/material-transfers/${encodeURIComponent(row.name)}`,
+				});
+			});
 			if (detail.value.amended_from) {
 				fields.push({ label: __('Amended From'), value: detail.value.amended_from });
 			}
@@ -98,8 +113,6 @@ export default {
 			return fields;
 		});
 
-		// Current stock columns: the server only sends the warehouse sides this
-		// user may see (all for System Manager / BSP Admin / BSP Viewer).
 		const itemColumns = computed(() => {
 			const columns = [
 				{ key: 'item_code', label: __('Item Code') },
@@ -108,10 +121,18 @@ export default {
 				{ key: 'required_qty', label: __('Required Qty'), align: 'end' },
 			];
 			if (detail.value.show_source_stock) {
-				columns.push({ key: 'source_stock_qty', label: __('Source Stock ({0})', [detail.value.source_warehouse]), align: 'end' });
+				columns.push({
+					key: 'source_stock_qty',
+					label: __('Source Stock ({0})', [detail.value.source_warehouse]),
+					align: 'end',
+				});
 			}
 			if (detail.value.show_target_stock) {
-				columns.push({ key: 'target_stock_qty', label: __('Target Stock ({0})', [detail.value.target_warehouse]), align: 'end' });
+				columns.push({
+					key: 'target_stock_qty',
+					label: __('Target Stock ({0})', [detail.value.target_warehouse]),
+					align: 'end',
+				});
 			}
 			columns.push(
 				{ key: 'weight', label: __('Weight'), align: 'end' },
@@ -211,10 +232,49 @@ export default {
 
 		const printDocument = () => openDocumentPrintView('Requisition', name);
 
+		const createMaterialTransfer = () => {
+			const selected = new Set((selectedItemKeys.value || []).map(String));
+			const items = (detail.value.items || []).filter((row) => selected.has(String(row.name)));
+			if (!items.length) {
+				toastStore.show({
+					title: __('Select at least one item to transfer'),
+					color: 'warning',
+				});
+				return;
+			}
+			// Fulfillment direction is opposite the request: stock leaves the
+			// Target warehouse and arrives at the requester's From warehouse.
+			const payload = {
+				requisition: detail.value.name,
+				from_warehouse: detail.value.target_warehouse,
+				to_warehouse: detail.value.source_warehouse,
+				items: items.map((row) => ({
+					item_code: row.item_code,
+					item_name: row.item_name,
+					item_group: row.item_group,
+					requisition_qty: Number(row.required_qty) || 0,
+					// Start transfer qty at what was requested; cashier adjusts
+					// against Stock Qty on the transfer screen.
+					qty: Number(row.required_qty) || 0,
+					uom: row.uom,
+					stock_uom: row.uom,
+					schedule_date: row.schedule_date,
+				})),
+			};
+			try {
+				sessionStorage.setItem(MT_FROM_REQUISITION_KEY, JSON.stringify(payload));
+			} catch (e) {
+				toastStore.show({
+					title: __('Could not prepare transfer items'),
+					color: 'error',
+				});
+				return;
+			}
+			router.push('/material-transfers/new');
+		};
+
 		const actions = computed(() => {
 			const list = [];
-			// Draft stays editable. Sending locks it; Seen and later are
-			// handled by a System Manager.
 			if (detail.value.can_edit) {
 				list.push({
 					label: __('Edit'),
@@ -226,6 +286,13 @@ export default {
 					color: 'warning',
 					loading: actionLoading.value,
 					onClick: () => requestUpdateStatus('Sent'),
+				});
+			}
+			if (canCreateTransfer.value) {
+				list.push({
+					label: __('Create Material Transfer'),
+					color: 'success',
+					onClick: createMaterialTransfer,
 				});
 			}
 			if (detail.value.can_manage_status) {
@@ -267,6 +334,7 @@ export default {
 					notFound.value = true;
 				} else {
 					detail.value = message;
+					selectedItemKeys.value = (message.items || []).map((row) => String(row.name));
 				}
 			} catch (e) {
 				notFound.value = true;
@@ -279,10 +347,23 @@ export default {
 			router.push('/requisitions/list');
 		};
 
+		watch(
+			() => detail.value.items,
+			(items) => {
+				if (!canCreateTransfer.value) {
+					selectedItemKeys.value = [];
+					return;
+				}
+				const valid = new Set((items || []).map((row) => String(row.name)));
+				selectedItemKeys.value = selectedItemKeys.value.filter((key) => valid.has(String(key)));
+			},
+		);
+
 		onMounted(loadDetail);
 
 		return {
 			name,
+			router,
 			loading,
 			notFound,
 			detail,
@@ -301,6 +382,8 @@ export default {
 			confirmDialogMessage,
 			actionLoading,
 			performUpdateStatus,
+			canCreateTransfer,
+			selectedItemKeys,
 			goBack,
 		};
 	},
