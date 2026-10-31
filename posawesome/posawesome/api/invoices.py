@@ -48,7 +48,7 @@ from posawesome.posawesome.api.invoice_processing.payment import _create_change_
 from posawesome.posawesome.api.payment_processing.creation import refund_payments_for_return
 from posawesome.posawesome.api.invoice_processing.data import get_last_invoice_rates
 from posawesome.posawesome.api.utils import log_perf_event
-from posawesome.posawesome.utils.warehouse_doc_permissions import get_permission_scoped_names
+from posawesome.posawesome.utils.warehouse_doc_permissions import apply_list_warehouse_scope
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
 
@@ -168,14 +168,15 @@ def get_sales_invoices_list(
     filters = [
         [doctype, "company", "=", profile.get("company")],
     ]
-    if int(mine_only or 0):
-        filters.append([doctype, "owner", "=", frappe.session.user])
-    else:
-        # Warehouse-restricted users (not System Manager) only ever see their
-        # own invoices or ones drawn from their permitted warehouse(s).
-        scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
-        if scoped_names is not None:
-            filters.append([doctype, "name", "in", scoped_names])
+    # Warehouse-restricted users only see invoices for their permitted
+    # warehouse(s). Uses an indexed warehouse filter — never materialize
+    # thousands of invoice names into ``name IN (…)``.
+    apply_list_warehouse_scope(
+        filters,
+        doctype,
+        "set_warehouse",
+        mine_only=int(mine_only or 0),
+    )
     if status:
         filters.append([doctype, "status", "=", status])
     if from_date:
@@ -285,17 +286,9 @@ def get_sales_invoices_list(
     for row in rows:
         row["total_weight"] = weight_by_parent.get(row["name"], 0.0)
 
-    total = len(
-        frappe.get_list(
-            doctype,
-            filters=filters,
-            or_filters=or_filters,
-            fields=[f"`tab{doctype}`.name"],
-            distinct=True,
-            ignore_permissions=True,
-            limit_page_length=0,
-        )
-    )
+    from posawesome.posawesome.utils.list_query import count_distinct
+
+    total = count_distinct(doctype, filters=filters, or_filters=or_filters)
 
     status_filters = [f for f in filters if not (f[0] == doctype and f[1] == "status")]
     status_counts = {
@@ -304,7 +297,10 @@ def get_sales_invoices_list(
             doctype,
             filters=status_filters,
             or_filters=or_filters,
-            fields=[f"`tab{doctype}`.status as status", f"count(`tab{doctype}`.name) as count"],
+            fields=[
+                f"`tab{doctype}`.status as status",
+                f"count(distinct `tab{doctype}`.name) as count",
+            ],
             group_by=f"`tab{doctype}`.status",
             ignore_permissions=True,
             limit_page_length=0,

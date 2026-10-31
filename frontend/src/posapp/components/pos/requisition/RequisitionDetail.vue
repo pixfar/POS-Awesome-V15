@@ -253,9 +253,8 @@ export default {
 					item_name: row.item_name,
 					item_group: row.item_group,
 					requisition_qty: Number(row.required_qty) || 0,
-					// Start transfer qty at what was requested; cashier adjusts
-					// against Stock Qty on the transfer screen.
-					qty: Number(row.required_qty) || 0,
+					// Start at 0 — cashier enters how much to send based on Stock Qty.
+					qty: 0,
 					uom: row.uom,
 					stock_uom: row.uom,
 					schedule_date: row.schedule_date,

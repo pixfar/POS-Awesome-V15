@@ -4,9 +4,11 @@
 """Company-wide overview for the POS sidebar's Dashboard page.
 
 BSP Admin / System Manager get every metric company-wide, with optional
-Warehouse + date-range filtering. Everyone else gets the same metrics scoped
-to their own data (own invoices/warehouses/employee/showroom account, per
-doctype -- see each _collect_* helper), with date-range filtering only.
+Warehouse + date-range filtering -- unless they have Warehouse User
+Permissions, in which case metrics and the warehouse filter are limited to
+those showrooms. Everyone else gets the same metrics scoped to their own
+data (own invoices/warehouses/employee/showroom account, per doctype -- see
+each _collect_* helper), with date-range filtering only.
 """
 
 import frappe
@@ -15,13 +17,36 @@ from frappe.utils import add_days, cint, flt, getdate, now_datetime, today
 from posawesome.posawesome.api.fund_transfer import _list_filters as _fund_transfer_filters
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
     get_expanded_permitted_warehouses,
-    get_permission_scoped_names,
     get_warehouse_doc_status_counts,
     is_privileged_invoice_viewer,
 )
 
+
 # Stale-while-revalidate TTL for overview payloads (15 minutes).
 DASHBOARD_CACHE_TTL = 900
+
+
+def _apply_warehouse_scope(filters, doctype, warehouse_field, is_admin):
+    """Append warehouse User Permission scope when the user is restricted.
+
+    Privileged roles stay feature-complete (is_admin) but still cannot see
+    outside their Warehouse User Permissions when those rows exist.
+    Never materializes document names into ``name IN (…)``.
+    """
+    permitted = get_expanded_permitted_warehouses()
+    if permitted is not None:
+        if isinstance(filters, dict):
+            filters[warehouse_field] = ["in", list(permitted) or [""]]
+        else:
+            filters.append([doctype, warehouse_field, "in", list(permitted) or [""]])
+        return
+    if is_admin:
+        return
+    # Non-privileged with no warehouse list: own docs only (indexed).
+    if isinstance(filters, dict):
+        filters["owner"] = frappe.session.user
+    else:
+        filters.append([doctype, "owner", "=", frappe.session.user])
 
 
 def _dashboard_cache_key(company, start_date, end_date, warehouse, is_admin, user=None):
@@ -80,10 +105,8 @@ def _sum_invoice_doctype(doctype, company, start_date, end_date, warehouse, is_a
         filters.append([doctype, "company", "=", company])
     if warehouse:
         filters.append([doctype, "set_warehouse", "=", warehouse])
-    if not is_admin:
-        scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
-        if scoped_names is not None:
-            filters.append([doctype, "name", "in", scoped_names])
+    else:
+        _apply_warehouse_scope(filters, doctype, "set_warehouse", is_admin)
 
     rows = frappe.get_list(
         doctype,
@@ -179,13 +202,16 @@ def _sum_weight(doctype, item_doctype, company, start_date, end_date, warehouse,
     if warehouse:
         conditions.append("main.set_warehouse = %(warehouse)s")
         values["warehouse"] = warehouse
-    if not is_admin:
-        scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
-        if scoped_names is not None:
-            if not scoped_names:
+    else:
+        permitted = get_expanded_permitted_warehouses()
+        if permitted is not None:
+            if not permitted:
                 return 0.0
-            conditions.append("main.name in %(scoped_names)s")
-            values["scoped_names"] = tuple(scoped_names)
+            conditions.append("main.set_warehouse in %(permitted_warehouses)s")
+            values["permitted_warehouses"] = tuple(permitted)
+        elif not is_admin:
+            conditions.append("main.owner = %(owner)s")
+            values["owner"] = frappe.session.user
 
     where_clause = " AND ".join(conditions)
     rows = frappe.db.sql(
@@ -220,7 +246,7 @@ def _collect_stock_qty(company, warehouse, is_admin):
     warehouses = _company_warehouses(company)
     if warehouse:
         warehouses = [w for w in warehouses if w == warehouse]
-    elif not is_admin:
+    else:
         permitted = get_expanded_permitted_warehouses()
         if permitted is not None:
             warehouses = [w for w in warehouses if w in permitted]
@@ -321,6 +347,10 @@ def _collect_expenses(company, start_date, end_date, warehouse, is_admin):
         filters["company"] = company
     if warehouse:
         filters["custom_warehouse"] = warehouse
+    else:
+        permitted = get_expanded_permitted_warehouses()
+        if permitted is not None:
+            filters["custom_warehouse"] = ["in", list(permitted) or [""]]
     if not is_admin:
         employee = frappe.db.get_value(
             "Employee", {"user_id": frappe.session.user, "status": "Active"}, "name"
@@ -343,10 +373,9 @@ def _cash_balance_warehouses(company, warehouse, is_admin):
     if warehouse:
         return [warehouse]
     warehouses = _company_warehouses(company)
-    if not is_admin:
-        permitted = get_expanded_permitted_warehouses()
-        if permitted is not None:
-            warehouses = [name for name in warehouses if name in permitted]
+    permitted = get_expanded_permitted_warehouses()
+    if permitted is not None:
+        warehouses = [name for name in warehouses if name in permitted]
     return warehouses
 
 
@@ -392,12 +421,14 @@ def _collect_deposits(company, start_date, end_date, warehouse, is_admin):
     }
     if warehouse:
         filters["warehouse"] = warehouse
-    elif company:
-        filters["warehouse"] = ["in", _company_warehouses(company) or [""]]
-    if not is_admin:
-        scoped_names = get_permission_scoped_names(doctype, "warehouse", owner_field="user")
-        if scoped_names is not None:
-            filters["name"] = ["in", scoped_names]
+    else:
+        permitted = get_expanded_permitted_warehouses()
+        if permitted is not None:
+            filters["warehouse"] = ["in", list(permitted) or [""]]
+        elif company:
+            filters["warehouse"] = ["in", _company_warehouses(company) or [""]]
+    if not is_admin and "warehouse" not in filters:
+        filters["user"] = frappe.session.user
 
     rows = frappe.get_all(
         doctype,
@@ -458,13 +489,16 @@ def _sum_top_items(
     if warehouse:
         conditions.append("main.set_warehouse = %(warehouse)s")
         values["warehouse"] = warehouse
-    if not is_admin:
-        scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
-        if scoped_names is not None:
-            if not scoped_names:
+    else:
+        permitted = get_expanded_permitted_warehouses()
+        if permitted is not None:
+            if not permitted:
                 return []
-            conditions.append("main.name in %(scoped_names)s")
-            values["scoped_names"] = tuple(scoped_names)
+            conditions.append("main.set_warehouse in %(permitted_warehouses)s")
+            values["permitted_warehouses"] = tuple(permitted)
+        elif not is_admin:
+            conditions.append("main.owner = %(owner)s")
+            values["owner"] = frappe.session.user
 
     where_clause = " AND ".join(conditions)
     return frappe.db.sql(
@@ -525,12 +559,13 @@ def _collect_top_warehouses(company, start_date, end_date, is_admin, limit=5):
         ]
         if company:
             filters.append([doctype, "company", "=", company])
-        if not is_admin:
-            scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
-            if scoped_names is not None:
-                if not scoped_names:
-                    continue
-                filters.append([doctype, "name", "in", scoped_names])
+        permitted = get_expanded_permitted_warehouses()
+        if permitted is not None:
+            if not permitted:
+                continue
+            filters.append([doctype, "set_warehouse", "in", list(permitted)])
+        elif not is_admin:
+            filters.append([doctype, "owner", "=", frappe.session.user])
 
         rows = frappe.get_list(
             doctype,
@@ -564,16 +599,27 @@ def _collect_top_warehouses(company, start_date, end_date, is_admin, limit=5):
 
 @frappe.whitelist()
 def get_dashboard_warehouses(pos_profile=None):
+    """Warehouse filter options for the dashboard (and list pages).
+
+    Warehouse User Permissions always win — including for BSP Admin /
+    System Manager — so a user with two showroom permissions only sees those
+    two in the switcher/filter.
+    """
     company = _resolve_company(pos_profile)
     if not company:
         return []
-    return frappe.get_list(
+    warehouses = frappe.get_all(
         "Warehouse",
         filters={"company": company, "is_group": 0, "disabled": 0},
         fields=["name", "warehouse_name"],
         order_by="warehouse_name asc",
-        limit_page_length=200,
+        limit_page_length=500,
     )
+    permitted = get_expanded_permitted_warehouses()
+    if permitted is not None:
+        allowed = set(permitted)
+        warehouses = [row for row in warehouses if row.name in allowed]
+    return warehouses
 
 
 def _build_company_dashboard(company, start_date, end_date, warehouse, is_admin):
@@ -643,8 +689,14 @@ def get_company_dashboard(
 
     start_date = start_date or today()
     end_date = end_date or today()
+    # Non-privileged users never pick a warehouse filter. Privileged users
+    # may — including when Warehouse User Permissions narrow their list.
     if not is_admin:
         warehouse = None
+    elif warehouse:
+        permitted = get_expanded_permitted_warehouses()
+        if permitted is not None and warehouse not in permitted:
+            warehouse = None
 
     force_refresh = cint(refresh)
     cache_key = _dashboard_cache_key(company, start_date, end_date, warehouse, is_admin)

@@ -846,7 +846,8 @@ export default {
 					item_group: row.item_group,
 					uom: row.uom || row.stock_uom,
 					requisition_qty: Number(row.requisition_qty ?? row.qty) || 0,
-					qty: Number(row.qty) || 0,
+					// Always start at 0 from a requisition — user fills Transfer Qty.
+					qty: 0,
 					stock_qty: 0,
 					custom_default_weigt_of_measure: row.custom_default_weigt_of_measure || 0,
 				}));

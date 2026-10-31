@@ -272,16 +272,9 @@ def get_boms_list(
 	for row in rows:
 		row['total_weight'] = weight_by_parent.get(row['name'], 0.0)
 
-	total = len(
-		frappe.get_list(
-			doctype,
-			filters=filters,
-			or_filters=or_filters,
-			fields=['name'],
-			ignore_permissions=True,
-			limit_page_length=0,
-		)
-	)
+	from posawesome.posawesome.utils.list_query import count_distinct
+
+	total = count_distinct(doctype, filters=filters, or_filters=or_filters)
 
 	return {
 		'boms': rows,

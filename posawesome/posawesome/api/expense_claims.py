@@ -82,6 +82,21 @@ def _sum_not_cancelled(doctype, field, filters, or_filters):
 		)[0].total
 	)
 
+
+def _sum_not_cancelled_list(doctype, field, filters, or_filters):
+	"""Like ``_sum_not_cancelled`` for get_list-style (list-of-lists) filters."""
+	sum_filters = [f for f in (filters or []) if not (f[0] == doctype and f[1] == 'docstatus')]
+	sum_filters.append([doctype, 'docstatus', '!=', 2])
+	rows = frappe.get_list(
+		doctype,
+		filters=sum_filters,
+		or_filters=or_filters,
+		fields=[f'sum(`tab{doctype}`.{field}) as total'],
+		ignore_permissions=True,
+		limit_page_length=1,
+	)
+	return flt(rows[0].total if rows else 0)
+
 @frappe.whitelist()
 def get_current_employee():
 	"""Employee record linked to the logged-in POS user, used to prefill the Expense form.
@@ -370,38 +385,52 @@ def get_expense_claims_list(
 	warehouse=None,
 	expense_type=None,
 ):
-	"""Paginated list of Expense Claims -- all of them for System Manager,
-	otherwise only the logged-in user's own."""
+	"""Paginated list of Expense Claims scoped by warehouse match.
+
+	Showroom users (and warehouse-restricted admins) see every expense for
+	their permitted warehouse(s) — including ones an admin created for that
+	showroom — not only claims for their own Employee record.
+	"""
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
 
-	filters = {}
-	if not is_system_manager():
-		employee = _get_employee_for_user()
-		filters['employee'] = employee.name
+	from posawesome.posawesome.utils.list_query import count_distinct
+	from posawesome.posawesome.utils.warehouse_doc_permissions import (
+		apply_list_warehouse_scope,
+		get_expanded_permitted_warehouses,
+	)
 
+	doctype = 'Expense Claim'
+	filters = []
+	permitted = get_expanded_permitted_warehouses()
 	if warehouse:
-		filters['custom_warehouse'] = warehouse
+		if permitted is not None and warehouse not in permitted:
+			return {
+				'expense_claims': [],
+				'total': 0,
+				'has_more': False,
+				'total_claimed': 0.0,
+			}
+		filters.append([doctype, 'custom_warehouse', '=', warehouse])
+	else:
+		apply_list_warehouse_scope(filters, doctype, 'custom_warehouse')
 
+	# Child-table filter — Frappe joins Expense Claim Detail; no name IN list.
 	if expense_type:
-		parents = frappe.get_all(
-			'Expense Claim Detail',
-			filters={'expense_type': expense_type, 'parenttype': 'Expense Claim'},
-			pluck='parent',
-		)
-		filters['name'] = ['in', parents or ['__none__']]
+		filters.append(['Expense Claim Detail', 'expense_type', '=', expense_type])
 
-	if from_date and to_date:
-		filters['posting_date'] = ['between', [from_date, to_date]]
-	elif from_date:
-		filters['posting_date'] = ['>=', from_date]
-	elif to_date:
-		filters['posting_date'] = ['<=', to_date]
+	if from_date:
+		filters.append([doctype, 'posting_date', '>=', from_date])
+	if to_date:
+		filters.append([doctype, 'posting_date', '<=', to_date])
 
 	or_filters = None
 	if search and len(search.strip()) >= 2:
 		like = f'%{search.strip()}%'
-		or_filters = {'name': ['like', like], 'remark': ['like', like]}
+		or_filters = [
+			[doctype, 'name', 'like', like],
+			[doctype, 'remark', 'like', like],
+		]
 
 	fields = [
 		'name',
@@ -419,31 +448,26 @@ def get_expense_claims_list(
 		'creation',
 	]
 
-	rows = frappe.get_all(
-		'Expense Claim',
+	rows = frappe.get_list(
+		doctype,
 		filters=filters,
 		or_filters=or_filters,
 		fields=fields,
 		order_by='creation desc',
-		start=page_start,
-		page_length=page_length,
+		limit_start=page_start,
+		limit_page_length=page_length,
+		distinct=True,
 		ignore_permissions=True,
 	)
 	_attach_expense_types(rows)
 
-	total = frappe.get_all(
-		'Expense Claim',
-		filters=filters,
-		or_filters=or_filters,
-		fields=['count(name) as total'],
-		ignore_permissions=True,
-	)[0].total
+	total = count_distinct(doctype, filters=filters, or_filters=or_filters)
 
 	return {
 		'expense_claims': rows,
 		'total': total,
 		'has_more': (page_start + page_length) < total,
-		'total_claimed': _sum_not_cancelled('Expense Claim', 'grand_total', filters, or_filters),
+		'total_claimed': _sum_not_cancelled_list(doctype, 'grand_total', filters, or_filters),
 	}
 
 
@@ -470,11 +494,18 @@ def _attach_expense_types(rows):
 
 @frappe.whitelist()
 def get_expense_claim_detail(expense_claim):
+	from posawesome.posawesome.utils.warehouse_doc_permissions import (
+		user_can_access_warehouse_scoped_doc,
+	)
+
 	doc = frappe.get_doc('Expense Claim', expense_claim)
-	if not is_system_manager():
-		employee = _get_employee_for_user()
-		if doc.employee != employee.name:
-			frappe.throw(_('You are not permitted to view this Expense Claim.'), exc=frappe.PermissionError)
+	if not user_can_access_warehouse_scoped_doc(
+		'Expense Claim', expense_claim, 'custom_warehouse'
+	):
+		frappe.throw(
+			_('You are not permitted to view this Expense Claim.'),
+			exc=frappe.PermissionError,
+		)
 
 	return {
 		'name': doc.name,

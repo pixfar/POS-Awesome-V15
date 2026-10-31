@@ -69,11 +69,26 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 			const qtyByItem = message || {};
 			transferItems.value.forEach((row) => {
 				row.stock_qty = Number(qtyByItem[row.item_code] || 0);
+				// Never leave Transfer Qty above available stock after a refresh.
+				if (row.qty > row.stock_qty) {
+					row.qty = Math.max(0, row.stock_qty);
+				}
 				syncCatalogActualQty(row.item_code, Math.max(0, row.stock_qty - row.qty));
 			});
 		} catch {
 			/* ignore */
 		}
+	};
+
+	const clampTransferQty = (qty: number, stockQty: number) => {
+		const next = Math.max(0, Number(qty) || 0);
+		// Only cap when From Warehouse is set so Stock Qty is meaningful.
+		// Without a warehouse, stock_qty is still 0/unknown and must not
+		// block the cashier from typing.
+		if (!fromWarehouse.value) {
+			return next;
+		}
+		return Math.min(next, Math.max(0, Number(stockQty) || 0));
 	};
 
 	const onAddItem = async (item: any) => {
@@ -92,14 +107,19 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 			(row) => row.item_code === item.item_code,
 		);
 		if (existing) {
-			existing.qty += 1;
+			const stock = Number(existing.stock_qty || 0);
+			if (fromWarehouse.value && existing.qty >= stock) {
+				return;
+			}
+			existing.qty = clampTransferQty(existing.qty + 1, stock);
 			syncCatalogActualQty(
 				existing.item_code,
-				Math.max(0, Number(existing.stock_qty || 0) - existing.qty),
+				Math.max(0, stock - existing.qty),
 			);
 			return;
 		}
 
+		const initialStock = Number(item.actual_qty ?? item.stock_qty ?? 0);
 		transferItems.value.unshift({
 			line_id: generateLineId(),
 			item_code: item.item_code,
@@ -107,18 +127,18 @@ export function useMaterialTransfer(options: { posProfile: Ref<any> }) {
 			stock_uom: item.stock_uom,
 			item_group: item.item_group,
 			uom: item.stock_uom,
-			qty: 1,
-			stock_qty: 0,
+			qty: !fromWarehouse.value || initialStock > 0 ? 1 : 0,
+			stock_qty: initialStock,
 			custom_default_weigt_of_measure: item.custom_default_weigt_of_measure || 0,
 		});
-		// Newly added row starts at stock_qty 0 -- re-fetch for the whole
-		// table (simpler and cheap enough than tracking just the delta).
+		// Newly added row -- re-fetch for the whole table (simpler and cheap
+		// enough than tracking just the delta).
 		refreshStockQty(fromWarehouse.value);
 	};
 
 	const updateItemQty = (item: MaterialTransferItem, value: number) => {
 		if (!item) return;
-		item.qty = Math.max(0, Number(value) || 0);
+		item.qty = clampTransferQty(value, item.stock_qty);
 		syncCatalogActualQty(item.item_code, Math.max(0, Number(item.stock_qty || 0) - item.qty));
 	};
 

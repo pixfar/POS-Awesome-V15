@@ -17,6 +17,7 @@ from frappe.utils import flt, today
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_can_create,
+	get_stock_entry_warehouses,
 	is_privileged_invoice_viewer,
 	is_read_only_viewer,
 )
@@ -154,12 +155,44 @@ def get_stock_entries_list(
 	if to_date:
 		conditions.append('se.posting_date <= %(to_date)s')
 		values['to_date'] = to_date
+
+	# Warehouse User Permissions (including BSP Admin with UP rows) — never
+	# scan every Stock Entry when the user is restricted to a few showrooms.
+	permitted = get_stock_entry_warehouses()
 	if warehouse:
+		if permitted is not None and warehouse not in permitted:
+			return {
+				'records': [],
+				'total': 0,
+				'has_more': False,
+				'total_qty': 0.0,
+				'total_value': 0.0,
+			}
 		conditions.append(
 			f"""EXISTS (SELECT 1 FROM `tabStock Entry Detail` d
 			WHERE d.parent = se.name AND d.{row_warehouse} = %(warehouse)s)"""
 		)
 		values['warehouse'] = warehouse
+	elif permitted is not None:
+		if not permitted:
+			return {
+				'records': [],
+				'total': 0,
+				'has_more': False,
+				'total_qty': 0.0,
+				'total_value': 0.0,
+			}
+		conditions.append(
+			f"""(
+				se.from_warehouse IN %(permitted)s OR se.to_warehouse IN %(permitted)s
+				OR EXISTS (
+					SELECT 1 FROM `tabStock Entry Detail` d
+					WHERE d.parent = se.name
+					AND (d.s_warehouse IN %(permitted)s OR d.t_warehouse IN %(permitted)s)
+				)
+			)"""
+		)
+		values['permitted'] = tuple(permitted)
 	if remarks and remarks.strip():
 		conditions.append('se.remarks LIKE %(remarks)s')
 		values['remarks'] = f'%{remarks.strip()}%'

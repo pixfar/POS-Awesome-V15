@@ -8,7 +8,8 @@ from frappe import _
 from frappe.utils import flt, today
 
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
-	get_permission_scoped_names,
+	apply_dict_warehouse_scope,
+	user_can_access_warehouse_scoped_doc,
 	is_system_manager,
 	ensure_can_create,
 	is_privileged_invoice_viewer,
@@ -189,19 +190,32 @@ def _create_deposit_payment_entry(doc, override_account=None):
 def get_daily_deposits_list(
 	page_start=0, page_length=20, from_date=None, to_date=None, search=None, warehouse=None
 ):
-	"""Paginated list of Daily Deposits -- all of them for System Manager,
-	otherwise the logged-in user's own plus any into their permitted
-	warehouse(s)."""
+	"""Paginated list of Daily Deposits scoped by warehouse match.
+
+	Users see deposits for their permitted warehouse(s), including ones
+	created by an admin for that showroom — not only their own rows.
+	"""
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
 
-	filters = {}
-	if not is_system_manager():
-		scoped_names = get_permission_scoped_names(DOCTYPE, 'warehouse', owner_field='user')
-		filters['name'] = ['in', scoped_names or []]
+	from posawesome.posawesome.utils.warehouse_doc_permissions import (
+		get_expanded_permitted_warehouses,
+	)
 
+	filters = {}
+	permitted = get_expanded_permitted_warehouses()
 	if warehouse:
+		if permitted is not None and warehouse not in permitted:
+			return {
+				'deposits': [],
+				'total': 0,
+				'has_more': False,
+				'total_deposited': 0.0,
+			}
 		filters['warehouse'] = warehouse
+	else:
+		# Indexed warehouse filter — never materialize every deposit name.
+		apply_dict_warehouse_scope(filters, 'warehouse', owner_field='user')
 
 	if from_date and to_date:
 		filters['posting_date'] = ['between', [from_date, to_date]]
@@ -259,10 +273,10 @@ def get_daily_deposits_list(
 @frappe.whitelist()
 def get_daily_deposit_detail(name):
 	doc = frappe.get_doc(DOCTYPE, name)
-	if not is_system_manager():
-		scoped_names = get_permission_scoped_names(DOCTYPE, 'warehouse', owner_field='user') or []
-		if name not in scoped_names:
-			frappe.throw(_('You are not permitted to view this Daily Deposit.'), exc=frappe.PermissionError)
+	if not is_system_manager() and not user_can_access_warehouse_scoped_doc(
+		DOCTYPE, name, 'warehouse', owner_field='user'
+	):
+		frappe.throw(_('You are not permitted to view this Daily Deposit.'), exc=frappe.PermissionError)
 
 	return {
 		'name': doc.name,

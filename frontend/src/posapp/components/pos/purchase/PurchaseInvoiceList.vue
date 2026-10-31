@@ -484,6 +484,7 @@
 
 <script>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import { sortItemGroupsBanglaFirst } from '../../../utils/itemGroupSort';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
@@ -701,7 +702,7 @@ export default {
 		const itemGroupFilter = ref(null);
 		const supplierFilter = ref(null);
 		const warehouseFilter = ref(null);
-		const warehouseOptions = ref([]);
+		const { warehouseOptions, loadWarehouseOptions } = useWarehouseFilterOptions();
 		const doNumberFilter = ref('');
 		const remarksFilter = ref('');
 
@@ -901,22 +902,6 @@ export default {
 			}
 		};
 
-		const loadWarehouses = async () => {
-			try {
-				const { message } = await frappe.call({
-					method: 'frappe.client.get_list',
-					args: {
-						doctype: 'Warehouse',
-						fields: ['name', 'warehouse_name'],
-						filters: { is_group: 0, disabled: 0 },
-						limit_page_length: 200,
-					},
-				});
-				warehouseOptions.value = message || [];
-			} catch (e) {
-				console.error('Failed to load warehouses', e);
-			}
-		};
 
 		const clearFilters = () => {
 			searchQuery.value = '';
@@ -980,7 +965,7 @@ export default {
 				statusFilter.value = null;
 			}
 			loadItemGroups();
-			loadWarehouses();
+			loadWarehouseOptions();
 			loadInvoices();
 		});
 

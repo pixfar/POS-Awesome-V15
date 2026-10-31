@@ -446,14 +446,15 @@ def get_payment_entries_list(
         company = profile.get("company")
     company = company or _default_company()
 
+    from posawesome.posawesome.utils.warehouse_doc_permissions import (
+        apply_payment_entry_warehouse_scope,
+        get_expanded_permitted_warehouses,
+    )
+
     doctype = "Payment Entry"
     filters = []
     if company:
         filters.append([doctype, "company", "=", company])
-    # Payment Entry has no warehouse field, so restricted users (not System
-    # Manager) simply only ever see their own payments.
-    if int(mine_only or 0) or not is_system_manager():
-        filters.append([doctype, "owner", "=", frappe.session.user])
     if party_type:
         filters.append([doctype, "party_type", "=", party_type])
     if party:
@@ -466,9 +467,6 @@ def get_payment_entries_list(
         filters.append([doctype, "posting_date", ">=", from_date])
     if to_date:
         filters.append([doctype, "posting_date", "<=", to_date])
-    if warehouse:
-        filters.append([doctype, "name", "in", _payment_entries_for_warehouse(warehouse, company) or [""]])
-
     or_filters = None
     if search:
         like = f"%{search}%"
@@ -478,6 +476,38 @@ def get_payment_entries_list(
             [doctype, "party_name", "like", like],
             [doctype, "reference_no", "like", like],
         ]
+
+    # Warehouse match (custom_warehouse / showroom cash accounts). "My
+    # Payments" still locks to the session user.
+    permitted = get_expanded_permitted_warehouses()
+    if warehouse:
+        if permitted is not None and warehouse not in permitted:
+            return {
+                "payments": [],
+                "total": 0,
+                "has_more": False,
+            }
+        warehouse_or = _payment_warehouse_or_filters(doctype, warehouse)
+        if or_filters or int(mine_only or 0):
+            filters.append(
+                [
+                    doctype,
+                    "name",
+                    "in",
+                    _payment_entries_for_warehouse(warehouse, company) or [""],
+                ]
+            )
+            if int(mine_only or 0):
+                filters.append([doctype, "owner", "=", frappe.session.user])
+        else:
+            or_filters = warehouse_or
+    else:
+        filters, or_filters = apply_payment_entry_warehouse_scope(
+            filters,
+            or_filters,
+            doctype=doctype,
+            mine_only=int(mine_only or 0),
+        )
 
     page_start = max(0, int(page_start or 0))
     page_length = max(1, min(int(page_length or 20), 200))
@@ -513,17 +543,9 @@ def get_payment_entries_list(
     for row in rows:
         row["amount"] = flt(row.get("paid_amount"))
 
-    total = len(
-        frappe.get_list(
-            doctype,
-            filters=filters,
-            or_filters=or_filters,
-            fields=["name"],
-            distinct=True,
-            ignore_permissions=True,
-            limit_page_length=0,
-        )
-    )
+    from posawesome.posawesome.utils.list_query import count_distinct
+
+    total = count_distinct(doctype, filters=filters, or_filters=or_filters)
 
     type_filters = [f for f in filters if not (f[0] == doctype and f[1] == "payment_type")]
     type_counts = {
@@ -532,7 +554,7 @@ def get_payment_entries_list(
             doctype,
             filters=type_filters,
             or_filters=or_filters,
-            fields=["payment_type", "count(name) as count"],
+            fields=["payment_type", "count(distinct name) as count"],
             group_by="payment_type",
             ignore_permissions=True,
             limit_page_length=0,
@@ -560,6 +582,16 @@ def get_payment_entries_list(
 @frappe.whitelist()
 def get_payment_entry_detail(name):
     """Full detail (header + allocated references) for the Payment List's detail page."""
+    from posawesome.posawesome.utils.warehouse_doc_permissions import (
+        user_can_access_payment_entry,
+    )
+
+    if not user_can_access_payment_entry(name):
+        frappe.throw(
+            _("You are not permitted to view this Payment Entry."),
+            exc=frappe.PermissionError,
+        )
+
     doc = frappe.get_doc("Payment Entry", name)
     owner_name = frappe.db.get_value("User", doc.owner, "full_name") or doc.owner
     payee = doc.get("custom_payee")
@@ -954,30 +986,45 @@ def search_payee_users(txt=None, limit=20):
     )
 
 
+def _accounts_for_payment_warehouse(warehouse):
+	accounts = []
+	try:
+		from bsp_engineering.utils.warehouse_accounts import get_accounts_for_warehouse
+
+		accounts = list(get_accounts_for_warehouse(warehouse) or [])
+	except ImportError:
+		pass
+	return accounts
+
+
+def _payment_warehouse_or_filters(doctype, warehouse):
+	"""Indexed OR filters for a warehouse — avoids materializing PE names."""
+	or_filters = [[doctype, "custom_warehouse", "=", warehouse]]
+	accounts = _accounts_for_payment_warehouse(warehouse)
+	if accounts:
+		or_filters.append([doctype, "paid_from", "in", accounts])
+		or_filters.append([doctype, "paid_to", "in", accounts])
+	return or_filters
+
+
 def _payment_entries_for_warehouse(warehouse, company=None):
-    """Payment Entries belonging to a warehouse: tagged with it
-    (custom_warehouse), or moving money through one of its cash accounts
-    (paid_from / paid_to) -- most payments were never tagged, but every
-    showroom's cash account maps to its warehouse (same mapping the BSP cash
-    reports use)."""
-    accounts = []
-    try:
-        from bsp_engineering.utils.warehouse_accounts import get_accounts_for_warehouse
+	"""Payment Entries belonging to a warehouse: tagged with it
+	(custom_warehouse), or moving money through one of its cash accounts
+	(paid_from / paid_to) -- most payments were never tagged, but every
+	showroom's cash account maps to its warehouse (same mapping the BSP cash
+	reports use). Prefer ``_payment_warehouse_or_filters`` for list queries."""
+	accounts = _accounts_for_payment_warehouse(warehouse)
 
-        accounts = list(get_accounts_for_warehouse(warehouse) or [])
-    except ImportError:
-        pass
+	conditions = ["custom_warehouse = %(warehouse)s"]
+	if accounts:
+		conditions.append("paid_from IN %(accounts)s")
+		conditions.append("paid_to IN %(accounts)s")
+	company_condition = "AND company = %(company)s" if company else ""
 
-    conditions = ["custom_warehouse = %(warehouse)s"]
-    if accounts:
-        conditions.append("paid_from IN %(accounts)s")
-        conditions.append("paid_to IN %(accounts)s")
-    company_condition = "AND company = %(company)s" if company else ""
-
-    return frappe.db.sql_list(
-        f"""
-        SELECT name FROM `tabPayment Entry`
-        WHERE ({" OR ".join(conditions)}) {company_condition}
-        """,
-        {"warehouse": warehouse, "accounts": tuple(accounts), "company": company},
-    )
+	return frappe.db.sql_list(
+		f"""
+		SELECT name FROM `tabPayment Entry`
+		WHERE ({" OR ".join(conditions)}) {company_condition}
+		""",
+		{"warehouse": warehouse, "accounts": tuple(accounts) if accounts else (), "company": company},
+	)

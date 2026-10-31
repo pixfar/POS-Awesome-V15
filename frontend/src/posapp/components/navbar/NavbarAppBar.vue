@@ -86,20 +86,11 @@
 					<div
 						v-if="cashierChipLabel"
 						:class="[
-							'profile-chip cashier-chip',
+							'profile-chip cashier-chip profile-chip--label-only',
 							isRtl ? 'rtl-profile-chip' : 'ltr-profile-chip',
 						]"
 						data-test="cashier-chip"
 					>
-						<div
-							:class="[
-								'profile-chip__avatar',
-								isRtl ? 'rtl-profile-icon' : 'ltr-profile-icon',
-							]"
-							aria-hidden="true"
-						>
-							{{ cashierInitials }}
-						</div>
 						<span
 							:class="[
 								'profile-chip__content',
@@ -270,31 +261,21 @@ export default {
 		},
 
 		cashierChipLabel() {
-			return this.cashierName || this.displayName;
-		},
-
-		cashierChipMeta() {
-			if (!this.cashierName) {
-				return "";
+			// Warehouse / POS profile only — full name is already in the drawer menu.
+			if (this.posProfile?.name) {
+				return this.posProfile.name;
 			}
-
-			if (this.displayName && this.displayName !== this.cashierName) {
-				return this.displayName;
+			if (this.posProfile?.warehouse_name) {
+				return this.posProfile.warehouse_name;
 			}
-
+			if (this.posProfile?.warehouse) {
+				return this.posProfile.warehouse;
+			}
 			return "";
 		},
 
-		cashierInitials() {
-			const name = String(this.cashierChipLabel || "").trim();
-			if (!name) return "?";
-			const parts = name.split(/\s+/).filter(Boolean);
-			if (parts.length === 1) {
-				return parts[0].slice(0, 2).toUpperCase();
-			}
-			return (
-				(parts[0][0] || "") + (parts[parts.length - 1][0] || "")
-			).toUpperCase();
+		cashierChipMeta() {
+			return "";
 		},
 
 		// Mobile breakpoint detection
@@ -690,7 +671,11 @@ export default {
 		box-shadow 0.2s ease;
 	box-shadow: 0 1px 2px
 		color-mix(in srgb, var(--pos-shadow, #000) 8%, transparent);
-	max-width: 200px;
+	max-width: 260px;
+}
+
+.profile-chip--label-only {
+	padding: 6px 14px;
 }
 
 .profile-chip__avatar {
@@ -722,9 +707,10 @@ export default {
 }
 
 .profile-chip__title {
-	font-size: 12.5px;
-	font-weight: 700;
-	line-height: 1.15;
+	font-size: 15px;
+	font-weight: 800;
+	letter-spacing: 0.01em;
+	line-height: 1.2;
 	color: var(--pos-primary);
 	overflow: hidden;
 	text-overflow: ellipsis;

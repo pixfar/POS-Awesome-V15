@@ -129,13 +129,13 @@ def get_purchase_drafts(search=None, limit=50):
 	newest first, scoped like the Purchase Invoice list."""
 	from frappe.utils import cint, flt
 
+	from posawesome.posawesome.utils.warehouse_doc_permissions import (
+		apply_list_warehouse_scope,
+	)
+
 	limit = max(1, min(cint(limit) or 50, 100))
 	filters = [["Purchase Invoice", "docstatus", "=", 0]]
-	scoped = po.get_permission_scoped_names("Purchase Invoice", "set_warehouse")
-	if scoped is not None:
-		if not scoped:
-			return []
-		filters.append(["Purchase Invoice", "name", "in", scoped])
+	apply_list_warehouse_scope(filters, "Purchase Invoice", "set_warehouse")
 	or_filters = None
 	if search and search.strip():
 		like = f"%{search.strip()}%"

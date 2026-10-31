@@ -397,17 +397,9 @@ def get_production_plans_list(
 	for row in rows:
 		row['total_weight'] = weight_by_parent.get(row['name'], 0.0)
 
-	total = len(
-		frappe.get_list(
-			doctype,
-			filters=filters,
-			or_filters=or_filters,
-			fields=['name'],
-			distinct=True,
-			ignore_permissions=True,
-			limit_page_length=0,
-		)
-	)
+	from posawesome.posawesome.utils.list_query import count_distinct
+
+	total = count_distinct(doctype, filters=filters, or_filters=or_filters)
 
 	status_filters = [f for f in filters if not (f[0] == doctype and f[1] == 'workflow_state')]
 	status_counts = {
@@ -416,7 +408,7 @@ def get_production_plans_list(
 			doctype,
 			filters=status_filters,
 			or_filters=or_filters,
-			fields=['workflow_state', 'count(name) as count'],
+			fields=['workflow_state', 'count(distinct name) as count'],
 			group_by='workflow_state',
 			ignore_permissions=True,
 			limit_page_length=0,

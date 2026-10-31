@@ -65,20 +65,35 @@ def ensure_can_create(action_label):
 		)
 
 
+def _has_warehouse_user_permission(user=None):
+	user = user or frappe.session.user
+	if user == 'Administrator':
+		return False
+	return bool(
+		frappe.db.exists(
+			'User Permission',
+			{'user': user, 'allow': 'Warehouse'},
+		)
+	)
+
+
 def user_has_warehouse_restrictions(user=None):
 	"""Whether Material Transfer/Requisition access should be narrowed to this
 	user's permitted warehouse(s) via build_warehouse_or_condition() below.
 
-	Previously this only checked for a literal `User Permission` (allow=
-	Warehouse) record, which misses users whose permitted warehouse is instead
-	resolved through bsp_engineering.utils.pos_warehouse (POS Profile/
-	Employee-based, no User Permission row involved) -- exactly the setup this
-	app actually uses. Those users came back "unrestricted" by accident and
-	could see every warehouse's Material Transfers/Requisitions. True for
-	anyone who isn't privileged (System Manager/BSP Admin/Administrator) or
-	a read-only BSP Viewer, matching the same bypass used everywhere else
-	in this module -- get_expanded_permitted_warehouses() below is the
-	actual source of truth for *which* warehouse(s) that then permits."""
+	True for:
+	- anyone with an explicit Warehouse User Permission (including BSP Admin /
+	  System Manager / BSP Viewer — those roles otherwise see every showroom)
+	- anyone who isn't privileged / BSP Viewer (POS Profile–based scoping)
+
+	False for Administrator and for privileged / BSP Viewer users with no
+	Warehouse User Permission. get_expanded_permitted_warehouses() is the
+	source of truth for *which* warehouse(s) that then permits."""
+	user = user or frappe.session.user
+	if user == 'Administrator':
+		return False
+	if _has_warehouse_user_permission(user):
+		return True
 	return not (is_privileged_invoice_viewer(user) or is_read_only_viewer(user))
 
 
@@ -86,20 +101,43 @@ def get_expanded_permitted_warehouses(user=None):
 	"""None means unrestricted (every warehouse); an empty/populated list
 	means scoped to exactly those.
 
-	Bypasses for the same set of roles as is_privileged_invoice_viewer
-	(System Manager / BSP Admin / Administrator) *plus* BSP Viewer -- BSP
-	Viewer is a deliberately read-only role (see is_read_only_viewer /
-	ensure_can_create) meant for management oversight across every
-	showroom, not scoped to whichever single warehouse their own POS
-	Profile happens to carry. Previously only System Manager bypassed here,
-	so BSP Admin and BSP Viewer users -- both meant to see everything --
-	were silently narrowed to their POS Profile's own warehouse everywhere
-	this function (or anything built on it: get_permission_scoped_names,
-	build_warehouse_or_condition, user_can_read_warehouse_doc) is used,
-	which is most of POS Awesome's warehouse-scoped reports and doc
-	permissions.
+	Warehouse User Permissions always win — even for System Manager / BSP
+	Admin / BSP Viewer. Without those rows, privileged / BSP Viewer users
+	remain unrestricted (management oversight across every showroom).
+	Everyone else is scoped through bsp_engineering.utils.pos_warehouse
+	(POS Profile / User Permission resolution).
 	"""
 	user = user or frappe.session.user
+
+	if _has_warehouse_user_permission(user):
+		try:
+			from bsp_engineering.utils.pos_warehouse import (
+				get_user_permission_warehouse_names,
+			)
+
+			# include_groups=True so OR-filters on linked docs also match
+			# parent/group warehouses that appear on older records.
+			names = get_user_permission_warehouse_names(
+				user=user, include_groups=True
+			)
+			return list(names or [])
+		except Exception:
+			names = frappe.get_all(
+				'User Permission',
+				filters={'user': user, 'allow': 'Warehouse'},
+				pluck='for_value',
+			)
+			expanded = set()
+			for name in names or []:
+				if not name:
+					continue
+				expanded.add(name)
+				if frappe.db.get_value('Warehouse', name, 'is_group'):
+					expanded.update(
+						frappe.db.get_descendants('Warehouse', name) or []
+					)
+			return list(expanded)
+
 	if is_privileged_invoice_viewer(user) or is_read_only_viewer(user):
 		return None
 
@@ -108,11 +146,7 @@ def get_expanded_permitted_warehouses(user=None):
 
 		names = get_permitted_warehouse_names() or []
 	except Exception:
-		names = frappe.get_all(
-			'User Permission',
-			filters={'user': user, 'allow': 'Warehouse'},
-			pluck='for_value',
-		)
+		names = []
 
 	if not names:
 		return []
@@ -129,18 +163,20 @@ def get_expanded_permitted_warehouses(user=None):
 
 
 def get_permission_scoped_names(doctype, warehouse_field, owner_field='owner', user=None):
-	"""For doctypes with a single warehouse field (Sales/Purchase Invoice, BSP
-	Daily Deposit): returns the list of doc names this user may see -- their
-	own records OR records touching their permitted warehouse(s) -- or None if
-	the user is unrestricted (System Manager, BSP Admin, or a read-only BSP
-	Viewer) and should see everything. Everyone else is scoped to their own
-	records at minimum, even if they have no warehouse User Permission set
-	up at all."""
+	"""Legacy helper that materializes every visible doc name.
+
+	Do **not** use this for list/count queries — a warehouse-restricted user
+	can own thousands of invoices, and ``name IN (…thousands…)`` makes the
+	list page hang. Prefer ``apply_list_warehouse_scope`` (indexed warehouse
+	filter) or ``user_can_access_warehouse_scoped_doc`` (single-doc check).
+
+	Returns None when unrestricted, else the name list (possibly empty).
+	"""
 	user = user or frappe.session.user
-	if is_privileged_invoice_viewer(user) or is_read_only_viewer(user):
+	permitted = get_expanded_permitted_warehouses(user)
+	if permitted is None:
 		return None
 
-	permitted = get_expanded_permitted_warehouses(user) or []
 	or_filters = [[doctype, owner_field, '=', user]]
 	if permitted:
 		or_filters.append([doctype, warehouse_field, 'in', permitted])
@@ -152,6 +188,154 @@ def get_permission_scoped_names(doctype, warehouse_field, owner_field='owner', u
 		limit_page_length=0,
 		ignore_permissions=True,
 	)
+
+
+def apply_list_warehouse_scope(
+	filters,
+	doctype,
+	warehouse_field,
+	owner_field='owner',
+	user=None,
+	mine_only=False,
+):
+	"""Append cheap list filters for warehouse-scoped users.
+
+	Uses ``set_warehouse IN (permitted)`` (indexed) instead of materializing
+	every visible document name. Unrestricted users (no Warehouse User
+	Permission / privileged without UP) get no extra filter.
+	"""
+	user = user or frappe.session.user
+	if mine_only:
+		filters.append([doctype, owner_field, '=', user])
+		return
+
+	permitted = get_expanded_permitted_warehouses(user)
+	if permitted is None:
+		return
+	if permitted:
+		filters.append([doctype, warehouse_field, 'in', list(permitted)])
+	else:
+		# No usable warehouse — only their own docs.
+		filters.append([doctype, owner_field, '=', user])
+
+
+def apply_dict_warehouse_scope(
+	filters,
+	warehouse_field,
+	owner_field='owner',
+	user=None,
+):
+	"""Dict-filter variant of apply_list_warehouse_scope (get_all style)."""
+	user = user or frappe.session.user
+	permitted = get_expanded_permitted_warehouses(user)
+	if permitted is None:
+		return
+	if permitted:
+		filters[warehouse_field] = ['in', list(permitted)]
+	else:
+		filters[owner_field] = user
+
+
+def get_accounts_for_warehouses(warehouses):
+	"""Cash/bank accounts mapped to the given warehouses (for Payment Entry)."""
+	accounts = set()
+	if not warehouses:
+		return []
+	try:
+		from bsp_engineering.utils.warehouse_accounts import get_accounts_for_warehouse
+	except ImportError:
+		return []
+	for warehouse in warehouses:
+		for account in get_accounts_for_warehouse(warehouse) or []:
+			if account:
+				accounts.add(account)
+	return list(accounts)
+
+
+def apply_payment_entry_warehouse_scope(
+	filters,
+	or_filters,
+	doctype='Payment Entry',
+	user=None,
+	mine_only=False,
+):
+	"""Scope Payment Entry lists by warehouse match.
+
+	A row is visible when ``custom_warehouse`` is permitted, or when
+	``paid_from`` / ``paid_to`` is a cash account belonging to a permitted
+	warehouse. ``mine_only`` still locks to the session user.
+	"""
+	user = user or frappe.session.user
+	if mine_only:
+		filters.append([doctype, 'owner', '=', user])
+		return filters, or_filters
+
+	permitted = get_expanded_permitted_warehouses(user)
+	if permitted is None:
+		return filters, or_filters
+	if not permitted:
+		filters.append([doctype, 'owner', '=', user])
+		return filters, or_filters
+
+	accounts = get_accounts_for_warehouses(permitted)
+	warehouse_or = [[doctype, 'custom_warehouse', 'in', list(permitted)]]
+	if accounts:
+		warehouse_or.append([doctype, 'paid_from', 'in', accounts])
+		warehouse_or.append([doctype, 'paid_to', 'in', accounts])
+
+	if or_filters:
+		# get_list can't nest two OR groups — fall back to warehouse field.
+		filters.append([doctype, 'custom_warehouse', 'in', list(permitted)])
+		return filters, or_filters
+	return filters, warehouse_or
+
+
+def user_can_access_payment_entry(name, user=None):
+	"""Payment Entry detail access: unrestricted, owner, warehouse, or account."""
+	user = user or frappe.session.user
+	permitted = get_expanded_permitted_warehouses(user)
+	if permitted is None:
+		return True
+	row = frappe.db.get_value(
+		'Payment Entry',
+		name,
+		['owner', 'custom_warehouse', 'paid_from', 'paid_to'],
+		as_dict=True,
+	)
+	if not row:
+		return False
+	if row.owner == user:
+		return True
+	allowed = set(permitted or [])
+	if row.custom_warehouse and row.custom_warehouse in allowed:
+		return True
+	accounts = set(get_accounts_for_warehouses(permitted))
+	return bool(
+		(row.paid_from and row.paid_from in accounts)
+		or (row.paid_to and row.paid_to in accounts)
+	)
+
+
+def user_can_access_warehouse_scoped_doc(
+	doctype,
+	name,
+	warehouse_field,
+	owner_field='owner',
+	user=None,
+):
+	"""Single-document visibility check matching list warehouse scope."""
+	user = user or frappe.session.user
+	permitted = get_expanded_permitted_warehouses(user)
+	if permitted is None:
+		return True
+	row = frappe.db.get_value(
+		doctype, name, [owner_field, warehouse_field], as_dict=True
+	)
+	if not row:
+		return False
+	if row.get(owner_field) == user:
+		return True
+	return bool(row.get(warehouse_field) and row.get(warehouse_field) in set(permitted))
 
 
 def _sql_in_list(values):
@@ -501,9 +685,12 @@ STOCK_ENTRY_ACTION_PTYPES = frozenset({'create', 'write', 'submit', 'cancel', 'a
 def get_stock_entry_warehouses(user=None):
 	"""Warehouses a restricted user may act on for Stock Entry: their Warehouse
 	User Permission(s) plus their POS Profile warehouse(s), including child
-	warehouses of any group. None means not restricted (unchanged access)."""
+	warehouses of any group. None means not restricted (unchanged access).
+
+	Warehouse User Permissions also restrict System Manager / BSP Admin /
+	BSP Viewer; without those rows those roles stay unrestricted."""
 	user = user or frappe.session.user
-	if user == 'Administrator' or is_privileged_invoice_viewer(user) or is_read_only_viewer(user):
+	if user == 'Administrator':
 		return None
 
 	permitted = frappe.db.sql_list(
@@ -515,6 +702,7 @@ def get_stock_entry_warehouses(user=None):
 		{'user': user},
 	)
 	if not permitted:
+		# No Warehouse UP → privileged / everyone else keep prior access.
 		return None
 
 	profile_warehouses = frappe.db.sql_list(

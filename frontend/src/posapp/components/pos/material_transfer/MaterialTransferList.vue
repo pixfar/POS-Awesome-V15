@@ -398,6 +398,7 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue';
+import { useWarehouseFilterOptions } from '../shared/useWarehouseFilterOptions';
 import { sortItemGroupsBanglaFirst } from '../../../utils/itemGroupSort';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
@@ -460,7 +461,7 @@ export default {
 
 
 		const itemGroupOptions = ref([]);
-		const warehouseOptions = ref([]);
+		const { warehouseOptions, loadWarehouseOptions } = useWarehouseFilterOptions();
 
 		const { loadSavedFilters, saveFilters, clearSavedFilters } = useListFilterPersistence(
 			'posa_filter_material_transfer',
@@ -596,18 +597,6 @@ export default {
 			}
 		};
 
-		const loadWarehouses = async () => {
-			try {
-				const { message } = await frappe.call({
-					// All warehouses, not just the user's permitted one(s) --
-					// see get_transfer_warehouses.
-					method: 'posawesome.posawesome.api.material_transfers.get_transfer_warehouses',
-				});
-				warehouseOptions.value = message || [];
-			} catch (e) {
-				console.error('Failed to load warehouses', e);
-			}
-		};
 
 		const clearFilters = () => {
 			searchQuery.value = '';
@@ -828,7 +817,7 @@ export default {
 		onMounted(() => {
 			loadSavedFilters();
 			loadItemGroups();
-			loadWarehouses();
+			loadWarehouseOptions();
 			loadTransfers();
 		});
 

@@ -15,7 +15,8 @@ from .invoice_processing.returns import get_invoice_for_return
 from .payment_processing.utils import get_pos_change_account
 from .payment_processing.creation import refund_payments_for_return
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
-	get_permission_scoped_names,
+	apply_list_warehouse_scope,
+	user_can_access_warehouse_scoped_doc,
 	ensure_can_create,
 	is_privileged_invoice_viewer,
 )
@@ -779,8 +780,9 @@ def get_editable_purchase_draft(name):
     see all)."""
     if not name or not frappe.db.exists("Purchase Invoice", name):
         frappe.throw(_("Draft Purchase Invoice {0} was not found.").format(name))
-    scoped = get_permission_scoped_names("Purchase Invoice", "set_warehouse")
-    if scoped is not None and name not in scoped:
+    if not user_can_access_warehouse_scoped_doc(
+        "Purchase Invoice", name, "set_warehouse"
+    ):
         frappe.throw(_("You are not permitted to open {0}.").format(name), frappe.PermissionError)
     invoice = frappe.get_doc("Purchase Invoice", name)
     if invoice.docstatus != 0:
@@ -1038,14 +1040,13 @@ def get_purchase_invoices_list(
     filters = [
         [doctype, "company", "=", profile.get("company")],
     ]
-    if int(mine_only or 0):
-        filters.append([doctype, "owner", "=", frappe.session.user])
-    else:
-        # Warehouse-restricted users (not System Manager) only ever see their
-        # own purchase invoices or ones drawn into their permitted warehouse(s).
-        scoped_names = get_permission_scoped_names(doctype, "set_warehouse")
-        if scoped_names is not None:
-            filters.append([doctype, "name", "in", scoped_names])
+    # Indexed warehouse filter — never materialize thousands of names.
+    apply_list_warehouse_scope(
+        filters,
+        doctype,
+        "set_warehouse",
+        mine_only=int(mine_only or 0),
+    )
     if status:
         filters.append([doctype, "status", "=", status])
     if from_date:
@@ -1146,17 +1147,9 @@ def get_purchase_invoices_list(
     for row in rows:
         row["total_weight"] = weight_by_parent.get(row["name"], 0.0)
 
-    total = len(
-        frappe.get_list(
-            doctype,
-            filters=filters,
-            or_filters=or_filters,
-            fields=[f"`tab{doctype}`.name as name"],
-            distinct=True,
-            ignore_permissions=True,
-            limit_page_length=0,
-        )
-    )
+    from posawesome.posawesome.utils.list_query import count_distinct
+
+    total = count_distinct(doctype, filters=filters, or_filters=or_filters)
 
     status_filters = [f for f in filters if not (f[0] == doctype and f[1] == "status")]
     status_counts = {

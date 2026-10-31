@@ -42,6 +42,7 @@
 							variant="outlined"
 							hide-details
 							min="0"
+							:max="showStockQty ? Math.max(0, Number(item.stock_qty || 0)) : undefined"
 							class="pos-themed-input qty-field"
 							@update:model-value="(v) => $emit('update-qty', { item, value: v })"
 						/>

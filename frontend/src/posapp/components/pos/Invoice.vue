@@ -393,6 +393,7 @@ import stockCoordinator from "../../utils/stockCoordinator";
 import { getCurrentInstance, ref, computed } from "vue";
 import { save_and_clear_invoice as saveAndClearInvoiceAction } from "./invoice_utils/actions";
 import { applyWarehouseToDocItems } from "./invoice_utils/warehouse";
+import { isPosWarehouseSwitcher } from "../../utils/posWarehouseAccess";
 import { fetchDraftInvoices } from "../../utils/draftInvoices";
 
 // Composables
@@ -627,8 +628,7 @@ export default {
 			},
 		},
 		canChangePosWarehouse() {
-			const roles = frappe?.boot?.user?.roles || [];
-			return roles.includes("System Manager");
+			return isPosWarehouseSwitcher();
 		},
 		canEditDoNumber() {
 			const roles = frappe?.boot?.user?.roles || [];

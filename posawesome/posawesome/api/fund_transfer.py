@@ -8,8 +8,12 @@ from frappe import _
 from frappe.utils import flt, money_in_words, nowdate, today
 from erpnext.accounts.utils import get_balance_on
 
-from posawesome.posawesome.utils.warehouse_doc_permissions import is_privileged_invoice_viewer
-from posawesome.posawesome.api.payment_processing.utils import get_pos_change_account
+from posawesome.posawesome.utils.warehouse_doc_permissions import (
+	get_accounts_for_warehouses,
+	get_expanded_permitted_warehouses,
+	is_privileged_invoice_viewer,
+	user_can_access_payment_entry,
+)
 
 DOCTYPE = 'Payment Entry'
 
@@ -189,17 +193,55 @@ def create_fund_transfer(data):
 
 
 def _list_filters():
+	"""Dict filters for Fund Transfer queries (dashboard / ``get_all``).
+
+	Unrestricted users get every fund transfer. Warehouse-restricted users
+	are limited to rows whose ``custom_warehouse`` matches, falling back to
+	``paid_to`` showroom cash accounts when no warehouse field is set.
+	"""
 	filters = {
 		'payment_type': 'Internal Transfer',
 		'custom_fund_transfer': 1,
+		'docstatus': ('!=', 2),
 	}
-	if not is_privileged_invoice_viewer():
-		# Regular users only ever see transfers sent to their own showroom's
-		# account -- if they have none configured, they see nothing rather
-		# than every transfer.
-		change_account = get_pos_change_account()
-		filters['paid_to'] = change_account or ''
+	permitted = get_expanded_permitted_warehouses()
+	if permitted is None:
+		return filters
+	if not permitted:
+		filters['name'] = ''
+		return filters
+
+	# Dict filters cannot OR warehouse + account; prefer custom_warehouse,
+	# else paid_to accounts for the permitted showrooms (dashboard legacy).
+	filters['custom_warehouse'] = ['in', list(permitted)]
 	return filters
+
+
+def _list_scope():
+	"""Base Fund Transfer filters + warehouse OR-scope for restricted users.
+
+	Visibility is warehouse-based: ``custom_warehouse`` match, or ``paid_to`` /
+	``paid_from`` belonging to a permitted showroom cash account. Unrestricted
+	admins (no Warehouse User Permission) see every fund transfer.
+	"""
+	filters = [
+		[DOCTYPE, 'payment_type', '=', 'Internal Transfer'],
+		[DOCTYPE, 'custom_fund_transfer', '=', 1],
+	]
+	or_filters = None
+	permitted = get_expanded_permitted_warehouses()
+	if permitted is None:
+		return filters, or_filters
+	if not permitted:
+		filters.append([DOCTYPE, 'name', '=', ''])
+		return filters, or_filters
+
+	accounts = get_accounts_for_warehouses(permitted)
+	or_filters = [[DOCTYPE, 'custom_warehouse', 'in', list(permitted)]]
+	if accounts:
+		or_filters.append([DOCTYPE, 'paid_to', 'in', accounts])
+		or_filters.append([DOCTYPE, 'paid_from', 'in', accounts])
+	return filters, or_filters
 
 
 @frappe.whitelist()
@@ -213,34 +255,41 @@ def get_fund_transfers_list(
 	mode_of_payment=None,
 	docstatus=None,
 ):
-	"""Paginated list of Fund Transfers -- all of them for BSP Admin/System
-	Manager, otherwise only the ones sent to the logged-in user's own
-	showroom account (POS Profile account_for_change_amount)."""
+	"""Paginated Fund Transfers visible when the warehouse (or showroom
+	cash account) matches the user's permitted warehouses."""
+	from posawesome.posawesome.utils.list_query import count_distinct
+
 	page_start = max(0, int(page_start or 0))
 	page_length = max(1, min(int(page_length or 20), 100))
 
-	filters = _list_filters()
-	# "Paid To" filter -- only for users who can see every transfer; a
-	# regular user's list is already locked to their own account above.
-	if paid_to and 'paid_to' not in filters:
-		filters['paid_to'] = paid_to
+	filters, warehouse_or = _list_scope()
+	if paid_to:
+		filters.append([DOCTYPE, 'paid_to', '=', paid_to])
 	if mode_of_payment:
-		filters['mode_of_payment'] = mode_of_payment
-	# Status filter: 0 Draft, 1 Submitted, 2 Cancelled.
+		filters.append([DOCTYPE, 'mode_of_payment', '=', mode_of_payment])
 	if docstatus not in (None, ''):
-		filters['docstatus'] = int(docstatus)
+		filters.append([DOCTYPE, 'docstatus', '=', int(docstatus)])
 
-	if from_date and to_date:
-		filters['posting_date'] = ['between', [from_date, to_date]]
-	elif from_date:
-		filters['posting_date'] = ['>=', from_date]
-	elif to_date:
-		filters['posting_date'] = ['<=', to_date]
+	if from_date:
+		filters.append([DOCTYPE, 'posting_date', '>=', from_date])
+	if to_date:
+		filters.append([DOCTYPE, 'posting_date', '<=', to_date])
 
 	or_filters = None
 	if search and len(search.strip()) >= 2:
 		like = f'%{search.strip()}%'
-		or_filters = {'name': ['like', like], 'paid_to': ['like', like]}
+		search_or = [
+			[DOCTYPE, 'name', 'like', like],
+			[DOCTYPE, 'paid_to', 'like', like],
+		]
+		if warehouse_or:
+			# Can't nest OR groups — AND on custom_warehouse, OR for search.
+			filters.append(warehouse_or[0])
+			or_filters = search_or
+		else:
+			or_filters = search_or
+	else:
+		or_filters = warehouse_or
 
 	fields = [
 		'name',
@@ -254,30 +303,36 @@ def get_fund_transfers_list(
 		'creation',
 	]
 
-	rows = frappe.get_all(
+	rows = frappe.get_list(
 		DOCTYPE,
 		filters=filters,
 		or_filters=or_filters,
 		fields=fields,
 		order_by='creation desc',
-		start=page_start,
-		page_length=page_length,
+		limit_start=page_start,
+		limit_page_length=page_length,
 		ignore_permissions=True,
 	)
 
-	total = frappe.get_all(
+	total = count_distinct(DOCTYPE, filters=filters, or_filters=or_filters)
+
+	# Sum helper expects dict filters — compute with get_list.
+	sum_filters = [f for f in filters if not (f[0] == DOCTYPE and f[1] == 'docstatus')]
+	sum_filters.append([DOCTYPE, 'docstatus', '!=', 2])
+	sum_rows = frappe.get_list(
 		DOCTYPE,
-		filters=filters,
+		filters=sum_filters,
 		or_filters=or_filters,
-		fields=['count(name) as total'],
+		fields=['sum(paid_amount) as total'],
 		ignore_permissions=True,
-	)[0].total
+		limit_page_length=1,
+	)
 
 	return {
 		'transfers': rows,
 		'total': total,
 		'has_more': (page_start + page_length) < total,
-		'total_transferred': _sum_not_cancelled(DOCTYPE, 'paid_amount', filters, or_filters),
+		'total_transferred': flt(sum_rows[0].total if sum_rows else 0),
 	}
 
 
@@ -287,10 +342,11 @@ def get_fund_transfer_detail(name):
 	if not doc.custom_fund_transfer or doc.payment_type != 'Internal Transfer':
 		frappe.throw(_('Fund Transfer not found.'), exc=frappe.DoesNotExistError)
 
-	if not is_privileged_invoice_viewer():
-		change_account = get_pos_change_account()
-		if not change_account or doc.paid_to != change_account:
-			frappe.throw(_('You are not permitted to view this Fund Transfer.'), exc=frappe.PermissionError)
+	if not user_can_access_payment_entry(name):
+		frappe.throw(
+			_('You are not permitted to view this Fund Transfer.'),
+			exc=frappe.PermissionError,
+		)
 
 	currency = doc.paid_to_account_currency or frappe.get_cached_value('Company', doc.company, 'default_currency')
 	amount = flt(doc.paid_amount)
