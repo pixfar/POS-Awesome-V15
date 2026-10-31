@@ -368,7 +368,10 @@ def confirm_receipt(transfer, received_quantities=None):
 
 	doc.reload()
 	status = _calculate_receipt_status(doc)
-	doc.db_set('transfer_status', status, update_modified=False)
+	# Stamp the receiving user on modified/modified_by so list & detail
+	# "Last Modified By" shows who confirmed receipt. Earlier db_sets use
+	# update_modified=False to avoid noisy intermediate timestamps.
+	doc.db_set('transfer_status', status, update_modified=True)
 	return status
 
 
@@ -404,6 +407,8 @@ def reject_transfer(transfer):
 
 	doc.flags.ignore_permissions = True
 	doc.cancel()
-	doc.db_set('transfer_status', STATUS_REJECTED, update_modified=False)
+	# Keep modified_by as the user who rejected (cancel already stamped
+	# them; update_modified=True preserves that on the status write).
+	doc.db_set('transfer_status', STATUS_REJECTED, update_modified=True)
 
 	return STATUS_REJECTED
