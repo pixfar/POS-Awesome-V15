@@ -263,6 +263,7 @@ import { useItemsLoader } from "../../../composables/pos/items/useItemsLoader";
 import { useBarcodeIndexing } from "../../../composables/pos/items/useBarcodeIndexing";
 import { useScanProcessor } from "../../../composables/pos/items/useScanProcessor";
 import { useItemCurrency } from "../../../composables/pos/items/useItemCurrency";
+import itemService from "../../../services/itemService";
 import { startItemsSelectorInitialization } from "../../../composables/pos/items/useItemsSelectorInitialization";
 import { registerItemsSelectorEvents } from "../../../composables/pos/items/useItemsSelectorEvents";
 import {
@@ -376,6 +377,11 @@ const {
 // 2. Local State & Settings
 const search_input = ref("");
 const first_search = ref("");
+// Cart (invoice-items) search is independent from the right-panel catalog search
+// so typing above the cart does not filter the item cards, and vice versa.
+const cart_search_input = ref("");
+const cartMatches = ref<any[]>([]);
+const cartSearchLoading = ref(false);
 const uom_filter = ref("ALL");
 const items_view = ref("card");
 // Item grid page size: 12 unless Item Selector Settings > Custom items per
@@ -1486,14 +1492,167 @@ const searchAndAddItem = async (event?: KeyboardEvent) => {
 	}
 };
 
+const clearCartSearch = () => {
+	cart_search_input.value = "";
+	cartMatches.value = [];
+};
+
+const handleCartSearchInput = (value: unknown) => {
+	cart_search_input.value = String(value ?? "");
+};
+
+const buildCartFilterOptions = (term: string, limit = 200) => ({
+	searchTerm: term,
+	uomFilter: uom_filter.value,
+	hideZeroRate: hide_zero_rate_items.value,
+	hideZeroStock: hide_zero_stock_items.value,
+	hideVariants: pos_profile.value?.posa_hide_variants_items,
+	onlyBarcode: showOnlyBarcodeItemsRef.value,
+	limit,
+});
+
+const runCartSearch = async () => {
+	const term = normalizeSearchTerm(cart_search_input.value);
+	if (!term || term.length < 2) {
+		cartMatches.value = [];
+		return;
+	}
+
+	cartSearchLoading.value = true;
+	try {
+		const storeItems = itemsIntegration.itemsStore?.items;
+		const baseItems = Array.isArray(storeItems)
+			? storeItems
+			: Array.isArray(filteredItems.value)
+				? filteredItems.value
+				: [];
+		let matches = filterAndPaginate(baseItems, buildCartFilterOptions(term));
+
+		// Thin local cache: ask the server for matches without touching the
+		// right-panel catalog state (search_input / filteredItems stay as-is).
+		if (matches.length < 20 && pos_profile.value) {
+			try {
+				const priceList =
+					itemsIntegration.itemsStore?.activePriceList ||
+					pos_profile.value?.selling_price_list ||
+					"";
+				const warehouse =
+					itemsIntegration.itemsStore?.activeSaleWarehouse ||
+					pos_profile.value?.warehouse ||
+					undefined;
+				const group = String(item_group.value || "ALL");
+				const fetched = await itemService.getItemsData({
+					pos_profile: JSON.stringify(pos_profile.value),
+					price_list: String(priceList || ""),
+					item_group: group !== "ALL" ? group.toLowerCase() : "",
+					search_value: term,
+					include_image: 1,
+					item_groups:
+						pos_profile.value?.item_groups?.map((g: any) => g.item_group) || [],
+					limit: 100,
+					...(warehouse ? { warehouse: String(warehouse) } : {}),
+				});
+				if (Array.isArray(fetched) && fetched.length) {
+					matches = filterAndPaginate(fetched, buildCartFilterOptions(term));
+				}
+			} catch (error) {
+				console.warn("Cart search server fallback failed", error);
+			}
+		}
+
+		cartMatches.value = matches;
+	} finally {
+		cartSearchLoading.value = false;
+	}
+};
+
+const findCartSearchMatch = (rawTerm: string) => {
+	const term = normalizeSearchTerm(rawTerm);
+	if (!term) {
+		return null;
+	}
+	const normalized = term.toLowerCase();
+	const visibleItems = Array.isArray(cartMatches.value) ? cartMatches.value : [];
+	const exact = visibleItems.find((item) => {
+		if (!item) return false;
+		if (normalizeBengaliNumbers(String(item.item_code || "")).toLowerCase() === normalized) {
+			return true;
+		}
+		if (normalizeBengaliNumbers(String(item.barcode || "")).toLowerCase() === normalized) {
+			return true;
+		}
+		if (Array.isArray(item.barcodes)) {
+			return item.barcodes.some(
+				(bc) => normalizeBengaliNumbers(String(bc || "")).toLowerCase() === normalized,
+			);
+		}
+		return false;
+	});
+	if (exact) {
+		return exact;
+	}
+	if (visibleItems.length === 1) {
+		return visibleItems[0];
+	}
+	return null;
+};
+
+const searchAndAddFromCart = async (event?: KeyboardEvent) => {
+	const term = normalizeSearchTerm(cart_search_input.value);
+	if (!term) {
+		return;
+	}
+
+	if (event && typeof event.preventDefault === "function") {
+		event.preventDefault();
+	}
+
+	if (/^\d{12,}$/.test(term)) {
+		await onBarcodeScannedFromScannerInput(term);
+		if (!scanErrorDialog.value) {
+			clearCartSearch();
+		}
+		return;
+	}
+
+	if (term.length < 2) {
+		return;
+	}
+
+	await runCartSearch();
+
+	let matchedItem = findCartSearchMatch(term);
+	if (!matchedItem) {
+		matchedItem =
+			itemsIntegration.findItemByCode(term) ||
+			itemsIntegration.findItemByBarcode(term);
+	}
+	if (matchedItem) {
+		await add_item(matchedItem, { suppressNegativeWarning: true });
+		if (!scanErrorDialog.value) {
+			clearCartSearch();
+		}
+		return;
+	}
+
+	scannerInput.searchFromScanner.value = true;
+	try {
+		await scanProcessor.processScannedItem(term);
+	} finally {
+		scannerInput.searchFromScanner.value = false;
+	}
+	if (!scanErrorDialog.value) {
+		clearCartSearch();
+	}
+};
+
 const invoiceCatalogSearchFocus = () => {
 	scannerInput.setInputHandlers?.({
-		get: () => String(search_input.value || ""),
+		get: () => String(cart_search_input.value || ""),
 		set: (value: string) => {
-			prepareSearchInjection();
-			handleSearchInput(String(value ?? ""));
+			handleCartSearchInput(String(value ?? ""));
 		},
-		clear: clearSearch,
+		clear: clearCartSearch,
 		focus: () => invoiceCatalogSearchApi.value?.focusSearch?.(),
 	});
 };
@@ -1502,24 +1661,13 @@ const invoiceCatalogSearchBlur = () => {
 	bindDefaultSearchInputHandlers();
 };
 
-const runCatalogSearch = async () => {
-	const term = normalizeSearchTerm(search_input.value || first_search.value);
-	if (!term || term.length < 2) {
-		return;
-	}
-	if (itemsSelectorSearch.search_onchange?.cancel) {
-		itemsSelectorSearch.search_onchange.cancel();
-	}
-	await itemsSelectorSearch._performSearch();
-};
-
 const addItemFromCatalog = async (item) => {
 	if (!item) {
 		return;
 	}
 	await add_item(item, { suppressNegativeWarning: true });
 	if (!scanErrorDialog.value) {
-		clearSearch();
+		clearCartSearch();
 	}
 };
 
@@ -1528,12 +1676,12 @@ const invoiceCatalogSearchApi = computed<PosCatalogSearchApi | null>(() => {
 		return null;
 	}
 	return {
-		searchInput: search_input,
+		searchInput: cart_search_input,
 		qtyInput: debounce_qty,
 		posProfile: pos_profile,
 		displayedItems,
-		catalogMatches: filteredMatches,
-		isLoading: isLoadingOrSyncing,
+		catalogMatches: cartMatches,
+		isLoading: cartSearchLoading,
 		scannerLocked,
 		enableBackgroundSync: enable_background_sync,
 		lastSyncTime: lastSyncTimeLabel,
@@ -1542,20 +1690,20 @@ const invoiceCatalogSearchApi = computed<PosCatalogSearchApi | null>(() => {
 		syncProgress: syncProgressValue,
 		syncItemsCount: syncedItemsCount,
 		hideQtyDecimals: hide_qty_decimals,
-		handleSearchInput,
-		onEnter,
+		handleSearchInput: handleCartSearchInput,
+		onEnter: searchAndAddFromCart,
 		handleSearchKeydown,
 		handleSearchPaste,
 		handleSearchFocus: invoiceCatalogSearchFocus,
-		clearSearch,
+		clearSearch: clearCartSearch,
 		clearQty,
 		onQtyBlur,
 		startCameraScanning,
 		toggleItemSettings,
 		forceReloadItems,
-		runCatalogSearch,
+		runCatalogSearch: runCartSearch,
 		addItemFromCatalog,
-		searchAndAddItem,
+		searchAndAddItem: searchAndAddFromCart,
 		focusSearch: () => {
 			eventBus?.emit?.("focus_invoice_catalog_search");
 		},

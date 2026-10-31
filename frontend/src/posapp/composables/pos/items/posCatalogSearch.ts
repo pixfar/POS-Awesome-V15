@@ -9,12 +9,14 @@ export type CatalogSearchItem = {
 };
 
 export type PosCatalogSearchApi = {
+	/** Cart (invoice items) search only — independent from the right-panel catalog search. */
 	searchInput: Ref<string>;
 	qtyInput: Ref<string | number>;
 	posProfile: Ref<Record<string, unknown>>;
 	displayedItems: ComputedRef<CatalogSearchItem[]>;
-	catalogMatches?: ComputedRef<CatalogSearchItem[]>;
-	isLoading: ComputedRef<boolean>;
+	/** Matches for the cart search dropdown (does not filter the item cards). */
+	catalogMatches?: ComputedRef<CatalogSearchItem[]> | Ref<CatalogSearchItem[]>;
+	isLoading: ComputedRef<boolean> | Ref<boolean>;
 	scannerLocked: Ref<boolean>;
 	enableBackgroundSync: Ref<boolean>;
 	lastSyncTime: Ref<string>;
