@@ -27,95 +27,119 @@
 					{{ __("Invoices saved as POS Invoices") }}
 				</v-alert>
 				<div class="invoice-sections">
-					<div class="invoice-top-grid">
-						<v-card flat class="invoice-section-card pos-themed-card">
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Customer Details") }}</h3>
-							</div>
-							<InvoiceCustomerSection
-								ref="customerSection"
-								:pos_profile="pos_profile"
-								:invoiceTypes="invoiceTypes"
-								v-model="invoiceType"
-							/>
-						</v-card>
-
-						<!-- Outstanding Due panel — right column of top grid -->
-						<v-card
-							v-if="!pos_profile.posa_use_delivery_charges"
-							flat
-							class="invoice-section-card pos-themed-card outstanding-panel"
-						>
-							<div class="outstanding-panel__inner">
-								<div class="outstanding-panel__label">{{ __("Outstanding Due") }}</div>
-								<div
-									class="outstanding-panel__amount"
-									:class="customer && customer_outstanding > 0 ? 'outstanding-panel__amount--due' : 'outstanding-panel__amount--clear'"
-								>
-									{{ customer ? formatCurrency(customer_outstanding) : '—' }}
+					<v-card flat class="invoice-section-card pos-themed-card invoice-sale-header create-header-card">
+						<div class="sale-header create-header">
+							<div class="create-header__grid">
+								<div class="create-header__party">
+									<InvoiceCustomerSection
+										ref="customerSection"
+										:pos_profile="pos_profile"
+										:invoiceTypes="invoiceTypes"
+										v-model="invoiceType"
+									/>
 								</div>
-								<v-icon
-									v-if="customer"
-									:color="customer_outstanding > 0 ? 'error' : 'success'"
-									size="22"
-									class="outstanding-panel__icon"
+								<div
+									v-if="!pos_profile.posa_use_delivery_charges"
+									class="create-header__metric"
 								>
-									{{ customer_outstanding > 0 ? 'mdi-alert-circle' : 'mdi-check-circle' }}
-								</v-icon>
-							</div>
-						</v-card>
+									<v-text-field
+										:model-value="customer ? formatCurrency(customer_outstanding) : '—'"
+										:label="__('Due')"
+										:title="customer ? formatCurrency(customer_outstanding) : ''"
+										readonly
+										density="compact"
+										variant="outlined"
+										hide-details
+										class="pos-themed-input create-header__metric-field"
+										:class="{
+											'create-header__metric-field--due': customer && customer_outstanding > 0,
+											'create-header__metric-field--clear': customer && customer_outstanding <= 0,
+										}"
+									>
+										<template #append-inner>
+											<v-icon
+												v-if="customer"
+												:color="customer_outstanding > 0 ? 'error' : 'success'"
+												size="18"
+											>
+												{{ customer_outstanding > 0 ? 'mdi-alert-circle' : 'mdi-check-circle' }}
+											</v-icon>
+										</template>
+									</v-text-field>
+								</div>
+								<div
+									v-else
+									class="create-header__delivery"
+								>
+									<DeliveryCharges
+										ref="deliveryChargesComponent"
+										:pos_profile="pos_profile"
+										:delivery_charges="delivery_charges"
+										:selected_delivery_charge="selected_delivery_charge"
+										:delivery_charges_rate="delivery_charges_rate"
+										:deliveryChargesFilter="deliveryChargesFilter"
+										:formatCurrency="formatCurrency"
+										:currencySymbol="currencySymbol"
+										:readonly="readonly"
+										@update:selected_delivery_charge="
+											(val) => {
+												selected_delivery_charge = val;
+												update_delivery_charges(conversion_rate, currency_precision);
+											}
+										"
+									/>
+								</div>
 
-						<v-card
-							v-if="pos_profile.posa_use_delivery_charges"
-							flat
-							class="invoice-section-card pos-themed-card"
-						>
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Delivery Charges") }}</h3>
-							</div>
-							<DeliveryCharges
-								ref="deliveryChargesComponent"
-								:pos_profile="pos_profile"
-								:delivery_charges="delivery_charges"
-								:selected_delivery_charge="selected_delivery_charge"
-								:delivery_charges_rate="delivery_charges_rate"
-								:deliveryChargesFilter="deliveryChargesFilter"
-								:formatCurrency="formatCurrency"
-								:currencySymbol="currencySymbol"
-								:readonly="readonly"
-								@update:selected_delivery_charge="
-									(val) => {
-										selected_delivery_charge = val;
-										update_delivery_charges(conversion_rate, currency_precision);
-									}
-								"
-							/>
-						</v-card>
+								<div class="create-header__field">
+									<PostingDateRow
+										ref="postingDateComponent"
+										:pos_profile="pos_profile"
+										:posting_date_display="posting_date_display"
+										:customer_balance="customer_balance"
+										:price-list="selected_price_list"
+										:price-lists="price_lists"
+										:formatCurrency="formatCurrency"
+										:disabled="!canEditPostingDate"
+										@update:posting_date_display="
+											(val) => {
+												posting_date_display = val;
+											}
+										"
+										@update:priceList="
+											(val) => {
+												selected_price_list = val;
+											}
+										"
+									/>
+								</div>
+								<div class="create-header__field">
+									<v-select
+										v-if="canChangePosWarehouse && warehouses.length"
+										:model-value="sale_warehouse"
+										:items="warehouses"
+										item-title="label"
+										item-value="value"
+										:label="__('Warehouse')"
+										variant="outlined"
+										density="compact"
+										hide-details
+										class="pos-themed-input"
+										@update:model-value="onSaleWarehouseUpdate"
+									/>
+									<v-text-field
+										v-else-if="sale_warehouse"
+										:model-value="sale_warehouse_label || sale_warehouse"
+										:label="__('Warehouse')"
+										variant="outlined"
+										density="compact"
+										hide-details
+										readonly
+										prepend-inner-icon="mdi-warehouse"
+										class="pos-themed-input"
+									/>
+								</div>
 
-						<!-- Sale Options: Date, Update Stock, Is Paid, Warehouse -->
-						<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
-							<div class="sale-options-body">
-								<PostingDateRow
-									ref="postingDateComponent"
-									:pos_profile="pos_profile"
-									:posting_date_display="posting_date_display"
-									:customer_balance="customer_balance"
-									:price-list="selected_price_list"
-									:price-lists="price_lists"
-									:formatCurrency="formatCurrency"
-									:disabled="!canEditPostingDate"
-									@update:posting_date_display="
-										(val) => {
-											posting_date_display = val;
-										}
-									"
-									@update:priceList="
-										(val) => {
-											selected_price_list = val;
-										}
-									"
-								/>
-								<div class="sale-options-toggles">
+								<div class="create-header__toggles">
 									<v-switch
 										v-model="sale_update_stock"
 										:label="__('Update Stock')"
@@ -133,139 +157,71 @@
 										class="sale-opt-switch"
 									/>
 								</div>
-								<v-select
-									v-if="canChangePosWarehouse && warehouses.length"
-									:model-value="sale_warehouse"
-									:items="warehouses"
-									item-title="label"
-									item-value="value"
-									:label="__('Warehouse')"
-									variant="outlined"
-									density="compact"
-									hide-details
-									class="sale-opt-warehouse mt-2"
-									@update:model-value="onSaleWarehouseUpdate"
-								/>
-								<v-text-field
-									v-else-if="sale_warehouse"
-									:model-value="sale_warehouse_label || sale_warehouse"
-									:label="__('Warehouse')"
-									variant="outlined"
-									density="compact"
-									hide-details
-									readonly
-									prepend-inner-icon="mdi-warehouse"
-									class="sale-opt-warehouse mt-2"
-								/>
-							</div>
-						</v-card>
-					</div>
 
-					<div class="invoice-meta-grid">
-						<v-card
-							v-if="canEditDoNumber"
-							flat
-							class="invoice-section-card pos-themed-card"
-						>
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
-							</div>
-							<div class="pa-3">
-								<v-text-field
-									v-model="custom_do_number"
-									:label="__('DO Number')"
-									density="compact"
-									variant="outlined"
-									hide-details
-									class="pos-themed-input"
-									:loading="doNumberLookupLoading"
-									@keyup.enter="handleDoNumberLookup"
-									@update:focused="onDoNumberFocusChange"
-								/>
-							</div>
-						</v-card>
+								<div v-if="canEditDoNumber" class="create-header__field">
+									<v-text-field
+										v-model="custom_do_number"
+										:label="__('DO Number')"
+										density="compact"
+										variant="outlined"
+										hide-details
+										class="pos-themed-input"
+										:loading="doNumberLookupLoading"
+										@keyup.enter="handleDoNumberLookup"
+										@update:focused="onDoNumberFocusChange"
+									/>
+								</div>
+								<div v-if="canEditPaymentAccount" class="create-header__field">
+									<v-autocomplete
+										v-model="paymentAccountOverride"
+										:items="cashAccountOptions"
+										item-title="name"
+										item-value="name"
+										:label="__('Accounts')"
+										density="compact"
+										variant="outlined"
+										hide-details
+										clearable
+										:loading="cashAccountsLoading"
+										class="pos-themed-input"
+									/>
+								</div>
 
-						<v-card
-							v-if="canEditPaymentAccount"
-							flat
-							class="invoice-section-card pos-themed-card"
-						>
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Accounts") }}</h3>
+								<div
+									v-if="pos_profile.posa_allow_multi_currency"
+									class="create-header__span-all"
+								>
+									<MultiCurrencyRow
+										:pos_profile="pos_profile"
+										:selected_currency="selected_currency"
+										:plc_conversion_rate="exchange_rate"
+										:conversion_rate="conversion_rate"
+										:available_currencies="available_currencies"
+										:isNumber="isNumber"
+										:price_list_currency="price_list_currency"
+										@update:selected_currency="
+											(val) => {
+												selected_currency = val;
+												update_currency(val);
+											}
+										"
+										@update:plc_conversion_rate="
+											(val) => {
+												exchange_rate = val;
+												update_exchange_rate();
+											}
+										"
+										@update:conversion_rate="
+											(val) => {
+												conversion_rate = val;
+												update_conversion_rate();
+											}
+										"
+									/>
+								</div>
 							</div>
-							<div class="pa-3">
-								<v-autocomplete
-									v-model="paymentAccountOverride"
-									:items="cashAccountOptions"
-									item-title="name"
-									item-value="name"
-									:label="__('Accounts')"
-									density="compact"
-									variant="outlined"
-									hide-details
-									clearable
-									:loading="cashAccountsLoading"
-									class="pos-themed-input"
-								/>
-							</div>
-						</v-card>
-
-						<v-card flat class="invoice-section-card pos-themed-card remarks-section-card">
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Remarks") }}</h3>
-							</div>
-							<div class="pa-3">
-								<v-text-field
-									v-model="remarks"
-									:label="__('Remarks')"
-									density="compact"
-									variant="outlined"
-									hide-details
-									clearable
-									class="pos-themed-input"
-								/>
-							</div>
-						</v-card>
-					</div>
-
-					<div class="invoice-meta-grid">
-						<v-card
-							v-if="pos_profile.posa_allow_multi_currency"
-							flat
-							class="invoice-section-card pos-themed-card"
-						>
-							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Multi Currency") }}</h3>
-							</div>
-							<MultiCurrencyRow
-								:pos_profile="pos_profile"
-								:selected_currency="selected_currency"
-								:plc_conversion_rate="exchange_rate"
-								:conversion_rate="conversion_rate"
-								:available_currencies="available_currencies"
-								:isNumber="isNumber"
-								:price_list_currency="price_list_currency"
-								@update:selected_currency="
-									(val) => {
-										selected_currency = val;
-										update_currency(val);
-									}
-								"
-								@update:plc_conversion_rate="
-									(val) => {
-										exchange_rate = val;
-										update_exchange_rate();
-									}
-								"
-								@update:conversion_rate="
-									(val) => {
-										conversion_rate = val;
-										update_conversion_rate();
-									}
-								"
-							/>
-						</v-card>
-					</div>
+						</div>
+					</v-card>
 
 					<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 						<div class="invoice-section-heading">
@@ -328,6 +284,23 @@
 								:formatFloat="formatFloat"
 								:formatCurrency="formatCurrency"
 								:currencySymbol="currencySymbol"
+							/>
+						</div>
+					</v-card>
+
+					<v-card flat class="invoice-section-card pos-themed-card remarks-section-card">
+						<div class="invoice-section-heading">
+							<h3 class="invoice-section-heading__title">{{ __("Remarks") }}</h3>
+						</div>
+						<div class="sale-header__remarks-body">
+							<v-text-field
+								v-model="remarks"
+								:label="__('Remarks')"
+								density="compact"
+								variant="outlined"
+								hide-details
+								clearable
+								class="pos-themed-input"
 							/>
 						</div>
 					</v-card>
@@ -991,7 +964,13 @@ export default {
 			if (!this.canChangePosWarehouse || !warehouse) {
 				return;
 			}
-			this.syncCartWarehouse(warehouse);
+			// Stock/rates belong to the previous warehouse — drop the cart
+			// instead of rewriting item.warehouse and keeping stale qty/stock.
+			if (Array.isArray(this.items) && this.items.length) {
+				this.invoiceStore.clearItems();
+				this.invoiceStore.setPackedItems([]);
+				this.expanded = [];
+			}
 			await this.syncAccountForWarehouse(warehouse);
 			const canRefresh = this.canChangePosWarehouse;
 			this.itemsStore?.setActiveSaleWarehouse?.(warehouse);
@@ -1001,7 +980,6 @@ export default {
 			) {
 				await this.itemsStore.refreshItems({ warehouse });
 			}
-			await this.refreshCartStockForWarehouse(warehouse);
 		},
 		// setActiveSaleWarehouse/refreshItems above only refetches actual_qty
 		// for whatever page the *catalog* is currently showing -- an item
@@ -2002,46 +1980,6 @@ export default {
 	pointer-events: none;
 }
 
-/* Outstanding Due right-column panel */
-.outstanding-panel {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-.outstanding-panel__inner {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: 4px;
-	padding: 12px 16px;
-	width: 100%;
-	height: 100%;
-	text-align: center;
-	position: relative;
-}
-.outstanding-panel__label {
-	font-size: 0.72rem;
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	color: var(--pos-text-secondary, rgba(0,0,0,0.5));
-}
-.outstanding-panel__amount {
-	font-size: 1.5rem;
-	font-weight: 700;
-	line-height: 1.1;
-}
-.outstanding-panel__amount--due {
-	color: rgb(var(--v-theme-error));
-}
-.outstanding-panel__amount--clear {
-	color: rgb(var(--v-theme-success));
-}
-.outstanding-panel__icon {
-	margin-top: 2px;
-}
-
 /* Style for customer balance field */
 :deep(.balance-field) {
 	display: flex;
@@ -2108,36 +2046,103 @@ export default {
 	align-items: stretch;
 }
 
-.invoice-top-grid {
-	display: grid;
-	grid-template-columns: 2.5fr 1fr 2fr;
-	gap: var(--dynamic-sm);
+.invoice-sale-header,
+.create-header-card {
 	flex: 0 0 auto;
-	align-items: stretch;
+	container-type: inline-size;
+	container-name: txn-form;
+	min-width: 0;
 }
 
-.invoice-top-grid > .invoice-section-card {
-	height: 100%;
+.create-header {
 	display: flex;
 	flex-direction: column;
+	gap: 8px;
+	padding: 10px 12px 12px;
+	min-width: 0;
 }
 
-.invoice-top-grid > .outstanding-panel {
-	justify-content: center;
-}
-
-.invoice-meta-grid {
+.create-header__grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: var(--dynamic-sm);
-	flex: 0 0 auto;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 8px 10px;
+	align-items: center;
+	min-width: 0;
 }
 
-/* Remarks sits alone in whatever row it lands in within the 2-column
-   invoice-meta-grid -- span both columns instead of leaving half the row
-   empty next to it. */
-.remarks-section-card {
+.create-header__party,
+.create-header__metric,
+.create-header__field,
+.create-header__delivery,
+.create-header__toggles {
+	min-width: 0;
+}
+
+.create-header__party :deep(.sale-customer-row),
+.create-header__party :deep(.v-col),
+.create-header__party :deep(.customer-input-wrapper),
+.create-header__party :deep(.customer-field-shell),
+.create-header__party :deep(.customer-autocomplete) {
+	width: 100%;
+	max-width: none;
+}
+
+.create-header__metric-field :deep(input) {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+
+.create-header__metric-field--due :deep(input) {
+	color: rgb(var(--v-theme-error)) !important;
+}
+
+.create-header__metric-field--clear :deep(input) {
+	color: rgb(var(--v-theme-success)) !important;
+}
+
+.create-header__toggles {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 14px;
+	padding: 2px 0;
+}
+
+.create-header__toggles :deep(.v-label) {
+	white-space: nowrap !important;
+}
+
+.create-header__span-all {
 	grid-column: 1 / -1;
+}
+
+@container txn-form (min-width: 460px) {
+	.create-header__grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.create-header__toggles,
+	.create-header__span-all {
+		grid-column: 1 / -1;
+	}
+}
+
+.remarks-section-card .sale-header__remarks-body {
+	padding: 8px 12px 12px;
+}
+
+.create-header :deep(.posting-date-row) {
+	margin: 0;
+}
+
+.create-header :deep(.posting-date-input),
+.create-header :deep(.posting-date-input.mb-2) {
+	margin-bottom: 0 !important;
+}
+
+.create-header :deep(.sleek-field.mb-2) {
+	margin-bottom: 0 !important;
 }
 
 .invoice-section-card {
@@ -2151,12 +2156,12 @@ export default {
 }
 
 .invoice-section-heading {
-	padding: 14px 16px 0;
+	padding: 12px 14px 0;
 }
 
 .invoice-section-heading__title {
 	margin: 0;
-	font-size: 1rem;
+	font-size: 0.95rem;
 	font-weight: 700;
 	line-height: 1.25;
 	color: var(--pos-text-primary);
@@ -2206,36 +2211,9 @@ export default {
 		overflow: visible;
 	}
 
-	.invoice-top-grid {
-		grid-template-columns: 1fr;
-		display: grid !important;
-		visibility: visible !important;
-	}
-
-	.invoice-top-grid > .invoice-section-card,
-	.invoice-top-grid > .outstanding-panel,
-	.sale-options-card,
-	.sale-options-body,
-	.sale-options-toggles {
-		display: flex !important;
-		visibility: visible !important;
-		opacity: 1 !important;
-		height: auto !important;
-		min-height: 0;
-	}
-
-	.sale-options-body {
-		flex-direction: column;
-	}
-
-	.sale-options-toggles {
-		flex-direction: row;
-		flex-wrap: wrap;
+	.create-header {
+		padding: 8px 10px 10px;
 		gap: 8px;
-	}
-
-	.invoice-meta-grid {
-		grid-template-columns: 1fr;
 	}
 
 	.invoice-sections {
@@ -2259,34 +2237,6 @@ export default {
 
 	.item-search-field {
 		max-width: 100%;
-	}
-
-	.outstanding-panel__inner {
-		flex-direction: row;
-		justify-content: space-between;
-		align-items: center;
-		padding: 8px 12px;
-		gap: 8px;
-		text-align: start;
-		min-height: 0;
-	}
-
-	.outstanding-panel__label {
-		font-size: 0.68rem;
-	}
-
-	.outstanding-panel__amount {
-		font-size: 1.15rem;
-	}
-
-	.outstanding-panel__icon {
-		margin-top: 0;
-		margin-inline-start: auto;
-	}
-
-	.sale-options-body {
-		padding: 8px 12px 10px;
-		gap: 6px;
 	}
 
 	.invoice-section-heading {
@@ -2426,31 +2376,8 @@ export default {
 	font-size: 0.95rem;
 }
 
-.sale-options-card {
-	display: flex;
-	flex-direction: column;
-}
-
-.sale-options-body {
-	padding: 8px 14px 12px;
-	display: flex;
-	flex-direction: column;
-	gap: 0;
-	flex: 1 1 auto;
-}
-
-.sale-options-toggles {
-	display: flex;
-	flex-direction: row;
-	gap: 8px;
-	flex-wrap: wrap;
-}
-
 .sale-opt-switch {
 	flex: 0 0 auto;
-}
-
-.sale-opt-warehouse {
-	width: 100%;
+	min-width: max-content;
 }
 </style>

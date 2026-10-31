@@ -10,55 +10,47 @@
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
-							<div class="invoice-top-grid purchase-top-grid">
-								<v-card flat class="invoice-section-card pos-themed-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Warehouse") }}</h3>
-									</div>
-									<div class="sale-options-body">
-										<v-autocomplete
-											v-model="warehouse"
-											:items="warehouseOptions"
-											item-title="warehouse_name"
-											item-value="name"
-											:label="isIssue ? __('Issue From Warehouse') : __('Receive Into Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											prepend-inner-icon="mdi-warehouse"
-											class="pos-themed-input"
-											@update:model-value="onWarehouseChange"
-										/>
-									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
-									<div class="outstanding-panel__inner">
-										<div class="outstanding-panel__label">{{ __("Total Qty") }}</div>
-										<div class="outstanding-panel__amount outstanding-panel__amount--clear">
-											{{ formatFloat(totalQty) }}
+							<v-card flat class="invoice-section-card pos-themed-card create-header-card">
+								<div class="create-header">
+									<div class="create-header__grid">
+										<div class="create-header__field">
+											<v-autocomplete
+												v-model="warehouse"
+												:items="warehouseOptions"
+												item-title="warehouse_name"
+												item-value="name"
+												:label="isIssue ? __('Issue From Warehouse') : __('Receive Into Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												prepend-inner-icon="mdi-warehouse"
+												class="pos-themed-input"
+											/>
 										</div>
-										<div class="text-caption text-medium-emphasis">
-											{{ rows.length }} {{ rows.length === 1 ? __("item") : __("items") }}
+										<div class="create-header__metric">
+											<v-text-field
+												:model-value="formatFloat(totalQty)"
+												:label="__('Total Qty')"
+												:title="`${rows.length} ${rows.length === 1 ? __('item') : __('items')}`"
+												readonly
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input create-header__metric-field create-header__metric-field--clear"
+											/>
+										</div>
+										<div class="create-header__field">
+											<DateFilterField
+												v-model="postingDate"
+												:label="__('Posting Date')"
+												:clearable="false"
+												field-class="pos-themed-input"
+											/>
 										</div>
 									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Posting Date") }}</h3>
-									</div>
-									<div class="sale-options-body">
-										<DateFilterField
-											v-model="postingDate"
-											:label="__('Posting Date')"
-											:clearable="false"
-											field-class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-							</div>
+								</div>
+							</v-card>
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading">
@@ -276,7 +268,7 @@
 
 <script>
 import { useMobileErrorToast } from '../../../composables/core/useMobileErrorToast';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import format from '../../../format';
 import DateFilterField from '../shared/DateFilterField.vue';
@@ -448,22 +440,35 @@ export default {
 			}
 		};
 
-		const onWarehouseChange = async () => {
-			if (warehouse.value) {
-				itemsStore.setActiveSaleWarehouse(warehouse.value);
-				if (typeof itemsStore.refreshItems === 'function') {
-					try {
-						await itemsStore.refreshItems({
-							warehouse: warehouse.value,
-							forceServer: true,
-						});
-					} catch (e) {
-						console.error('Failed to refresh catalog for warehouse', e);
-					}
+		const refreshCatalogForWarehouse = async (wh) => {
+			if (!wh) {
+				return;
+			}
+			itemsStore.setActiveSaleWarehouse(wh);
+			if (typeof itemsStore.refreshItems === 'function') {
+				try {
+					await itemsStore.refreshItems({
+						warehouse: wh,
+						forceServer: true,
+					});
+				} catch (e) {
+					console.error('Failed to refresh catalog for warehouse', e);
 				}
 			}
 			await refreshStockQty();
 		};
+
+		watch(warehouse, async (nextWarehouse, prevWarehouse) => {
+			if (
+				prevWarehouse &&
+				nextWarehouse &&
+				prevWarehouse !== nextWarehouse &&
+				rows.value.length
+			) {
+				rows.value = [];
+			}
+			await refreshCatalogForWarehouse(nextWarehouse);
+		});
 
 		const addItem = (item) => {
 			if (!item) return;
@@ -533,7 +538,7 @@ export default {
 				}
 				// Load the warehouse's full catalogue like the other entry
 				// screens (and the warehouse picker) do.
-				await onWarehouseChange();
+				await refreshCatalogForWarehouse(warehouse.value);
 			} finally {
 				itemsStore.endWarehouseResolution();
 			}
@@ -568,7 +573,6 @@ export default {
 			totalQty,
 			canSubmit,
 			refreshStockQty,
-			onWarehouseChange,
 			handleItemSearch,
 			browseItemsOnOpen,
 			addItem,

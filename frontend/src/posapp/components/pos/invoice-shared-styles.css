@@ -417,21 +417,121 @@
 	border-radius: var(--pos-radius-md);
 }
 
+/* Invoice / create column is often narrow even on wide viewports.
+   Size create headers by container width, not the whole window. */
+.txn-col--invoice,
+.purchase-invoice-card,
+.invoice-sale-header,
+.create-header-card {
+	container-type: inline-size;
+	container-name: txn-form;
+}
+
+/* Compact create-header used by Sales / Purchase / New-* forms */
+.create-header {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px 12px 12px;
+	min-width: 0;
+}
+
+.create-header__grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 8px 10px;
+	align-items: center;
+	min-width: 0;
+}
+
+.create-header__party,
+.create-header__metric,
+.create-header__field,
+.create-header__delivery,
+.create-header__toggles {
+	min-width: 0;
+}
+
+.create-header__toggles {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 14px;
+	padding: 2px 0;
+}
+
+.create-header__toggles .sale-opt-switch,
+.create-header__toggles .v-switch {
+	flex: 0 0 auto;
+	min-width: max-content;
+}
+
+.create-header__toggles .v-label,
+.create-header__toggles .v-selection-control .v-label {
+	white-space: nowrap !important;
+	overflow: visible;
+}
+
+.create-header__metric-field :deep(input),
+.create-header__metric-field input {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+
+.create-header__metric-field--due :deep(input),
+.create-header__metric-field--due input {
+	color: rgb(var(--v-theme-error)) !important;
+}
+
+.create-header__metric-field--clear :deep(input),
+.create-header__metric-field--clear input {
+	color: rgb(var(--v-theme-success)) !important;
+}
+
+.create-header__span-all {
+	grid-column: 1 / -1;
+}
+
+@container txn-form (min-width: 460px) {
+	.create-header__grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.create-header__toggles,
+	.create-header__span-all {
+		grid-column: 1 / -1;
+	}
+}
+
+/* Legacy 3-card top grids: stack in narrow create columns */
 .purchase-top-grid {
-	grid-template-columns: 2.5fr 1fr 2fr;
+	grid-template-columns: minmax(0, 1fr);
 	align-items: stretch;
 	gap: var(--dynamic-sm);
 }
 
 .purchase-top-grid > .invoice-section-card {
-	height: 100%;
+	height: auto;
 	display: flex;
 	flex-direction: column;
+	min-width: 0;
+}
+
+@container txn-form (min-width: 560px) {
+	.purchase-top-grid {
+		grid-template-columns: minmax(0, 1.5fr) minmax(120px, 0.75fr) minmax(0, 1.25fr);
+	}
+
+	.purchase-top-grid > .invoice-section-card {
+		height: 100%;
+	}
 }
 
 .sale-options-card {
 	display: flex;
 	flex-direction: column;
+	min-width: 0;
 }
 
 .sale-options-body {
@@ -440,6 +540,29 @@
 	flex-direction: column;
 	gap: 8px;
 	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.sale-options-toggles {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 14px;
+}
+
+.sale-options-toggles .sale-opt-switch,
+.sale-options-toggles .v-switch {
+	flex: 0 0 auto;
+	min-width: max-content;
+}
+
+.sale-options-toggles .v-label {
+	white-space: nowrap !important;
+}
+
+.sale-opt-switch {
+	flex: 0 0 auto;
+	min-width: max-content;
 }
 
 .purchase-search-toolbar {
@@ -506,10 +629,6 @@
 }
 
 @media (max-width: 768px) {
-	.purchase-top-grid {
-		grid-template-columns: 1fr;
-	}
-
 	.purchase-bottom-bar {
 		flex-direction: column;
 		align-items: stretch;
@@ -524,13 +643,9 @@
 }
 
 @media (max-width: 1099px) {
-	.purchase-top-grid {
-		grid-template-columns: 1fr;
-	}
-
-	.invoice-top-grid.purchase-top-grid {
-		grid-template-columns: 1fr;
-	}
+	/* Column count for create headers is driven by @container txn-form
+	   rules above — do not force 1fr here or full-width create forms
+	   collapse even when the panel is wide enough. */
 
 	.txn-shell {
 		padding-bottom: calc(var(--bottom-safe-space) + var(--dynamic-xs));

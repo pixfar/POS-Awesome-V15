@@ -6,138 +6,131 @@
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
-							<div class="invoice-top-grid purchase-top-grid">
-								<v-card flat class="invoice-section-card pos-themed-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("From Employee") }}</h3>
-									</div>
-									<div class="sale-options-body">
-										<v-autocomplete
-											v-if="canSelectEmployee"
-											v-model="selectedEmployee"
-											v-model:search="employeeSearchQuery"
-											:items="employeeOptions"
-											item-title="employee_name"
-											item-value="name"
-											:label="__('Employee')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											:loading="employeeLoading || employeeSearchLoading"
-											:no-data-text="
-												employeeSearchQuery && employeeSearchQuery.length < 2
-													? __('Type at least 2 characters')
-													: __('No employees found')
-											"
-											prepend-inner-icon="mdi-account-outline"
-											class="pos-themed-input mb-2"
-											@update:search="handleEmployeeSearchUpdate"
-											@update:menu="onEmployeeMenu"
-										>
-											<template #append-item>
-												<div
-													v-if="employeeHasMore"
-													v-intersect="onEmployeeListIntersect"
-													class="pa-2 text-center text-caption text-medium-emphasis"
-												>
-													{{ __("Loading more...") }}
-												</div>
-											</template>
-											<template #item="{ props: itemProps, item }">
-												<v-list-item v-bind="itemProps" :title="undefined">
-													<v-list-item-title>{{ item.raw.employee_name }}</v-list-item-title>
-													<v-list-item-subtitle>{{ item.raw.name }}</v-list-item-subtitle>
-												</v-list-item>
-											</template>
-										</v-autocomplete>
-										<v-text-field
-											v-else
-											:model-value="employeeDisplay"
-											:label="__('Employee')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											:loading="employeeLoading"
-											prepend-inner-icon="mdi-account-outline"
-											class="pos-themed-input mb-2"
-										/>
-										<v-autocomplete
-											v-if="canChangeWarehouse && warehouseOptions.length"
-											v-model="warehouse"
-											:items="warehouseOptions"
-											item-title="warehouse_name"
-											item-value="name"
-											:label="__('Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											:loading="warehouseLoading"
-											class="pos-themed-input"
-										/>
-										<v-text-field
-											v-else
-											:model-value="warehouseLabel || warehouse"
-											:label="__('Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											:loading="warehouseLoading"
-											prepend-inner-icon="mdi-warehouse"
-											class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
-									<div class="outstanding-panel__inner">
-										<div class="outstanding-panel__label">{{ __("Total Amount") }}</div>
-										<div class="outstanding-panel__amount outstanding-panel__amount--clear">
-											{{ formatCurrency(totalAmount) }}
+							<v-card flat class="invoice-section-card pos-themed-card create-header-card">
+								<div class="create-header">
+									<div class="create-header__grid">
+										<div class="create-header__party">
+											<v-autocomplete
+												v-if="canSelectEmployee"
+												v-model="selectedEmployee"
+												v-model:search="employeeSearchQuery"
+												:items="employeeOptions"
+												item-title="employee_name"
+												item-value="name"
+												:label="__('Employee')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												:loading="employeeLoading || employeeSearchLoading"
+												:no-data-text="
+													employeeSearchQuery && employeeSearchQuery.length < 2
+														? __('Type at least 2 characters')
+														: __('No employees found')
+												"
+												prepend-inner-icon="mdi-account-outline"
+												class="pos-themed-input"
+												@update:search="handleEmployeeSearchUpdate"
+												@update:menu="onEmployeeMenu"
+											>
+												<template #append-item>
+													<div
+														v-if="employeeHasMore"
+														v-intersect="onEmployeeListIntersect"
+														class="pa-2 text-center text-caption text-medium-emphasis"
+													>
+														{{ __("Loading more...") }}
+													</div>
+												</template>
+												<template #item="{ props: itemProps, item }">
+													<v-list-item v-bind="itemProps" :title="undefined">
+														<v-list-item-title>{{ item.raw.employee_name }}</v-list-item-title>
+														<v-list-item-subtitle>{{ item.raw.name }}</v-list-item-subtitle>
+													</v-list-item>
+												</template>
+											</v-autocomplete>
+											<v-text-field
+												v-else
+												:model-value="employeeDisplay"
+												:label="__('Employee')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												readonly
+												:loading="employeeLoading"
+												prepend-inner-icon="mdi-account-outline"
+												class="pos-themed-input"
+											/>
 										</div>
-										<div class="text-caption text-medium-emphasis">
-											{{ expenseRows.length }}
-											{{ expenseRows.length === 1 ? __("expense") : __("expenses") }}
+										<div class="create-header__metric">
+											<v-text-field
+												:model-value="formatCurrency(totalAmount)"
+												:label="__('Total Amount')"
+												:title="`${expenseRows.length} ${expenseRows.length === 1 ? __('expense') : __('expenses')}`"
+												readonly
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input create-header__metric-field create-header__metric-field--clear"
+											/>
+										</div>
+										<div class="create-header__field">
+											<v-autocomplete
+												v-if="canChangeWarehouse && warehouseOptions.length"
+												v-model="warehouse"
+												:items="warehouseOptions"
+												item-title="warehouse_name"
+												item-value="name"
+												:label="__('Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												:loading="warehouseLoading"
+												class="pos-themed-input"
+											/>
+											<v-text-field
+												v-else
+												:model-value="warehouseLabel || warehouse"
+												:label="__('Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												readonly
+												:loading="warehouseLoading"
+												prepend-inner-icon="mdi-warehouse"
+												class="pos-themed-input"
+											/>
+										</div>
+										<div class="create-header__field">
+											<DateFilterField
+												v-model="expenseDate"
+												:label="__('Expense Date')"
+												:clearable="false"
+												:disabled="!canEditPostingDate"
+												field-class="pos-themed-input"
+											/>
+										</div>
+										<div v-if="canEditPaymentAccount" class="create-header__field">
+											<v-autocomplete
+												v-model="paymentAccountOverride"
+												:items="cashAccountOptions"
+												item-title="name"
+												item-value="name"
+												:label="__('Accounts')"
+												density="compact"
+												variant="outlined"
+												hide-details
+												clearable
+												:loading="cashAccountsLoading"
+												class="pos-themed-input"
+											/>
 										</div>
 									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">
-											{{ canEditPaymentAccount ? __("Date & Accounts") : __("Date") }}
-										</h3>
-									</div>
-									<div class="sale-options-body">
-										<DateFilterField
-											v-model="expenseDate"
-											:label="__('Expense Date')"
-											:clearable="false"
-											:disabled="!canEditPostingDate"
-											field-class="pos-themed-input"
-										/>
-										<v-autocomplete
-											v-if="canEditPaymentAccount"
-											v-model="paymentAccountOverride"
-											:items="cashAccountOptions"
-											item-title="name"
-											item-value="name"
-											:label="__('Accounts')"
-											density="compact"
-											variant="outlined"
-											hide-details
-											clearable
-											:loading="cashAccountsLoading"
-											class="pos-themed-input mt-2"
-										/>
-									</div>
-								</v-card>
-							</div>
+								</div>
+							</v-card>
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading d-flex align-center justify-space-between">

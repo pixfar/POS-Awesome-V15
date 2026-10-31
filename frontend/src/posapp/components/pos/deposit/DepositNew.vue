@@ -6,68 +6,61 @@
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
-							<div class="invoice-top-grid purchase-top-grid">
-								<v-card flat class="invoice-section-card pos-themed-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Deposited By") }}</h3>
-									</div>
-									<div class="sale-options-body">
-										<v-text-field
-											:model-value="userDisplay"
-											:label="__('User')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											:loading="userLoading"
-											prepend-inner-icon="mdi-account-outline"
-											class="pos-themed-input"
-											style="flex: 0 0 auto"
-										/>
-									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
-									<div class="outstanding-panel__inner">
-										<div class="outstanding-panel__label">{{ __("Amount") }}</div>
-										<div class="outstanding-panel__amount outstanding-panel__amount--clear">
-											{{ formatCurrency(amount) }}
+							<v-card flat class="invoice-section-card pos-themed-card create-header-card">
+								<div class="create-header">
+									<div class="create-header__grid">
+										<div class="create-header__field">
+											<v-text-field
+												:model-value="userDisplay"
+												:label="__('User')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												readonly
+												:loading="userLoading"
+												prepend-inner-icon="mdi-account-outline"
+												class="pos-themed-input"
+											/>
+										</div>
+										<div class="create-header__metric">
+											<v-text-field
+												:model-value="formatCurrency(amount)"
+												:label="__('Amount')"
+												readonly
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input create-header__metric-field create-header__metric-field--clear"
+											/>
+										</div>
+										<div class="create-header__field">
+											<DateFilterField
+												v-model="postingDate"
+												:label="__('Posting Date')"
+												:clearable="false"
+												:disabled="!canEditPostingDate"
+												field-class="pos-themed-input"
+											/>
+										</div>
+										<div v-if="canEditPaymentAccount" class="create-header__field">
+											<v-autocomplete
+												v-model="paymentAccountOverride"
+												:items="cashAccountOptions"
+												item-title="name"
+												item-value="name"
+												:label="__('Accounts')"
+												density="compact"
+												variant="outlined"
+												hide-details
+												clearable
+												:loading="cashAccountsLoading"
+												class="pos-themed-input"
+											/>
 										</div>
 									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">
-											{{ canEditPaymentAccount ? __("Date & Accounts") : __("Date") }}
-										</h3>
-									</div>
-									<div class="sale-options-body">
-										<DateFilterField
-											v-model="postingDate"
-											:label="__('Posting Date')"
-											:clearable="false"
-											:disabled="!canEditPostingDate"
-											field-class="pos-themed-input"
-										/>
-										<v-autocomplete
-											v-if="canEditPaymentAccount"
-											v-model="paymentAccountOverride"
-											:items="cashAccountOptions"
-											item-title="name"
-											item-value="name"
-											:label="__('Accounts')"
-											density="compact"
-											variant="outlined"
-											hide-details
-											clearable
-											:loading="cashAccountsLoading"
-											class="pos-themed-input mt-2"
-										/>
-									</div>
-								</v-card>
-							</div>
+								</div>
+							</v-card>
 
 							<v-card flat class="invoice-section-card pos-themed-card">
 								<div class="invoice-section-heading">

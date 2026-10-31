@@ -59,6 +59,6 @@ export default {
 
 <style scoped>
 .purchase-header__body {
-	padding: 8px 14px 12px;
+	padding: 0;
 }
 </style>

@@ -1908,7 +1908,7 @@ export default {
 }
 
 .payment-top-grid {
-	grid-template-columns: 2.5fr 1fr 2fr;
+	grid-template-columns: minmax(0, 1fr);
 	align-items: stretch;
 	gap: var(--dynamic-sm);
 	flex: 0 0 auto;

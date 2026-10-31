@@ -10,100 +10,90 @@
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
-							<div class="invoice-top-grid purchase-top-grid">
-								<v-card flat class="invoice-section-card pos-themed-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">
-											{{ __("Warehouse Details") }}
-										</h3>
-									</div>
-									<div class="sale-options-body">
-										<v-autocomplete
-											v-if="canChangePosWarehouse && sourceWarehouseOptions.length"
-											v-model="sourceWarehouse"
-											:items="sourceWarehouseOptions"
-											item-title="warehouse_name"
-											item-value="name"
-											:label="__('From Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											:loading="warehouseLoading"
-											class="pos-themed-input mb-2"
-										/>
-										<v-text-field
-											v-else-if="sourceWarehouse"
-											:model-value="sourceWarehouseLabel || sourceWarehouse"
-											:label="__('From Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											prepend-inner-icon="mdi-warehouse"
-											class="pos-themed-input mb-2"
-										/>
-										<v-autocomplete
-											v-if="canChangeTargetWarehouse"
-											v-model="targetWarehouse"
-											:items="targetWarehouseOptions"
-											item-title="warehouse_name"
-											item-value="name"
-											:label="__('Target Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											class="pos-themed-input"
-										/>
-										<v-text-field
-											v-else
-											:model-value="targetWarehouseLabel || targetWarehouse"
-											:label="__('Target Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											prepend-inner-icon="mdi-warehouse"
-											class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
-									<div class="outstanding-panel__inner">
-										<div class="outstanding-panel__label">{{ __("Total Qty") }}</div>
-										<div class="outstanding-panel__amount outstanding-panel__amount--clear">
-											{{ totalQty }}
+							<v-card flat class="invoice-section-card pos-themed-card create-header-card">
+								<div class="create-header">
+									<div class="create-header__grid">
+										<div class="create-header__field">
+											<v-autocomplete
+												v-if="canChangePosWarehouse && sourceWarehouseOptions.length"
+												v-model="sourceWarehouse"
+												:items="sourceWarehouseOptions"
+												item-title="warehouse_name"
+												item-value="name"
+												:label="__('From Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												:loading="warehouseLoading"
+												class="pos-themed-input"
+											/>
+											<v-text-field
+												v-else-if="sourceWarehouse"
+												:model-value="sourceWarehouseLabel || sourceWarehouse"
+												:label="__('From Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												readonly
+												prepend-inner-icon="mdi-warehouse"
+												class="pos-themed-input"
+											/>
 										</div>
-										<div class="text-caption text-medium-emphasis">
-											{{ requisitionItems.length }}
-											{{ requisitionItems.length === 1 ? __("item") : __("items") }}
+										<div class="create-header__field">
+											<v-autocomplete
+												v-if="canChangeTargetWarehouse"
+												v-model="targetWarehouse"
+												:items="targetWarehouseOptions"
+												item-title="warehouse_name"
+												item-value="name"
+												:label="__('Target Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												class="pos-themed-input"
+											/>
+											<v-text-field
+												v-else
+												:model-value="targetWarehouseLabel || targetWarehouse"
+												:label="__('Target Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												readonly
+												prepend-inner-icon="mdi-warehouse"
+												class="pos-themed-input"
+											/>
+										</div>
+										<div class="create-header__field">
+											<VueDatePicker
+												v-model="requiredDateDisplay"
+												model-type="format"
+												format="dd-MM-yyyy"
+												auto-apply
+												teleport
+												:placeholder="__('Items Required Date')"
+												class="sleek-field pos-themed-input"
+											/>
+										</div>
+										<div class="create-header__metric">
+											<v-text-field
+												:model-value="`${totalQty}`"
+												:label="__('Total Qty')"
+												:title="`${requisitionItems.length} ${requisitionItems.length === 1 ? __('item') : __('items')}`"
+												readonly
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input create-header__metric-field create-header__metric-field--clear"
+											/>
 										</div>
 									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">
-											{{ __("Items Required Date") }}
-										</h3>
-									</div>
-									<div class="sale-options-body">
-										<VueDatePicker
-											v-model="requiredDateDisplay"
-											model-type="format"
-											format="dd-MM-yyyy"
-											auto-apply
-											teleport
-											:placeholder="__('Items Required Date')"
-											class="sleek-field pos-themed-input"
-										/>
-									</div>
-								</v-card>
-							</div>
+								</div>
+							</v-card>
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading">
@@ -681,9 +671,12 @@ export default {
 			}
 		};
 
-		watch(sourceWarehouse, async (nextSource) => {
+		watch(sourceWarehouse, async (nextSource, prevSource) => {
 			if (nextSource && targetWarehouse.value === nextSource) {
 				targetWarehouse.value = null;
+			}
+			if (prevSource && prevSource !== nextSource && requisitionItems.value.length) {
+				requisitionItems.value = [];
 			}
 			await refreshCatalogForWarehouse(nextSource);
 		});

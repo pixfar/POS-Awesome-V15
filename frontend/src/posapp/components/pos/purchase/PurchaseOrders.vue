@@ -14,73 +14,98 @@
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3">
 						<div class="invoice-sections">
-							<div class="invoice-top-grid purchase-top-grid">
-								<!-- Col 1: Supplier Details -->
-								<v-card flat class="invoice-section-card pos-themed-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">
-											{{ __("Supplier Details") }}
-										</h3>
-									</div>
-									<PurchaseHeader
-										v-model:supplier="supplier"
-										:supplierOptions="supplierOptions"
-										:supplierLoading="supplierLoading"
-										@search-supplier="handleSupplierSearch"
-										@create-supplier="supplierDialog = true"
-									/>
-								</v-card>
-
-								<!-- Col 2: Supplier Outstanding -->
-								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
-									<div class="outstanding-panel__inner">
-										<div class="outstanding-panel__label">
-											{{ __("Supplier Outstanding") }}
+							<v-card flat class="invoice-section-card pos-themed-card create-header-card">
+								<div class="create-header">
+									<div class="create-header__grid">
+										<div class="create-header__party">
+											<PurchaseHeader
+												v-model:supplier="supplier"
+												:supplierOptions="supplierOptions"
+												:supplierLoading="supplierLoading"
+												@search-supplier="handleSupplierSearch"
+												@create-supplier="supplierDialog = true"
+											/>
 										</div>
-										<div
-											class="outstanding-panel__amount"
-											:class="
-												supplier && supplierOutstanding > 0
-													? 'outstanding-panel__amount--due'
-													: 'outstanding-panel__amount--clear'
-											"
-										>
-											{{
-												supplier
-													? formatCurrency(supplierOutstanding)
-													: "—"
-											}}
+										<div class="create-header__metric">
+											<v-text-field
+												:model-value="
+													supplier ? formatCurrency(supplierOutstanding) : '—'
+												"
+												:label="__('Due')"
+												:title="
+													supplier ? formatCurrency(supplierOutstanding) : ''
+												"
+												readonly
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input create-header__metric-field"
+												:class="{
+													'create-header__metric-field--due':
+														supplier && supplierOutstanding > 0,
+													'create-header__metric-field--clear':
+														supplier && supplierOutstanding <= 0,
+												}"
+											>
+												<template #append-inner>
+													<v-icon
+														v-if="supplier"
+														:color="supplierOutstanding > 0 ? 'error' : 'success'"
+														size="18"
+													>
+														{{
+															supplierOutstanding > 0
+																? 'mdi-alert-circle'
+																: 'mdi-check-circle'
+														}}
+													</v-icon>
+												</template>
+											</v-text-field>
 										</div>
-										<v-icon
-											v-if="supplier"
-											:color="supplierOutstanding > 0 ? 'error' : 'success'"
-											size="22"
-											class="outstanding-panel__icon"
-										>
-											{{
-												supplierOutstanding > 0
-													? "mdi-alert-circle"
-													: "mdi-check-circle"
-											}}
-										</v-icon>
-									</div>
-								</v-card>
 
-								<!-- Col 3: Purchase Options (Warehouse, Date, Toggles) -->
-								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
-									<div class="sale-options-body">
-										<VueDatePicker
-											v-model="postingDateTime"
-											model-type="format"
-											format="dd-MM-yyyy HH:mm"
-											enable-time-picker
-											auto-apply
-											teleport
-											:disabled="!canEditPostingDate"
-											:placeholder="frappe._('Purchase Date')"
-											class="sleek-field pos-themed-input mb-2"
-										/>
-										<div class="sale-options-toggles">
+										<div class="create-header__field">
+											<VueDatePicker
+												v-model="postingDateTime"
+												model-type="format"
+												format="dd-MM-yyyy HH:mm"
+												enable-time-picker
+												auto-apply
+												teleport
+												:disabled="!canEditPostingDate"
+												:placeholder="frappe._('Purchase Date')"
+												class="sleek-field pos-themed-input"
+											/>
+										</div>
+										<div class="create-header__field">
+											<v-autocomplete
+												v-if="canChangePosWarehouse && warehouseOptions.length"
+												v-model="warehouse"
+												:items="warehouseOptions"
+												item-title="name"
+												item-value="name"
+												:label="frappe._('Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												:loading="warehouseLoading"
+												class="pos-themed-input"
+											/>
+											<v-text-field
+												v-else-if="warehouse"
+												:model-value="warehouse || warehouseLabel"
+												:label="frappe._('Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												readonly
+												prepend-inner-icon="mdi-warehouse"
+												class="pos-themed-input"
+											/>
+										</div>
+
+										<div class="create-header__toggles">
 											<v-switch
 												v-model="updateStock"
 												density="compact"
@@ -98,99 +123,35 @@
 												class="sale-opt-switch"
 											/>
 										</div>
-										<v-autocomplete
-											v-if="canChangePosWarehouse && warehouseOptions.length"
-											v-model="warehouse"
-											:items="warehouseOptions"
-											item-title="name"
-											item-value="name"
-											:label="frappe._('Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											:loading="warehouseLoading"
-											class="pos-themed-input mt-2"
-										/>
-										<v-text-field
-											v-else-if="warehouse"
-											:model-value="warehouse || warehouseLabel"
-											:label="frappe._('Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											prepend-inner-icon="mdi-warehouse"
-											class="pos-themed-input mt-2"
-										/>
-									</div>
-								</v-card>
-							</div>
 
-							<div class="invoice-meta-grid">
-								<v-card
-									v-if="canEditDoNumber"
-									flat
-									class="invoice-section-card pos-themed-card"
-								>
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
+										<div v-if="canEditDoNumber" class="create-header__field">
+											<v-text-field
+												v-model="doNumber"
+												:label="__('DO Number')"
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input"
+											/>
+										</div>
+										<div v-if="canEditPaymentAccount" class="create-header__field">
+											<v-autocomplete
+												v-model="paymentAccountOverride"
+												:items="cashAccountOptions"
+												item-title="name"
+												item-value="name"
+												:label="__('Accounts')"
+												density="compact"
+												variant="outlined"
+												hide-details
+												clearable
+												:loading="cashAccountsLoading"
+												class="pos-themed-input"
+											/>
+										</div>
 									</div>
-									<div class="pa-3">
-										<v-text-field
-											v-model="doNumber"
-											:label="__('DO Number')"
-											density="compact"
-											variant="outlined"
-											hide-details
-											class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-
-								<v-card
-									v-if="canEditPaymentAccount"
-									flat
-									class="invoice-section-card pos-themed-card"
-								>
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Accounts") }}</h3>
-									</div>
-									<div class="pa-3">
-										<v-autocomplete
-											v-model="paymentAccountOverride"
-											:items="cashAccountOptions"
-											item-title="name"
-											item-value="name"
-											:label="__('Accounts')"
-											density="compact"
-											variant="outlined"
-											hide-details
-											clearable
-											:loading="cashAccountsLoading"
-											class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card remarks-section-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Remarks") }}</h3>
-									</div>
-									<div class="pa-3">
-										<v-text-field
-											v-model="remarks"
-											:label="__('Remarks')"
-											density="compact"
-											variant="outlined"
-											hide-details
-											clearable
-											class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-							</div>
+								</div>
+							</v-card>
 
 							<v-card flat class="invoice-section-card invoice-items-card pos-themed-card">
 								<div class="invoice-section-heading d-flex align-center justify-space-between flex-wrap ga-2">
@@ -209,17 +170,31 @@
 											{{ __("Draft") }}: {{ loadedDraft }}
 										</v-chip>
 									</h3>
-									<v-btn
-										size="small"
-										variant="tonal"
-										color="primary"
-										prepend-icon="mdi-file-document-edit-outline"
-										class="text-none"
-										:loading="draftLoading"
-										@click="draftsDialog = true"
-									>
-										{{ __("Load Draft") }}
-									</v-btn>
+									<div class="d-flex align-center flex-wrap ga-2">
+										<v-btn
+											size="small"
+											variant="tonal"
+											color="primary"
+											prepend-icon="mdi-content-save-outline"
+											class="text-none"
+											:loading="draftSaving"
+											:disabled="draftSaving || submitLoading"
+											@click="savePurchaseDraft"
+										>
+											{{ loadedDraft ? __("Update Draft") : __("Save Draft") }}
+										</v-btn>
+										<v-btn
+											size="small"
+											variant="tonal"
+											color="primary"
+											prepend-icon="mdi-file-document-edit-outline"
+											class="text-none"
+											:loading="draftLoading"
+											@click="draftsDialog = true"
+										>
+											{{ __("Load Draft") }}
+										</v-btn>
+									</div>
 								</div>
 								<div class="purchase-search-toolbar">
 									<v-autocomplete
@@ -295,6 +270,23 @@
 								/>
 							</v-card>
 
+							<v-card flat class="invoice-section-card pos-themed-card remarks-section-card">
+								<div class="invoice-section-heading">
+									<h3 class="invoice-section-heading__title">{{ __("Remarks") }}</h3>
+								</div>
+								<div class="pa-3">
+									<v-text-field
+										v-model="remarks"
+										:label="__('Remarks')"
+										density="compact"
+										variant="outlined"
+										hide-details
+										clearable
+										class="pos-themed-input"
+									/>
+								</div>
+							</v-card>
+
 							<v-alert
 								v-if="errorMessage"
 								type="error"
@@ -335,8 +327,19 @@
 							/>
 						</div>
 						<v-btn
+							:loading="draftSaving"
+							:disabled="draftSaving || submitLoading"
+							@click="savePurchaseDraft"
+							size="large"
+							variant="outlined"
+							class="text-none purchase-draft-btn"
+							prepend-icon="mdi-content-save-outline"
+						>
+							{{ loadedDraft ? __("Update Draft") : __("Save Draft") }}
+						</v-btn>
+						<v-btn
 							:loading="submitLoading"
-							:disabled="submitLoading"
+							:disabled="submitLoading || draftSaving"
 							@click="openPaymentDialog"
 							size="large"
 							class="text-none purchase-pay-btn"
@@ -411,7 +414,17 @@
 				</button>
 				<button
 					type="button"
+					class="mobile-pos-dock__item"
+					:disabled="draftSaving || submitLoading"
+					@click="savePurchaseDraft"
+				>
+					<v-icon icon="mdi-content-save-outline" size="20" />
+					<span>{{ loadedDraft ? __("Update") : __("Draft") }}</span>
+				</button>
+				<button
+					type="button"
 					class="mobile-pos-dock__item mobile-pos-dock__item--pay"
+					:disabled="draftSaving || submitLoading"
 					@click="openPaymentDialog"
 				>
 					<v-icon icon="mdi-credit-card-outline" size="20" />
@@ -869,11 +882,19 @@ export default {
 			);
 		};
 
-		watch(warehouse, async (nextWarehouse) => {
+		watch(warehouse, async (nextWarehouse, prevWarehouse) => {
 			if (!nextWarehouse) {
 				return;
 			}
-			if (canChangePosWarehouse.value) {
+			// User switched warehouse mid-cart — previous lines belong to the
+			// old warehouse (and its stock/rates), so clear instead of rewriting.
+			if (
+				prevWarehouse &&
+				prevWarehouse !== nextWarehouse &&
+				purchaseItems.value.length
+			) {
+				purchaseItems.value = [];
+			} else if (canChangePosWarehouse.value) {
 				syncPurchaseItemsWarehouse(nextWarehouse);
 			}
 			await refreshCatalogForWarehouse(nextWarehouse);
@@ -1059,6 +1080,7 @@ export default {
 		const loadedDraft = ref(null);
 		const draftsDialog = ref(false);
 		const draftLoading = ref(false);
+		const draftSaving = ref(false);
 
 		const resetForm = () => {
 			loadedDraft.value = null;
@@ -1128,6 +1150,102 @@ export default {
 			resetForm();
 		};
 
+		const resolveSupplierName = () =>
+			typeof supplier.value === "object" && supplier.value !== null
+				? supplier.value.name || supplier.value.supplier_name || ""
+				: supplier.value;
+
+		const buildPurchasePayload = ({ submit = 1, includePayments = true } = {}) => {
+			const { posting_date, posting_time } = splitPostingDateTime(postingDateTime.value);
+			const txnWarehouse = canChangePosWarehouse.value
+				? warehouse.value
+				: pos_profile.value?.warehouse;
+
+			return {
+				supplier: resolveSupplierName(),
+				company: pos_profile.value.company,
+				warehouse: txnWarehouse,
+				currency: supplierCurrency.value,
+				posting_date,
+				posting_time,
+				transaction_date: posting_date,
+				schedule_date: posting_date,
+				receive: 0,
+				update_stock: updateStock.value ? 1 : 0,
+				custom_is_paid: customIsPaid.value ? 1 : 0,
+				custom_do_number: doNumber.value || null,
+				remarks: remarks.value || null,
+				// Submits/updates the loaded draft in place instead of creating a new invoice.
+				draft_name: loadedDraft.value || null,
+				// Server re-verifies System Manager / BSP Admin before honoring
+				// this -- see purchase_orders._create_purchase_invoice_from_pos.
+				payment_account: canEditPaymentAccount.value
+					? paymentAccountOverride.value || null
+					: null,
+				pos_profile: pos_profile.value,
+				payments: includePayments ? payments.value : [],
+				discount_amount: discountAmount.value,
+				submit,
+				items: purchaseItems.value.map((item) => ({
+					item_code: item.item_code,
+					item_name: item.item_name,
+					stock_uom: item.stock_uom,
+					uom: item.uom,
+					conversion_factor: item.conversion_factor,
+					qty: item.qty,
+					rate: item.rate,
+					warehouse: txnWarehouse || pos_profile.value?.warehouse,
+				})),
+			};
+		};
+
+		const savePurchaseDraft = async () => {
+			if (!supplier.value && !purchaseItems.value.length) {
+				validationMessage.value = __(
+					"Please select a supplier and add at least one item before saving a draft.",
+				);
+				validationDialog.value = true;
+				return;
+			}
+			if (!supplier.value) {
+				validationMessage.value = __("Please select a supplier before saving a draft.");
+				validationDialog.value = true;
+				return;
+			}
+			if (!purchaseItems.value.length) {
+				validationMessage.value = __("Please add at least one item before saving a draft.");
+				validationDialog.value = true;
+				return;
+			}
+			if (!postingDateTime.value) {
+				errorMessage.value = __("Supplier and date are required.");
+				return;
+			}
+
+			draftSaving.value = true;
+			errorMessage.value = "";
+			try {
+				const payload = buildPurchasePayload({ submit: 0, includePayments: false });
+				const { message } = await frappe.call({
+					method: "posawesome.posawesome.api.purchase_invoices.create_purchase_invoice",
+					args: { data: payload },
+				});
+				const draftName = message?.purchase_invoice || message?.purchase_order;
+				if (draftName) {
+					toastStore.show({
+						title: __("Draft {0} saved", [draftName]),
+						color: "success",
+					});
+					resetForm();
+				}
+			} catch (error) {
+				errorMessage.value = extractServerError(error);
+				toastStore.show({ title: errorMessage.value, color: "error" });
+			} finally {
+				draftSaving.value = false;
+			}
+		};
+
 		const submitPurchaseInvoice = async (print = false, printFormat = null) => {
 			if (!supplier.value || !postingDateTime.value) {
 				errorMessage.value = __("Supplier and date are required.");
@@ -1135,55 +1253,8 @@ export default {
 			}
 			submitLoading.value = true;
 			try {
-				const { posting_date, posting_time } = splitPostingDateTime(
-					postingDateTime.value,
-				);
-
-				const resolvedSupplier =
-					typeof supplier.value === "object" && supplier.value !== null
-						? supplier.value.name || supplier.value.supplier_name || ""
-						: supplier.value;
-
-				const txnWarehouse =
-					canChangePosWarehouse.value
-						? warehouse.value
-						: pos_profile.value?.warehouse;
-
-				const payload = {
-					supplier: resolvedSupplier,
-					company: pos_profile.value.company,
-					warehouse: txnWarehouse,
-					currency: supplierCurrency.value,
-					posting_date,
-					posting_time,
-					transaction_date: posting_date,
-					schedule_date: posting_date,
-					receive: 0,
-					update_stock: updateStock.value ? 1 : 0,
-					custom_is_paid: customIsPaid.value ? 1 : 0,
-					custom_do_number: doNumber.value || null,
-					remarks: remarks.value || null,
-					// Submits the loaded draft in place instead of creating a new invoice.
-					draft_name: loadedDraft.value || null,
-					// Server re-verifies System Manager / BSP Admin before honoring
-					// this -- see purchase_orders._create_purchase_invoice_from_pos.
-					payment_account: canEditPaymentAccount.value ? (paymentAccountOverride.value || null) : null,
-					pos_profile: pos_profile.value,
-					payments: payments.value,
-					discount_amount: discountAmount.value,
-					items: purchaseItems.value.map((item) => ({
-						item_code: item.item_code,
-						item_name: item.item_name,
-						stock_uom: item.stock_uom,
-						uom: item.uom,
-						conversion_factor: item.conversion_factor,
-						qty: item.qty,
-						rate: item.rate,
-						warehouse:
-							txnWarehouse ||
-							pos_profile.value?.warehouse,
-					})),
-				};
+				const resolvedSupplier = resolveSupplierName();
+				const payload = buildPurchasePayload({ submit: 1, includePayments: true });
 				const { message } = await frappe.call({
 					method: "posawesome.posawesome.api.purchase_invoices.create_purchase_invoice",
 					args: { data: payload },
@@ -1321,8 +1392,10 @@ export default {
 			loadedDraft,
 			draftsDialog,
 			draftLoading,
+			draftSaving,
 			requestLoadDraft,
 			discardLoadedDraft,
+			savePurchaseDraft,
 			canAddUom,
 			uomDialogOpen,
 			uomDialogItem,
@@ -1422,59 +1495,18 @@ export default {
 <style scoped>
 @import "../invoice-shared-styles.css";
 
-/* 3-column top grid matching Sales layout */
-.purchase-top-grid {
-	grid-template-columns: 2.5fr 1fr 2fr !important;
-	align-items: stretch;
-	gap: 12px !important;
-	margin-bottom: 12px;
+.create-header :deep(.purchase-header__body) {
+	padding: 0;
 }
 
-/* Force every card in the top grid to fill the row height */
-.purchase-top-grid > .invoice-section-card {
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-}
-
-/* Outstanding panel fills height and centers its content */
-.purchase-top-grid > .outstanding-panel {
-	justify-content: center;
-}
-
-@media (max-width: 768px) {
-	.purchase-top-grid {
-		grid-template-columns: 1fr !important;
-	}
-	.purchase-top-grid > .invoice-section-card {
-		height: auto;
-	}
-}
-
-/* Purchase Options card (col 3) */
-.sale-options-card {
-	display: flex;
-	flex-direction: column;
-}
-
-.sale-options-body {
-	padding: 8px 14px 12px;
-	display: flex;
-	flex-direction: column;
-	gap: 0;
-	flex: 1 1 auto;
-}
-
-.sale-options-toggles {
-	display: flex;
-	flex-direction: row;
-	gap: 8px;
-	flex-wrap: wrap;
-	margin-top: 4px;
+.create-header :deep(.sleek-field.mb-2),
+.create-header :deep(.pos-themed-input.mb-2) {
+	margin-bottom: 0 !important;
 }
 
 .sale-opt-switch {
 	flex: 0 0 auto;
+	min-width: max-content;
 }
 
 .purchase-date-picker {
@@ -1593,6 +1625,21 @@ export default {
 	padding: 8px 16px 12px;
 }
 
+.purchase-draft-btn {
+	color: #ffffff !important;
+	border-color: rgba(255, 255, 255, 0.55) !important;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	border-radius: 8px !important;
+	min-width: 132px !important;
+	flex-shrink: 0;
+}
+
+.purchase-draft-btn :deep(.v-btn__content),
+.purchase-draft-btn :deep(.v-icon) {
+	color: #ffffff !important;
+}
+
 .purchase-pay-btn {
 	background: #ffffff !important;
 	color: var(--pos-primary) !important;
@@ -1601,6 +1648,7 @@ export default {
 	border-radius: 8px !important;
 	min-width: 140px !important;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+	flex-shrink: 0;
 }
 
 .purchase-item-option__title {

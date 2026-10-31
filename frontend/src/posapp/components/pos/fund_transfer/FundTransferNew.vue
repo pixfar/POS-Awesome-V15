@@ -6,60 +6,49 @@
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
-							<div class="invoice-top-grid purchase-top-grid">
-								<v-card flat class="invoice-section-card pos-themed-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Account Paid From") }}</h3>
-									</div>
-									<div class="sale-options-body">
-										<v-text-field
-											:model-value="paidFrom"
-											:label="__('Company Default Cash Account')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											:loading="paidFromLoading"
-											prepend-inner-icon="mdi-bank-outline"
-											class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-
-								<!-- Current closing balance of the selected "Account Paid To". -->
-								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
-									<div class="outstanding-panel__inner">
-										<div class="outstanding-panel__label">{{ __("Closing Balance") }}</div>
-										<div
-											class="outstanding-panel__amount"
-											:class="closingBalance !== null && closingBalance < 0
-												? 'outstanding-panel__amount--due'
-												: 'outstanding-panel__amount--clear'"
-										>
-											<v-progress-circular v-if="closingBalanceLoading" indeterminate size="20" width="2" />
-											<template v-else>
-												{{ closingBalance === null ? "—" : formatCurrency(closingBalance) }}
-											</template>
+							<v-card flat class="invoice-section-card pos-themed-card create-header-card">
+								<div class="create-header">
+									<div class="create-header__grid">
+										<div class="create-header__field">
+											<v-text-field
+												:model-value="paidFrom"
+												:label="__('Company Default Cash Account')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												readonly
+												:loading="paidFromLoading"
+												prepend-inner-icon="mdi-bank-outline"
+												class="pos-themed-input"
+											/>
+										</div>
+										<div class="create-header__metric">
+											<v-text-field
+												:model-value="closingBalanceLoading ? '…' : (closingBalance === null ? '—' : formatCurrency(closingBalance))"
+												:label="__('Closing Balance')"
+												readonly
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input create-header__metric-field"
+												:class="{
+													'create-header__metric-field--due': closingBalance !== null && closingBalance < 0,
+													'create-header__metric-field--clear': closingBalance === null || closingBalance >= 0,
+												}"
+											/>
+										</div>
+										<div class="create-header__field">
+											<DateFilterField
+												v-model="postingDate"
+												:label="__('Posting Date')"
+												:clearable="false"
+												field-class="pos-themed-input"
+											/>
 										</div>
 									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">{{ __("Date") }}</h3>
-									</div>
-									<div class="sale-options-body">
-										<DateFilterField
-											v-model="postingDate"
-											:label="__('Posting Date')"
-											:clearable="false"
-											field-class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-							</div>
-
+								</div>
+							</v-card>
 							<v-card flat class="invoice-section-card pos-themed-card">
 								<div class="invoice-section-heading">
 									<h3 class="invoice-section-heading__title">{{ __("Transfer Details") }}</h3>

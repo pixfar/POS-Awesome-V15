@@ -10,109 +10,89 @@
 				<v-card class="h-100 d-flex flex-column pos-themed-card purchase-invoice-card" flat>
 					<v-card-text class="flex-grow-1 overflow-y-auto pa-3 pa-md-4">
 						<div class="invoice-sections">
-							<div class="invoice-top-grid purchase-top-grid">
-								<v-card flat class="invoice-section-card pos-themed-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">
-											{{ __("Warehouse Details") }}
-										</h3>
-									</div>
-									<div class="sale-options-body">
-										<v-autocomplete
-											v-if="canChangePosWarehouse && fromWarehouseOptions.length"
-											v-model="fromWarehouse"
-											:items="fromWarehouseOptions"
-											item-title="warehouse_name"
-											item-value="name"
-											:label="__('From Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											:loading="warehouseLoading"
-											class="pos-themed-input mb-2"
-										/>
-										<v-text-field
-											v-else-if="fromWarehouse"
-											:model-value="fromWarehouseLabel || fromWarehouse"
-											:label="__('From Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											readonly
-											prepend-inner-icon="mdi-warehouse"
-											class="pos-themed-input mb-2"
-										/>
-										<v-autocomplete
-											v-model="toWarehouse"
-											:items="toWarehouseOptions"
-											item-title="warehouse_name"
-											item-value="name"
-											:label="__('To Warehouse')"
-											density="compact"
-											variant="outlined"
-											color="primary"
-											hide-details
-											class="pos-themed-input"
-										/>
-									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card outstanding-panel">
-									<div class="outstanding-panel__inner">
-										<div class="outstanding-panel__label">{{ __("Total Qty") }}</div>
-										<div class="outstanding-panel__amount outstanding-panel__amount--clear">
-											{{ totalQty }}
+							<v-card flat class="invoice-section-card pos-themed-card create-header-card">
+								<div class="create-header">
+									<div class="create-header__grid">
+										<div class="create-header__field">
+											<v-autocomplete
+												v-if="canChangePosWarehouse && fromWarehouseOptions.length"
+												v-model="fromWarehouse"
+												:items="fromWarehouseOptions"
+												item-title="warehouse_name"
+												item-value="name"
+												:label="__('From Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												:loading="warehouseLoading"
+												class="pos-themed-input"
+											/>
+											<v-text-field
+												v-else-if="fromWarehouse"
+												:model-value="fromWarehouseLabel || fromWarehouse"
+												:label="__('From Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												readonly
+												prepend-inner-icon="mdi-warehouse"
+												class="pos-themed-input"
+											/>
 										</div>
-										<div class="text-caption text-medium-emphasis">
-											{{ transferItems.length }}
-											{{ transferItems.length === 1 ? __("item") : __("items") }}
+										<div class="create-header__field">
+											<v-autocomplete
+												v-model="toWarehouse"
+												:items="toWarehouseOptions"
+												item-title="warehouse_name"
+												item-value="name"
+												:label="__('To Warehouse')"
+												density="compact"
+												variant="outlined"
+												color="primary"
+												hide-details
+												class="pos-themed-input"
+											/>
+										</div>
+										<div class="create-header__field">
+											<VueDatePicker
+												v-model="requiredDateDisplay"
+												model-type="format"
+												format="dd-MM-yyyy"
+												auto-apply
+												teleport
+												:disabled="!canEditPostingDate"
+												:placeholder="__('Transfer Date')"
+												class="sleek-field pos-themed-input"
+											/>
+										</div>
+										<div class="create-header__metric">
+											<v-text-field
+												:model-value="`${totalQty}`"
+												:label="__('Total Qty')"
+												:title="`${transferItems.length} ${transferItems.length === 1 ? __('item') : __('items')}`"
+												readonly
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input create-header__metric-field create-header__metric-field--clear"
+											/>
+										</div>
+										<div v-if="canEditDoNumber" class="create-header__field">
+											<v-text-field
+												v-model="customDoNumber"
+												:label="__('DO Number')"
+												density="compact"
+												variant="outlined"
+												hide-details
+												class="pos-themed-input"
+												:loading="doNumberLookupLoading"
+												@keyup.enter="handleDoNumberLookup"
+												@update:focused="onDoNumberFocusChange"
+											/>
 										</div>
 									</div>
-								</v-card>
-
-								<v-card flat class="invoice-section-card pos-themed-card sale-options-card">
-									<div class="invoice-section-heading">
-										<h3 class="invoice-section-heading__title">
-											{{ __("Transfer Date") }}
-										</h3>
-									</div>
-									<div class="sale-options-body">
-										<VueDatePicker
-											v-model="requiredDateDisplay"
-											model-type="format"
-											format="dd-MM-yyyy"
-											auto-apply
-											teleport
-											:disabled="!canEditPostingDate"
-											:placeholder="__('Transfer Date')"
-											class="sleek-field pos-themed-input"
-										/>
-									</div>
-								</v-card>
-							</div>
-
-							<v-card
-								v-if="canEditDoNumber"
-								flat
-								class="invoice-section-card pos-themed-card"
-							>
-								<div class="invoice-section-heading">
-									<h3 class="invoice-section-heading__title">{{ __("DO Number") }}</h3>
-								</div>
-								<div class="pa-3">
-									<v-text-field
-										v-model="customDoNumber"
-										:label="__('DO Number')"
-										density="compact"
-										variant="outlined"
-										hide-details
-										class="pos-themed-input"
-										:loading="doNumberLookupLoading"
-										@keyup.enter="handleDoNumberLookup"
-										@update:focused="onDoNumberFocusChange"
-									/>
 								</div>
 							</v-card>
 
@@ -728,9 +708,12 @@ export default {
 			}
 		};
 
-		watch(fromWarehouse, async (nextFrom) => {
+		watch(fromWarehouse, async (nextFrom, prevFrom) => {
 			if (nextFrom && toWarehouse.value === nextFrom) {
 				toWarehouse.value = null;
+			}
+			if (prevFrom && prevFrom !== nextFrom && transferItems.value.length) {
+				transferItems.value = [];
 			}
 			await refreshCatalogForWarehouse(nextFrom);
 		});
