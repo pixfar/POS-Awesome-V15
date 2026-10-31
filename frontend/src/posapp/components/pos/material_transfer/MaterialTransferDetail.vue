@@ -8,6 +8,7 @@
 		:not-found="notFound"
 		:status="detail.transfer_status"
 		:status-color="statusColor(detail.transfer_status)"
+		:extra-status-chips="extraStatusChips"
 		:meta-fields="metaFields"
 		:item-columns="itemColumns"
 		:items="itemRows"
@@ -20,7 +21,18 @@
 		v-model="confirmDialog"
 		:items="confirmItems"
 		:loading="confirmLoading"
+		mode="receive"
 		@confirm="handleConfirmReceipt"
+	/>
+
+	<ConfirmReceiptDialog
+		v-model="returnDialog"
+		:items="returnItems"
+		:loading="returnLoading"
+		mode="return"
+		confirm-color="warning"
+		icon="mdi-package-variant-closed-remove"
+		@confirm="handleConfirmReturn"
 	/>
 
 	<v-dialog v-model="rejectDialog" max-width="420">
@@ -98,6 +110,9 @@ export default {
 		const confirmDialog = ref(false);
 		const confirmItems = ref([]);
 		const confirmLoading = ref(false);
+		const returnDialog = ref(false);
+		const returnItems = ref([]);
+		const returnLoading = ref(false);
 		const rejectDialog = ref(false);
 		const rejectLoading = ref(false);
 		const printFormatDialog = ref(false);
@@ -152,6 +167,13 @@ export default {
 				{ key: 'item_group', label: __('Item Group') },
 				{ key: 'qty', label: __('Qty'), align: 'end' },
 				{ key: 'received_qty', label: __('Received Qty'), align: 'end' },
+				{
+					key: 'returned_qty',
+					label: __('Returned Qty'),
+					align: 'end',
+					chipWhenPositive: true,
+					chipColor: 'warning',
+				},
 			];
 			if (detail.value.show_source_stock) {
 				columns.push({ key: 'source_stock_qty', label: __('Source Stock ({0})', [detail.value.from_warehouse]), align: 'end' });
@@ -180,10 +202,15 @@ export default {
 				(sum, row) => sum + Number(row.received_qty || 0),
 				0,
 			);
+			const totalReturned = (detail.value.items || []).reduce(
+				(sum, row) => sum + Number(row.returned_qty || 0),
+				0,
+			);
 			return [
 				{ label: __('Item Count'), value: detail.value.items?.length || 0 },
 				{ label: __('Total Qty'), value: totalQty },
 				{ label: __('Total Received Qty'), value: totalReceived },
+				{ label: __('Total Returned Qty'), value: totalReturned },
 				{ label: __('Total Weight'), value: Number(detail.value.total_weight || 0).toFixed(2) },
 			];
 		});
@@ -197,6 +224,12 @@ export default {
 			};
 			return map[status] || 'grey';
 		};
+
+		const extraStatusChips = computed(() => {
+			const returned = Number(detail.value.total_returned_qty || 0);
+			if (returned <= 0) return [];
+			return [{ label: __('Returned: {0}', [returned]), color: 'warning' }];
+		});
 
 		const loadDetail = async () => {
 			loading.value = true;
@@ -253,6 +286,41 @@ export default {
 			}
 		};
 
+		const openReturnDialog = async () => {
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.get_returnable_items',
+					args: { transfer: name },
+				});
+				returnItems.value = message?.items || [];
+				returnDialog.value = true;
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Nothing to return'), color: 'warning' });
+			}
+		};
+
+		const handleConfirmReturn = async (returnedMap) => {
+			returnLoading.value = true;
+			try {
+				await frappe.call({
+					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.return_transfer',
+					args: {
+						transfer: name,
+						returned_quantities: JSON.stringify(returnedMap),
+					},
+					freeze: true,
+					freeze_message: __('Returning stock...'),
+				});
+				toastStore.show({ title: __('Stock returned to source'), color: 'success' });
+				returnDialog.value = false;
+				await loadDetail();
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Return failed'), color: 'error' });
+			} finally {
+				returnLoading.value = false;
+			}
+		};
+
 		const openRejectDialog = () => {
 			rejectDialog.value = true;
 		};
@@ -304,6 +372,11 @@ export default {
 			const list = [];
 			if (detail.value.can_confirm) {
 				list.push({ label: __('Received'), color: 'primary', onClick: openConfirmReceipt });
+			}
+			if (detail.value.can_return) {
+				list.push({ label: __('Return'), color: 'warning', onClick: openReturnDialog });
+			}
+			if (detail.value.can_reject) {
 				list.push({ label: __('Rejected'), color: 'error', onClick: openRejectDialog });
 			}
 			list.push({ label: __('Print'), color: 'primary', onClick: openPrintFormatDialog });
@@ -327,10 +400,15 @@ export default {
 			totals,
 			actions,
 			statusColor,
+			extraStatusChips,
 			confirmDialog,
 			confirmItems,
 			confirmLoading,
 			handleConfirmReceipt,
+			returnDialog,
+			returnItems,
+			returnLoading,
+			handleConfirmReturn,
 			rejectDialog,
 			rejectLoading,
 			handleRejectTransfer,

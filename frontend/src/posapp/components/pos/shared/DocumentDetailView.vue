@@ -33,6 +33,16 @@
 					<v-chip v-if="status" size="default" variant="tonal" :color="statusColor">
 						{{ status }}
 					</v-chip>
+					<v-chip
+						v-for="chip in extraStatusChips"
+						:key="chip.label"
+						size="default"
+						variant="tonal"
+						:color="chip.color || 'warning'"
+						class="ms-1"
+					>
+						{{ chip.label }}
+					</v-chip>
 					<div v-if="actions.length || share" class="pos-detail-actions">
 						<template v-for="action in actions" :key="action.label">
 							<v-menu v-if="action.menuItems && action.menuItems.length" :close-on-content-click="true">
@@ -171,7 +181,17 @@
 											{ 'pos-detail-cell--code': isCodeColumn(col) },
 										]"
 									>
-										{{ cellText(row, col) }}
+										<v-chip
+											v-if="col.chipWhenPositive && Number(row[col.key] || 0) > 0"
+											size="small"
+											variant="tonal"
+											:color="col.chipColor || 'warning'"
+										>
+											{{ cellText(row, col) }}
+										</v-chip>
+										<template v-else>
+											{{ cellText(row, col) }}
+										</template>
 									</td>
 								</tr>
 								<tr v-if="!items.length">
@@ -214,6 +234,8 @@ export default {
 		notFound: { type: Boolean, default: false },
 		status: { type: String, default: "" },
 		statusColor: { type: String, default: "grey" },
+		// Extra chips next to the main status (e.g. Returned qty on Material Transfer).
+		extraStatusChips: { type: Array, default: () => [] },
 		metaFields: { type: Array, default: () => [] },
 		itemColumns: { type: Array, default: () => [] },
 		items: { type: Array, default: () => [] },

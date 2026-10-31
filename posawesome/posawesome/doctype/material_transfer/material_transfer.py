@@ -11,6 +11,7 @@ from frappe.utils import flt
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_warehouse_doc_read_access,
 	get_expanded_permitted_warehouses,
+	is_privileged_invoice_viewer,
 	is_system_manager,
 )
 
@@ -66,18 +67,20 @@ class MaterialTransfer(Document):
 		self._dispatch_stock_entry()
 
 	def before_cancel(self):
-		for fieldname in ('stock_entry', 'stock_entry_received'):
-			se_name = self.get(fieldname)
-			if not se_name:
-				continue
-			se = frappe.db.get_value('Stock Entry', se_name, ['docstatus', 'name'], as_dict=True)
-			if se and se.docstatus != 2:
-				frappe.throw(
-					_('Cancel the linked Stock Entry {0} before cancelling this Material Transfer.').format(
-						frappe.bold(se_name)
-					),
-					title=_('Active Stock Entry Exists'),
-				)
+		# Dispatch, receipt, and return Stock Entries all link via
+		# custom_material_transfer -- any still-active one blocks cancel.
+		active = frappe.get_all(
+			'Stock Entry',
+			filters={'custom_material_transfer': self.name, 'docstatus': ['<', 2]},
+			pluck='name',
+		)
+		if active:
+			frappe.throw(
+				_('Cancel the linked Stock Entry {0} before cancelling this Material Transfer.').format(
+					frappe.bold(', '.join(active))
+				),
+				title=_('Active Stock Entry Exists'),
+			)
 
 	def _create_stock_entry(self):
 		"""Dispatch leg only -- moves stock from From Warehouse into the
@@ -159,23 +162,36 @@ class MaterialTransfer(Document):
 		self.db_set('transfer_status', STATUS_IN_TRANSIT, update_modified=False)
 
 
+def _item_outstanding(row):
+	"""Qty still sitting in transit for this line (sent - received - returned)."""
+	return max(flt(row.qty) - flt(row.received_qty) - flt(getattr(row, 'returned_qty', 0)), 0)
+
+
+def _has_outstanding(doc):
+	return any(_item_outstanding(row) > 0 for row in doc.items)
+
+
 def _calculate_receipt_status(doc):
+	"""Status from how much has left transit.
+
+	Outstanding stays in Goods In Transit until Received (to destination) or
+	Returned (back to source) by an admin. Fully Received means nothing is
+	left outstanding -- including when the remainder was returned.
+	"""
 	if not doc.items:
 		return STATUS_FULL
 
-	any_received = False
-	fully_received = True
+	any_progress = False
+	any_outstanding = False
 	for row in doc.items:
-		received = flt(row.received_qty)
-		requested = flt(row.qty)
-		if received > 0:
-			any_received = True
-		if received < requested:
-			fully_received = False
+		if flt(row.received_qty) > 0 or flt(getattr(row, 'returned_qty', 0)) > 0:
+			any_progress = True
+		if _item_outstanding(row) > 0:
+			any_outstanding = True
 
-	if not any_received:
+	if not any_progress:
 		return STATUS_IN_TRANSIT
-	return STATUS_FULL if fully_received else STATUS_PARTIAL
+	return STATUS_PARTIAL if any_outstanding else STATUS_FULL
 
 
 def _check_target_warehouse_permission(doc):
@@ -204,47 +220,114 @@ def _check_target_warehouse_permission(doc):
 	)
 
 
-def can_confirm_receipt(doc):
-	if doc.transfer_status != STATUS_IN_TRANSIT:
-		return False
+def _user_may_act_on_target(doc):
 	if is_system_manager():
 		return True
 	if doc.requested_by == frappe.session.user:
 		return False
-	# None means unrestricted -- see _check_target_warehouse_permission above.
 	warehouses = get_expanded_permitted_warehouses()
 	return warehouses is None or doc.to_warehouse in warehouses
 
 
-@frappe.whitelist()
-def get_stock_entry_items(transfer):
-	doc = frappe.get_doc('Material Transfer', transfer)
-	_ensure_transfer_read_access(doc)
+def can_confirm_receipt(doc):
+	"""Receive remaining outstanding qty while In Transit or Partially Received."""
+	if doc.docstatus != 1:
+		return False
+	if doc.transfer_status not in (STATUS_IN_TRANSIT, STATUS_PARTIAL):
+		return False
+	if not _has_outstanding(doc):
+		return False
+	return _user_may_act_on_target(doc)
 
-	if not doc.stock_entry:
-		frappe.throw(_('No Stock Entry found for this Material Transfer.'), title=_('Nothing to Receive'))
 
-	se = frappe.get_doc('Stock Entry', doc.stock_entry)
-	if se.docstatus == 2:
-		frappe.throw(_('Stock Entry has been cancelled.'), title=_('Cannot Receive'))
-	if se.docstatus == 0:
+def can_reject_transfer(doc):
+	"""Full reject only while still purely in transit (nothing received/returned)."""
+	if doc.docstatus != 1 or doc.transfer_status != STATUS_IN_TRANSIT:
+		return False
+	return _user_may_act_on_target(doc)
+
+
+def can_return_transfer(doc):
+	"""Partial return of outstanding transit qty -- BSP Admin / System Manager only."""
+	if doc.docstatus != 1:
+		return False
+	if doc.transfer_status not in (STATUS_IN_TRANSIT, STATUS_PARTIAL):
+		return False
+	if not _has_outstanding(doc):
+		return False
+	return is_privileged_invoice_viewer()
+
+
+def _ensure_can_return():
+	if not is_privileged_invoice_viewer():
 		frappe.throw(
-			_('Goods have not been dispatched yet.'),
-			title=_('Not In Transit'),
+			_('Only a BSP Admin or System Manager can return Material Transfer quantity.'),
+			exc=frappe.PermissionError,
 		)
 
-	items = [
-		{
-			'name': item.name,
-			'item_code': item.item_code,
-			'item_name': item.item_name,
-			'qty': item.qty,
-			'uom': item.uom,
-			'stock_uom': item.stock_uom,
-			'conversion_factor': flt(item.conversion_factor) or 1,
-		}
-		for item in se.items
-	]
+
+def _get_dispatch_se(doc):
+	if not doc.stock_entry:
+		frappe.throw(_('No Stock Entry linked to this Material Transfer.'))
+	se = frappe.get_doc('Stock Entry', doc.stock_entry)
+	if se.docstatus == 2:
+		frappe.throw(_('Stock Entry has been cancelled.'), title=_('Cannot Continue'))
+	if se.docstatus == 0:
+		frappe.throw(_('Goods have not been dispatched yet.'), title=_('Not In Transit'))
+	return se
+
+
+def _outstanding_item_rows(doc, se):
+	"""Dialog rows: qty = outstanding still in transit (keyed by dispatch SE item name)."""
+	mt_item_by_name = {row.name: row for row in doc.items}
+	items = []
+	for se_item in se.items:
+		mt_item_name = getattr(se_item, 'custom_material_transfer_item', None)
+		mt_item = mt_item_by_name.get(mt_item_name) if mt_item_name else None
+		if not mt_item:
+			continue
+		outstanding = _item_outstanding(mt_item)
+		if outstanding <= 0:
+			continue
+		items.append(
+			{
+				'name': se_item.name,
+				'item_code': se_item.item_code,
+				'item_name': se_item.item_name,
+				'qty': outstanding,
+				'sent_qty': flt(se_item.qty),
+				'received_qty': flt(mt_item.received_qty),
+				'returned_qty': flt(getattr(mt_item, 'returned_qty', 0)),
+				'uom': se_item.uom,
+				'stock_uom': se_item.stock_uom,
+				'conversion_factor': flt(se_item.conversion_factor) or 1,
+			}
+		)
+	return items
+
+
+@frappe.whitelist()
+def get_stock_entry_items(transfer):
+	"""Outstanding items for the Receive dialog (remaining in transit)."""
+	doc = frappe.get_doc('Material Transfer', transfer)
+	_ensure_transfer_read_access(doc)
+	se = _get_dispatch_se(doc)
+	items = _outstanding_item_rows(doc, se)
+	if not items:
+		frappe.throw(_('Nothing left to receive for this Material Transfer.'), title=_('Nothing to Receive'))
+	return {'se_name': se.name, 'items': items}
+
+
+@frappe.whitelist()
+def get_returnable_items(transfer):
+	"""Outstanding items for the Return dialog (admin-only)."""
+	_ensure_can_return()
+	doc = frappe.get_doc('Material Transfer', transfer)
+	_ensure_transfer_read_access(doc)
+	se = _get_dispatch_se(doc)
+	items = _outstanding_item_rows(doc, se)
+	if not items:
+		frappe.throw(_('Nothing left to return for this Material Transfer.'), title=_('Nothing to Return'))
 	return {'se_name': se.name, 'items': items}
 
 
@@ -255,32 +338,21 @@ def confirm_receipt(transfer, received_quantities=None):
 
 	if doc.docstatus != 1:
 		frappe.throw(_('Material Transfer must be submitted.'))
-	if doc.transfer_status != STATUS_IN_TRANSIT:
+	if doc.transfer_status not in (STATUS_IN_TRANSIT, STATUS_PARTIAL):
 		frappe.throw(
-			_('Receipt can only be confirmed while goods are in transit — current status: {0}.').format(
+			_('Receipt can only be confirmed while goods are in transit or partially received — current status: {0}.').format(
 				doc.transfer_status
 			)
 		)
-	if not doc.stock_entry:
-		frappe.throw(_('No Stock Entry linked to this Material Transfer.'))
+	if not _has_outstanding(doc):
+		frappe.throw(_('Nothing left to receive for this Material Transfer.'), title=_('Nothing to Receive'))
 
 	_check_target_warehouse_permission(doc)
+	se = _get_dispatch_se(doc)
 
-	se = frappe.get_doc('Stock Entry', doc.stock_entry)
-	if se.docstatus not in (0, 1):
-		frappe.throw(_('Goods are not in transit yet.'))
-
-	# Confirming receipt records how much actually arrived (received_qty on
-	# the Material Transfer's own items) -- it never edits the dispatch
-	# Stock Entry's quantities, which Frappe disallows changing on a
-	# submitted document anyway ("Cannot Update After Submit"). What DOES
-	# happen here now is the actual second stock movement: a receipt Stock
-	# Entry moving exactly the received quantities from the in-transit
-	# warehouse into To Warehouse. Until this runs, the goods have only ever
-	# left From Warehouse -- they were never posted to To Warehouse's stock
-	# ledger, so production/stock calculations there can't see them early.
-	# A shortfall (received < sent) simply stays parked in the in-transit
-	# warehouse rather than silently vanishing or over-crediting the target.
+	# Incremental receive: quantities in the payload are THIS batch only
+	# (dialog already shows outstanding as max). Shortfall stays in transit
+	# until a later Receive or an admin Return.
 	if isinstance(received_quantities, str):
 		received_quantities = json.loads(received_quantities)
 	received_quantities = received_quantities or {}
@@ -291,25 +363,31 @@ def confirm_receipt(transfer, received_quantities=None):
 
 	for se_item in se.items:
 		mt_item_name = getattr(se_item, 'custom_material_transfer_item', None)
-		if not mt_item_name or mt_item_name not in mt_item_by_name:
+		mt_item = mt_item_by_name.get(mt_item_name) if mt_item_name else None
+		if not mt_item:
 			continue
 
-		sent_qty = flt(se_item.qty)
-		new_qty = flt(received_quantities.get(se_item.name, sent_qty))
-		if new_qty < 0:
+		outstanding = _item_outstanding(mt_item)
+		if outstanding <= 0:
+			continue
+
+		this_qty = flt(received_quantities.get(se_item.name, 0))
+		if this_qty < 0:
 			frappe.throw(_('Received quantity cannot be negative for item {0}.').format(se_item.item_code))
-		if new_qty > sent_qty:
+		if this_qty > outstanding:
 			frappe.throw(
-				_('Received qty ({0}) cannot exceed sent qty ({1}) for item {2}.').format(
-					new_qty, sent_qty, se_item.item_code
+				_('Received qty ({0}) cannot exceed outstanding qty ({1}) for item {2}.').format(
+					this_qty, outstanding, se_item.item_code
 				)
 			)
-		if new_qty > 0:
-			any_positive = True
-			receive_rows.append((se_item, mt_item_name, new_qty))
+		if this_qty <= 0:
+			continue
 
+		any_positive = True
+		new_received = flt(mt_item.received_qty) + this_qty
+		receive_rows.append((se_item, mt_item_name, this_qty))
 		frappe.db.set_value(
-			'Material Transfer Item', mt_item_name, 'received_qty', new_qty, update_modified=False
+			'Material Transfer Item', mt_item_name, 'received_qty', new_received, update_modified=False
 		)
 
 	if not any_positive:
@@ -318,10 +396,6 @@ def confirm_receipt(transfer, received_quantities=None):
 			title=_('Nothing to Receive'),
 		)
 
-	if se.docstatus == 0:
-		se.flags.ignore_permissions = True
-		se.flags.ignore_workflow = True
-		se.submit()
 	frappe.db.set_value(
 		'Stock Entry',
 		se.name,
@@ -330,9 +404,6 @@ def confirm_receipt(transfer, received_quantities=None):
 		update_modified=False,
 	)
 
-	# Receipt leg: transit warehouse -> To Warehouse, for exactly what was
-	# recorded as received above. This is the moment stock actually becomes
-	# available at To Warehouse.
 	transit_warehouse = se.to_warehouse
 	se_in = frappe.new_doc('Stock Entry')
 	se_in.stock_entry_type = 'Material Transfer'
@@ -368,9 +439,113 @@ def confirm_receipt(transfer, received_quantities=None):
 
 	doc.reload()
 	status = _calculate_receipt_status(doc)
-	# Stamp the receiving user on modified/modified_by so list & detail
-	# "Last Modified By" shows who confirmed receipt. Earlier db_sets use
-	# update_modified=False to avoid noisy intermediate timestamps.
+	doc.db_set('transfer_status', status, update_modified=True)
+	return status
+
+
+@frappe.whitelist()
+def return_transfer(transfer, returned_quantities=None):
+	"""Return some/all outstanding transit qty back to From Warehouse.
+
+	BSP Admin / System Manager only. Partial quantities are allowed; anything
+	not returned stays in transit for a later Receive or Return.
+	"""
+	_ensure_can_return()
+	doc = frappe.get_doc('Material Transfer', transfer)
+	_ensure_transfer_read_access(doc)
+
+	if doc.docstatus != 1:
+		frappe.throw(_('Material Transfer must be submitted.'))
+	if doc.transfer_status not in (STATUS_IN_TRANSIT, STATUS_PARTIAL):
+		frappe.throw(
+			_('Quantity can only be returned while goods are in transit or partially received — current status: {0}.').format(
+				doc.transfer_status
+			)
+		)
+	if not _has_outstanding(doc):
+		frappe.throw(_('Nothing left to return for this Material Transfer.'), title=_('Nothing to Return'))
+
+	se = _get_dispatch_se(doc)
+	if not se.add_to_transit:
+		frappe.throw(
+			_('This Material Transfer was not dispatched through an in-transit warehouse, so quantity cannot be returned.'),
+			title=_('Cannot Return'),
+		)
+
+	if isinstance(returned_quantities, str):
+		returned_quantities = json.loads(returned_quantities)
+	returned_quantities = returned_quantities or {}
+
+	mt_item_by_name = {row.name: row for row in doc.items}
+	any_positive = False
+	return_rows = []
+
+	for se_item in se.items:
+		mt_item_name = getattr(se_item, 'custom_material_transfer_item', None)
+		mt_item = mt_item_by_name.get(mt_item_name) if mt_item_name else None
+		if not mt_item:
+			continue
+
+		outstanding = _item_outstanding(mt_item)
+		if outstanding <= 0:
+			continue
+
+		this_qty = flt(returned_quantities.get(se_item.name, 0))
+		if this_qty < 0:
+			frappe.throw(_('Returned quantity cannot be negative for item {0}.').format(se_item.item_code))
+		if this_qty > outstanding:
+			frappe.throw(
+				_('Returned qty ({0}) cannot exceed outstanding qty ({1}) for item {2}.').format(
+					this_qty, outstanding, se_item.item_code
+				)
+			)
+		if this_qty <= 0:
+			continue
+
+		any_positive = True
+		new_returned = flt(getattr(mt_item, 'returned_qty', 0)) + this_qty
+		return_rows.append((se_item, mt_item_name, this_qty))
+		frappe.db.set_value(
+			'Material Transfer Item', mt_item_name, 'returned_qty', new_returned, update_modified=False
+		)
+
+	if not any_positive:
+		frappe.throw(
+			_('All returned quantities are zero. Enter at least one positive quantity.'),
+			title=_('Nothing to Return'),
+		)
+
+	transit_warehouse = se.to_warehouse
+	se_return = frappe.new_doc('Stock Entry')
+	se_return.stock_entry_type = 'Material Transfer'
+	se_return.purpose = 'Material Transfer'
+	se_return.company = se.company
+	se_return.from_warehouse = transit_warehouse
+	se_return.to_warehouse = doc.from_warehouse
+	se_return.custom_material_transfer = doc.name
+
+	for se_item, mt_item_name, return_qty in return_rows:
+		se_return.append('items', {
+			'item_code': se_item.item_code,
+			'item_name': se_item.item_name,
+			'description': se_item.description,
+			's_warehouse': transit_warehouse,
+			't_warehouse': doc.from_warehouse,
+			'qty': return_qty,
+			'transfer_qty': return_qty,
+			'uom': se_item.uom,
+			'stock_uom': se_item.stock_uom,
+			'conversion_factor': flt(se_item.conversion_factor) or 1,
+			'custom_material_transfer_item': mt_item_name,
+		})
+
+	se_return.set_stock_entry_type()
+	se_return.flags.ignore_permissions = True
+	se_return.insert(ignore_permissions=True)
+	se_return.submit()
+
+	doc.reload()
+	status = _calculate_receipt_status(doc)
 	doc.db_set('transfer_status', status, update_modified=True)
 	return status
 

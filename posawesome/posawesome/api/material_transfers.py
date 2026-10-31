@@ -9,6 +9,8 @@ from frappe.utils import flt, getdate, today
 
 from posawesome.posawesome.doctype.material_transfer.material_transfer import (
 	can_confirm_receipt,
+	can_reject_transfer,
+	can_return_transfer,
 )
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	ensure_warehouse_doc_read_access,
@@ -35,6 +37,8 @@ def _parse_json(value):
 def _enrich_list_row(row):
 	doc = frappe.get_doc('Material Transfer', row.name)
 	row['can_confirm'] = can_confirm_receipt(doc)
+	row['can_reject'] = can_reject_transfer(doc)
+	row['can_return'] = can_return_transfer(doc)
 	return row
 
 
@@ -263,6 +267,7 @@ def get_material_transfer_detail(transfer):
 				'item_group': row.item_group,
 				'qty': flt(row.qty),
 				'received_qty': flt(row.received_qty),
+				'returned_qty': flt(getattr(row, 'returned_qty', 0)),
 				'uom': row.uom,
 				'schedule_date': row.schedule_date,
 				'weight': flt(weight),
@@ -289,10 +294,13 @@ def get_material_transfer_detail(transfer):
 		'amended_from': doc.get('amended_from'),
 		'total_qty': flt(sum(flt(row.qty) for row in doc.items)),
 		'total_received_qty': flt(sum(flt(row.received_qty) for row in doc.items)),
+		'total_returned_qty': flt(sum(flt(getattr(row, 'returned_qty', 0)) for row in doc.items)),
 		'total_weight': flt(total_weight),
 		'item_count': len(doc.items),
 		'items': items,
 		'can_confirm': can_confirm_receipt(doc),
+		'can_reject': can_reject_transfer(doc),
+		'can_return': can_return_transfer(doc),
 	}
 
 

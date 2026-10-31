@@ -153,12 +153,14 @@ const specs = {
 			column("item_code", "Code", { muted: true }),
 			column("qty", "Qty", { align: "right", kind: "qty" }),
 			column("received_qty", "Received", { align: "right", kind: "qty" }),
+			column("returned_qty", "Returned", { align: "right", kind: "qty" }),
 			...stockColumns(d),
 			column("uom", "UOM"),
 		],
 		totals: (d) => [
 			["Total Qty", d.total_qty, "qty"],
 			["Received", d.total_received_qty, "qty"],
+			["Returned", d.total_returned_qty, "qty"],
 			["Weight", d.total_weight, "qty"],
 		],
 	},
@@ -359,6 +361,14 @@ const metaBits = computed(() => {
 		if (to) bits.push({ label: __("To"), value: to });
 		const warehouse = detail.warehouse_name || detail.warehouse || detail.for_warehouse;
 		if (warehouse) bits.push({ label: __("Warehouse"), value: warehouse });
+	}
+	if (props.variant === "material_transfer" && Number(detail.total_returned_qty || 0) > 0) {
+		bits.push({
+			label: __("Returned"),
+			value: formatNumber(detail.total_returned_qty),
+			accent: "amber",
+			icon: "mdi-keyboard-return",
+		});
 	}
 	return bits;
 });

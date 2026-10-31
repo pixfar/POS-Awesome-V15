@@ -347,7 +347,18 @@
 			v-model="confirmDialog"
 			:items="confirmItems"
 			:loading="confirmLoading"
+			mode="receive"
 			@confirm="handleConfirmReceipt"
+		/>
+
+		<ConfirmReceiptDialog
+			v-model="returnDialog"
+			:items="returnItems"
+			:loading="returnLoading"
+			mode="return"
+			confirm-color="warning"
+			icon="mdi-package-variant-closed-remove"
+			@confirm="handleConfirmReturn"
 		/>
 
 		<v-dialog v-model="rejectDialog" max-width="420">
@@ -675,6 +686,47 @@ export default {
 			}
 		};
 
+		const returnDialog = ref(false);
+		const returnItems = ref([]);
+		const returnLoading = ref(false);
+		const returnTransferName = ref(null);
+
+		const openReturnDialog = async (transfer) => {
+			returnTransferName.value = transfer;
+			try {
+				const { message } = await frappe.call({
+					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.get_returnable_items',
+					args: { transfer },
+				});
+				returnItems.value = message?.items || [];
+				returnDialog.value = true;
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Nothing to return'), color: 'warning' });
+			}
+		};
+
+		const handleConfirmReturn = async (returnedMap) => {
+			returnLoading.value = true;
+			try {
+				await frappe.call({
+					method: 'posawesome.posawesome.doctype.material_transfer.material_transfer.return_transfer',
+					args: {
+						transfer: returnTransferName.value,
+						returned_quantities: JSON.stringify(returnedMap),
+					},
+					freeze: true,
+					freeze_message: __('Returning stock...'),
+				});
+				toastStore.show({ title: __('Stock returned to source'), color: 'success' });
+				returnDialog.value = false;
+				await loadTransfers();
+			} catch (e) {
+				toastStore.show({ title: e?.message || __('Return failed'), color: 'error' });
+			} finally {
+				returnLoading.value = false;
+			}
+		};
+
 		const openRejectDialog = (transfer) => {
 			rejectTransferName.value = transfer;
 			rejectDialog.value = true;
@@ -718,11 +770,18 @@ export default {
 				show: item.can_confirm,
 			},
 			{
+				key: 'return',
+				label: __('Return'),
+				icon: 'mdi-package-variant-closed-remove',
+				color: 'warning',
+				show: item.can_return,
+			},
+			{
 				key: 'rejected',
 				label: __('Rejected'),
 				icon: 'mdi-close-circle-outline',
 				color: 'error',
-				show: item.can_confirm,
+				show: item.can_reject,
 			},
 			{
 				key: 'delete',
@@ -740,6 +799,8 @@ export default {
 				openTransferDetail(item);
 			} else if (key === 'received') {
 				openConfirmReceipt(item.name);
+			} else if (key === 'return') {
+				openReturnDialog(item.name);
 			} else if (key === 'rejected') {
 				openRejectDialog(item.name);
 			} else if (key === 'delete') {
@@ -819,6 +880,10 @@ export default {
 			confirmItems,
 			confirmLoading,
 			handleConfirmReceipt,
+			returnDialog,
+			returnItems,
+			returnLoading,
+			handleConfirmReturn,
 			openRejectDialog,
 			rejectDialog,
 			rejectLoading,

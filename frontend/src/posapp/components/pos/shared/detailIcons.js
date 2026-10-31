@@ -45,6 +45,7 @@ export function totalIcon(total, index) {
 	else if (/discount/.test(label)) icon = "mdi-tag-outline";
 	else if (/paid|received amount|sanctioned/.test(label)) icon = "mdi-cash-check";
 	else if (/weight/.test(label)) icon = "mdi-weight-kilogram";
+	else if (/return/.test(label)) icon = "mdi-keyboard-return";
 	else if (/qty|quantity|count|items/.test(label)) icon = "mdi-counter";
 	else if (/total|amount|claimed|grand|net/.test(label)) icon = "mdi-cash-multiple";
 	return {
