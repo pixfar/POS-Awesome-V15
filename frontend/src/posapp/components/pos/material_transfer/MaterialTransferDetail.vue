@@ -141,7 +141,7 @@ export default {
 				{ label: __('From Warehouse'), value: detail.value.from_warehouse },
 				{ label: __('To Warehouse'), value: detail.value.to_warehouse },
 				{ label: __('Created By'), value: detail.value.created_by },
-				{ label: __('Last Modified By'), value: detail.value.last_modified_by },
+				{ label: __('Received by'), value: detail.value.last_modified_by },
 				{ label: __('Created On'), value: formatDisplayDateTime(detail.value.creation) },
 			];
 			if (detail.value.requisition) {

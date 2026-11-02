@@ -285,173 +285,170 @@
 				:md="isCompact ? 12 : 6"
 				class="h-100 pa-0 border-s txn-col txn-col--selector"
 			>
-				<v-card flat class="h-100 d-flex flex-column pos-themed-card prq-catalog">
-					<div class="prq-catalog__search">
-						<v-text-field
-							v-model="catalogSearch"
-							:placeholder="__('Search item code or name')"
-							prepend-inner-icon="mdi-magnify"
-							variant="solo"
-							density="compact"
-							hide-details
-							clearable
-							class="pos-themed-input"
-						/>
-						<span class="prq-catalog__count text-caption text-medium-emphasis">
-							{{ __("{0} items", [filteredCatalog.length]) }}
-						</span>
-						<v-btn
-							icon="mdi-refresh"
-							variant="text"
-							size="small"
-							:loading="catalogLoading"
-							:title="__('Reload')"
-							@click="loadCatalog"
-						/>
-					</div>
+				<div class="selector-with-groups">
+					<ItemGroupSidebar
+						class="selector-group-col"
+						:model-value="itemGroupFilter"
+						:items-group="sidebarGroups"
+						@update:model-value="onItemGroupSelect"
+					/>
+					<v-card flat class="h-100 d-flex flex-column pos-themed-card prq-catalog selector-with-groups__main">
+						<div class="prq-catalog__search">
+							<v-text-field
+								v-model="catalogSearch"
+								:placeholder="__('Search item code or name')"
+								prepend-inner-icon="mdi-magnify"
+								variant="solo"
+								density="compact"
+								hide-details
+								clearable
+								class="pos-themed-input"
+							/>
+							<span class="prq-catalog__count text-caption text-medium-emphasis">
+								{{ __("{0} items", [filteredCatalog.length]) }}
+							</span>
+							<v-btn
+								icon="mdi-refresh"
+								variant="text"
+								size="small"
+								:loading="catalogLoading"
+								:title="__('Reload')"
+								@click="loadCatalog"
+							/>
+						</div>
 
-					<div ref="gridRef" class="prq-catalog__grid-wrap">
-						<div
-							v-if="catalogLoading && !catalogItems.length"
-							class="d-flex justify-center py-10"
-						>
-							<v-progress-circular indeterminate color="primary" />
-						</div>
-						<div v-else-if="!filteredCatalog.length" class="pos-list-empty py-10">
-							<v-icon size="40" color="primary" class="pos-list-empty__icon"
-								>mdi-package-variant</v-icon
+						<div ref="gridRef" class="prq-catalog__grid-wrap">
+							<div
+								v-if="catalogLoading && !catalogItems.length"
+								class="d-flex justify-center py-10"
 							>
-							<p class="pos-list-empty__subtitle">{{ __("No items match these filters") }}</p>
-						</div>
-						<div v-else class="prq-catalog__grid">
-							<button
-								v-for="item in visibleCatalog"
-								:key="item.item_code"
-								type="button"
-								class="prq-card"
-								:class="{
-									'prq-card--low': item.is_low,
-									'prq-card--added': addedCodes.has(item.item_code),
-								}"
-								@click="addItem(item)"
-							>
-								<div class="prq-card__top">
-									<span class="prq-card__code">{{ item.item_code }}</span>
-									<v-icon v-if="addedCodes.has(item.item_code)" size="18" color="primary"
-										>mdi-check-circle</v-icon
-									>
-									<v-chip
-										v-else-if="item.is_low"
-										size="x-small"
-										color="error"
-										variant="tonal"
-										>{{ __("Low") }}</v-chip
-									>
-								</div>
-								<div class="prq-card__name">{{ item.item_name }}</div>
-								<div class="prq-card__stats">
-									<div>
-										<span class="prq-card__stat-label">{{ __("Stock") }}</span>
-										<strong :class="item.is_low ? 'text-error' : ''">{{
-											formatQty(item.total_stock)
-										}}</strong>
-									</div>
-									<div>
-										<span class="prq-card__stat-label">{{ __("Low Qty") }}</span>
-										<strong>{{ formatQty(item.total_low_qty) }}</strong>
-									</div>
-									<div>
-										<span class="prq-card__stat-label">{{ __("Need") }}</span>
-										<strong :class="item.shortage > 0 ? 'text-error' : 'text-success'">{{
-											formatQty(item.shortage)
-										}}</strong>
-									</div>
-								</div>
-								<div class="prq-card__wh">
-									<div
-										v-for="wh in item.warehouses"
-										:key="wh.label"
-										class="prq-card__wh-row"
-									>
-										<span class="prq-card__wh-label" :title="wh.label">{{
-											wh.label
-										}}</span>
-										<span
-											class="prq-card__wh-value"
-											:class="wh.stock < wh.low_qty ? 'text-error' : ''"
+								<v-progress-circular indeterminate color="primary" />
+							</div>
+							<div v-else-if="!filteredCatalog.length" class="pos-list-empty py-10">
+								<v-icon size="40" color="primary" class="pos-list-empty__icon"
+									>mdi-package-variant</v-icon
+								>
+								<p class="pos-list-empty__subtitle">{{ __("No items match these filters") }}</p>
+							</div>
+							<div v-else class="prq-catalog__grid">
+								<button
+									v-for="item in visibleCatalog"
+									:key="item.item_code"
+									type="button"
+									class="prq-card"
+									:class="{
+										'prq-card--low': item.is_low,
+										'prq-card--added': addedCodes.has(item.item_code),
+									}"
+									@click="addItem(item)"
+								>
+									<div class="prq-card__top">
+										<span class="prq-card__code">{{ item.item_code }}</span>
+										<v-icon v-if="addedCodes.has(item.item_code)" size="18" color="primary"
+											>mdi-check-circle</v-icon
 										>
-											{{ formatQty(wh.stock)
-											}}<span class="text-medium-emphasis">
-												/ {{ formatQty(wh.low_qty) }}</span
-											>
-										</span>
+										<v-chip
+											v-else-if="item.is_low"
+											size="x-small"
+											color="error"
+											variant="tonal"
+											>{{ __("Low") }}</v-chip
+										>
 									</div>
-								</div>
-								<div class="prq-card__footer">
-									<span class="text-truncate">{{ item.item_group }}</span>
-									<span>{{ item.stock_uom }}</span>
-								</div>
-							</button>
+									<div class="prq-card__name">{{ item.item_name }}</div>
+									<div class="prq-card__stats">
+										<div>
+											<span class="prq-card__stat-label">{{ __("Stock") }}</span>
+											<strong :class="item.is_low ? 'text-error' : ''">{{
+												formatQty(item.total_stock)
+											}}</strong>
+										</div>
+										<div>
+											<span class="prq-card__stat-label">{{ __("Low Qty") }}</span>
+											<strong>{{ formatQty(item.total_low_qty) }}</strong>
+										</div>
+										<div>
+											<span class="prq-card__stat-label">{{ __("Need") }}</span>
+											<strong :class="item.shortage > 0 ? 'text-error' : 'text-success'">{{
+												formatQty(item.shortage)
+											}}</strong>
+										</div>
+									</div>
+									<div class="prq-card__wh">
+										<div
+											v-for="wh in item.warehouses"
+											:key="wh.label"
+											class="prq-card__wh-row"
+										>
+											<span class="prq-card__wh-label" :title="wh.label">{{
+												wh.label
+											}}</span>
+											<span
+												class="prq-card__wh-value"
+												:class="wh.stock < wh.low_qty ? 'text-error' : ''"
+											>
+												{{ formatQty(wh.stock)
+												}}<span class="text-medium-emphasis">
+													/ {{ formatQty(wh.low_qty) }}</span
+												>
+											</span>
+										</div>
+									</div>
+									<div class="prq-card__footer">
+										<span class="text-truncate">{{ item.item_group }}</span>
+										<span>{{ item.stock_uom }}</span>
+									</div>
+								</button>
+							</div>
 						</div>
-					</div>
 
-					<div v-if="catalogPageCount > 1" class="prq-catalog__pagination">
-						<span class="text-caption text-medium-emphasis">
-							{{
-								__("{0}-{1} of {2}", [
-									catalogRangeStart,
-									catalogRangeEnd,
-									filteredCatalog.length,
-								])
-							}}
-						</span>
-						<v-pagination
-							v-model="catalogPage"
-							:length="catalogPageCount"
-							:total-visible="5"
-							density="compact"
-							size="small"
-							rounded="circle"
-							active-color="primary"
-						/>
-					</div>
+						<div v-if="catalogPageCount > 1" class="prq-catalog__pagination">
+							<span class="text-caption text-medium-emphasis">
+								{{
+									__("{0}-{1} of {2}", [
+										catalogRangeStart,
+										catalogRangeEnd,
+										filteredCatalog.length,
+									])
+								}}
+							</span>
+							<v-pagination
+								v-model="catalogPage"
+								:length="catalogPageCount"
+								:total-visible="5"
+								density="compact"
+								size="small"
+								rounded="circle"
+								active-color="primary"
+							/>
+						</div>
 
-					<div class="prq-catalog__filters">
-						<v-autocomplete
-							v-model="itemGroupFilter"
-							:items="filterOptions.item_groups"
-							:label="__('Item Group')"
-							density="compact"
-							variant="outlined"
-							hide-details
-							clearable
-							class="pos-themed-input"
-							@update:model-value="loadCatalog"
-						/>
-						<v-select
-							v-model="stockStatusFilter"
-							:items="stockStatusOptions"
-							:label="__('Stock Status')"
-							density="compact"
-							variant="outlined"
-							hide-details
-							clearable
-							class="pos-themed-input"
-							@update:model-value="loadCatalog"
-						/>
-						<v-autocomplete
-							v-model="productionGroupFilter"
-							:items="filterOptions.production_groups"
-							:label="__('Production Group')"
-							density="compact"
-							variant="outlined"
-							hide-details
-							clearable
-							class="pos-themed-input"
-							@update:model-value="loadCatalog"
-						/>
-					</div>
-				</v-card>
+						<div class="prq-catalog__filters">
+							<v-select
+								v-model="stockStatusFilter"
+								:items="stockStatusOptions"
+								:label="__('Stock Status')"
+								density="compact"
+								variant="outlined"
+								hide-details
+								clearable
+								class="pos-themed-input"
+								@update:model-value="loadCatalog"
+							/>
+							<v-autocomplete
+								v-model="productionGroupFilter"
+								:items="filterOptions.production_groups"
+								:label="__('Production Group')"
+								density="compact"
+								variant="outlined"
+								hide-details
+								clearable
+								class="pos-themed-input"
+								@update:model-value="loadCatalog"
+							/>
+						</div>
+					</v-card>
+				</div>
 			</v-col>
 		</v-row>
 
@@ -514,6 +511,7 @@ import { useToastStore } from "../../../stores/toastStore";
 import { normalizeDateForBackend } from "../../../format";
 import { useCompactTransactionPanel } from "../../../composables/core/useCompactTransactionPanel";
 import { useWarehouseFilterOptions } from "../shared/useWarehouseFilterOptions";
+import ItemGroupSidebar from "../items/ItemGroupSidebar.vue";
 import {
 	formatQty,
 	PRODUCTION_REQUIREMENT_STATUSES,
@@ -539,7 +537,7 @@ const displayDate = (dateRef) =>
 
 export default {
 	name: "ProductionRequirementNew",
-	components: { VueDatePicker },
+	components: { VueDatePicker, ItemGroupSidebar },
 	setup() {
 		const route = useRoute();
 		const router = useRouter();
@@ -580,10 +578,11 @@ export default {
 		const catalogItems = ref([]);
 		const catalogLoading = ref(false);
 		const catalogSearch = ref("");
-		const itemGroupFilter = ref(null);
+		const itemGroupFilter = ref("ALL");
 		const stockStatusFilter = ref(null);
 		const productionGroupFilter = ref(null);
 		const filterOptions = reactive({ item_groups: [], production_groups: [] });
+		const sidebarGroups = computed(() => ["ALL", ...filterOptions.item_groups]);
 		const stockStatusOptions = [
 			{ title: __("Low Stock"), value: "Low Stock" },
 			{ title: __("Sufficient Stock"), value: "Sufficient Stock" },
@@ -661,7 +660,10 @@ export default {
 				const { message } = await frappe.call({
 					method: `${API}.get_requirement_catalog`,
 					args: {
-						item_group: itemGroupFilter.value || undefined,
+						item_group:
+							itemGroupFilter.value && itemGroupFilter.value !== "ALL"
+								? itemGroupFilter.value
+								: undefined,
 						production_group: productionGroupFilter.value || undefined,
 						stock_status: stockStatusFilter.value || undefined,
 					},
@@ -679,6 +681,11 @@ export default {
 			} finally {
 				catalogLoading.value = false;
 			}
+		};
+
+		const onItemGroupSelect = (group) => {
+			itemGroupFilter.value = group || "ALL";
+			loadCatalog();
 		};
 
 		const loadFilterOptions = async () => {
@@ -903,6 +910,8 @@ export default {
 			gridRef,
 			loadCatalog,
 			itemGroupFilter,
+			onItemGroupSelect,
+			sidebarGroups,
 			stockStatusFilter,
 			productionGroupFilter,
 			filterOptions,
@@ -959,6 +968,44 @@ export default {
 
 .prq-item-name {
 	line-height: 1.25;
+}
+
+.selector-with-groups {
+	display: flex;
+	flex-direction: row;
+	gap: var(--dynamic-sm, 8px);
+	align-items: stretch;
+	height: 100%;
+	min-height: 0;
+	width: 100%;
+	overflow: hidden;
+}
+
+.selector-group-col {
+	flex: 0 0 200px;
+	width: 200px;
+	max-width: 42%;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+	border-radius: 12px;
+	border: 1px solid rgba(17, 24, 39, 0.1);
+	background: #ffffff;
+}
+
+.selector-with-groups__main {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+}
+
+@media (max-width: 600px) {
+	.selector-group-col {
+		flex-basis: 132px;
+		width: 132px;
+	}
 }
 
 .prq-catalog {
@@ -1112,7 +1159,7 @@ export default {
 
 .prq-catalog__filters {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	align-items: center;
 	gap: 8px;
 	padding: 10px 12px;

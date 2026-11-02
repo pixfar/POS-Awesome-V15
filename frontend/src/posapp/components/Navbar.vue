@@ -279,7 +279,7 @@ export default {
 					icon: "mdi-truck-fast-outline",
 					children: [
 						{ text: "New Transfer", icon: "mdi-plus-circle-outline", to: "/material-transfers/new" },
-						{ text: "Transfers", icon: "mdi-format-list-bulleted", to: "/material-transfers/list" },
+						{ text: "Transfer List", icon: "mdi-format-list-bulleted", to: "/material-transfers/list" },
 					],
 				},
 				{
@@ -287,7 +287,7 @@ export default {
 					icon: "mdi-clipboard-list-outline",
 					children: [
 						{ text: "New Requisition", icon: "mdi-plus-circle-outline", to: "/requisitions/new" },
-						{ text: "Requisitions", icon: "mdi-format-list-bulleted", to: "/requisitions/list" },
+						{ text: "Requisition List", icon: "mdi-format-list-bulleted", to: "/requisitions/list" },
 					],
 				},
 				{
@@ -295,7 +295,7 @@ export default {
 					icon: "mdi-receipt-text-edit-outline",
 					children: [
 						{ text: "New Expense", icon: "mdi-plus-circle-outline", to: "/expenses/new" },
-						{ text: "Expenses", icon: "mdi-format-list-bulleted", to: "/expenses/list" },
+						{ text: "Expense List", icon: "mdi-format-list-bulleted", to: "/expenses/list" },
 					],
 				},
 				{
@@ -303,7 +303,7 @@ export default {
 					icon: "mdi-bank-outline",
 					children: [
 						{ text: "New Deposit", icon: "mdi-plus-circle-outline", to: "/deposits/new" },
-						{ text: "Deposits", icon: "mdi-format-list-bulleted", to: "/deposits/list" },
+						{ text: "Deposit List", icon: "mdi-format-list-bulleted", to: "/deposits/list" },
 					],
 				},
 				{
@@ -314,7 +314,7 @@ export default {
 					icon: "mdi-cash-multiple",
 					children: [
 						{ text: "Customer", icon: "mdi-account", to: "/payments/customer" },
-						{ text: "Payments", icon: "mdi-format-list-bulleted", to: "/payments/list" },
+						{ text: "Payment List", icon: "mdi-format-list-bulleted", to: "/payments/list" },
 					],
 				},
 				{
@@ -625,7 +625,7 @@ export default {
 					...(isFundTransferManager()
 						? [{ text: "New Transfer", icon: "mdi-plus-circle-outline", to: "/fund-transfer/new" }]
 						: []),
-					{ text: "Transfers", icon: "mdi-format-list-bulleted", to: "/fund-transfer/list" },
+					{ text: "Transfer List", icon: "mdi-format-list-bulleted", to: "/fund-transfer/list" },
 				],
 			});
 			// Production Requirement: System Manager / BSP Admin manage it, BSP

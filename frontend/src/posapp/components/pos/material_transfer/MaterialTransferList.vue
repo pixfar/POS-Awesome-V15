@@ -491,7 +491,7 @@ export default {
 			{ title: __('DO Number'), key: 'custom_do_number', sortable: true },
 			{ title: __('Remarks'), key: 'notes', sortable: false , headerProps: { class: 'pos-list-col-flex' } },
 			{ title: __('Created By'), key: 'owner_name', sortable: true },
-			{ title: __('Last Modified By'), key: 'modified_by_name', sortable: true },
+			{ title: __('Received by'), key: 'modified_by_name', sortable: true },
 			{ title: __('Actions'), key: 'actions', sortable: false, align: 'end', width: '48px' },
 		];
 
