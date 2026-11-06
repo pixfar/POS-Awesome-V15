@@ -456,8 +456,12 @@ async function fetchPrintFormats() {
 		selectedPrintFormat.value = null;
 
 		if (printFormats.value.length) {
-			if (props.posProfile.print_format && printFormats.value.includes(props.posProfile.print_format)) {
-				selectedPrintFormat.value = props.posProfile.print_format;
+			const preferred = "BSP Purchase Invoice Bangla";
+			const profileFormat = props.posProfile.print_format_for_purchase || props.posProfile.print_format;
+			if (profileFormat && printFormats.value.includes(profileFormat)) {
+				selectedPrintFormat.value = profileFormat;
+			} else if (printFormats.value.includes(preferred)) {
+				selectedPrintFormat.value = preferred;
 			} else {
 				selectedPrintFormat.value = printFormats.value[0];
 			}

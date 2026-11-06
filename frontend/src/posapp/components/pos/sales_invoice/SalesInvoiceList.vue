@@ -320,11 +320,17 @@
 										</template>
 										<v-list-item-title>{{ __("View") }}</v-list-item-title>
 									</v-list-item>
-									<v-list-item @click="printInvoice(item, 'BSP Sales Invoice')">
+									<v-list-item @click="printInvoice(item, 'BSP Sales Invoice Bangla')">
 										<template #prepend>
 											<v-icon size="18">mdi-printer-outline</v-icon>
 										</template>
 										<v-list-item-title>{{ __("Print") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item @click="printInvoice(item, 'BSP Sales Invoice English')">
+										<template #prepend>
+											<v-icon size="18">mdi-printer-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Print (English)") }}</v-list-item-title>
 									</v-list-item>
 									<v-list-item @click="printInvoice(item, 'BSP Sales Invoice For Agent')">
 										<template #prepend>

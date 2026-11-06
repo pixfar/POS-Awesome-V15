@@ -2,7 +2,7 @@
 	<DocumentDetailView
 		:eyebrow="__('Sales')"
 		:title="name"
-		:share="{ doctype, name, printFormat: doctype === 'Sales Invoice' ? 'BSP Sales Invoice' : null }"
+		:share="{ doctype, name, printFormat: doctype === 'Sales Invoice' ? 'BSP Sales Invoice Bangla' : null }"
 		:subtitle="__('Sales Invoice')"
 		:loading="loading"
 		:not-found="notFound"
@@ -27,10 +27,12 @@ import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 
 import DocumentDetailView from '../shared/DocumentDetailView.vue';
 
-// "BSP Sales Invoice" is the default (listed first); "BSP Sales Invoice For
-// Agent" is the only other format staff pick from when printing/reprinting
-// a Sales Invoice from this detail page.
-const SALES_PRINT_FORMATS = ['BSP Sales Invoice', 'BSP Sales Invoice For Agent'];
+// Bangla is the default (listed first). English and the agent copy stay available.
+const SALES_PRINT_FORMATS = [
+	'BSP Sales Invoice Bangla',
+	'BSP Sales Invoice English',
+	'BSP Sales Invoice For Agent',
+];
 
 export default {
 	name: 'SalesInvoiceDetail',

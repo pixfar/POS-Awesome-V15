@@ -314,6 +314,18 @@
 										</template>
 										<v-list-item-title>{{ __("View") }}</v-list-item-title>
 									</v-list-item>
+									<v-list-item @click="printInvoice(item, 'BSP Purchase Invoice Bangla')">
+										<template #prepend>
+											<v-icon size="18">mdi-printer-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Print") }}</v-list-item-title>
+									</v-list-item>
+									<v-list-item @click="printInvoice(item, 'BSP Purchase Invoice English')">
+										<template #prepend>
+											<v-icon size="18">mdi-printer-outline</v-icon>
+										</template>
+										<v-list-item-title>{{ __("Print (English)") }}</v-list-item-title>
+									</v-list-item>
 									<v-list-item v-if="canLoadDraft(item)" @click="loadDraftIntoForm(item)">
 										<template #prepend>
 											<v-icon size="18" color="primary">mdi-file-document-edit-outline</v-icon>
@@ -497,6 +509,8 @@ import ReturnItemsDialog from '../shared/ReturnItemsDialog.vue';
 import DeliveryReceiptDialog from '../shared/DeliveryReceiptDialog.vue';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 import ListItemFilter from '../shared/ListItemFilter.vue';
+import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
+import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 
 const OVERDUE_STATUSES = ['Overdue', 'Overdue and Discounted'];
 const RETIRED_STATUS_FILTERS = ['Unpaid', 'Unpaid and Discounted'];
@@ -959,6 +973,24 @@ export default {
 			router.push(`/purchase-invoices/${item.name}`);
 		};
 
+		const printInvoice = async (item, printFormat) => {
+			actionLoadingName.value = item.name;
+			try {
+				await openDocumentPdfPrint({
+					doctype: 'Purchase Invoice',
+					name: item.name,
+					printFormat,
+					noLetterhead: 1,
+					autoPrint: false,
+				});
+			} catch (e) {
+				console.warn('PDF print failed, falling back to printview', e);
+				openDocumentPrintView('Purchase Invoice', item.name, printFormat);
+			} finally {
+				actionLoadingName.value = null;
+			}
+		};
+
 		onMounted(() => {
 			loadSavedFilters();
 			if (RETIRED_STATUS_FILTERS.includes(statusFilter.value)) {
@@ -1028,6 +1060,7 @@ export default {
 			canLoadDraft,
 			loadDraftIntoForm,
 			openInvoiceDetail,
+			printInvoice,
 			isSystemManager,
 			canReturn,
 			canCancel,

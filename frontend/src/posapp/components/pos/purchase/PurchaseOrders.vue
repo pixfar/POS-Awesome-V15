@@ -1054,7 +1054,7 @@ export default {
 		const printPurchaseInvoice = async (docname, printFormat = null) => {
 			const doctype = "Purchase Invoice";
 			const formatName =
-				printFormat || pos_profile.value.print_format_for_purchase || "BSP Purchase Invoice";
+				printFormat || pos_profile.value.print_format_for_purchase || "BSP Purchase Invoice Bangla";
 			try {
 				await openDocumentPdfPrint({
 					doctype,

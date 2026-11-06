@@ -1363,6 +1363,7 @@ import {
 } from "../../../plugins/print";
 import { printDocumentViaQz } from "../../../services/qzTray";
 import { openDocumentPdfPrint } from "../../../utils/openDocumentPdfPrint";
+import { resolveSalesInvoicePrintFormat } from "../../../utils/paymentPrintFormat";
 import { isOffline } from "../../../../offline/index";
 import DocumentSourceSelector from "../shared/DocumentSourceSelector.vue";
 import {
@@ -2579,7 +2580,9 @@ export default {
 			const profile = this.posProfile;
 			if (!invoice?.name || !profile) return;
 			const doctype = invoice.doctype || this.currentInvoiceDoctype;
-			const printFormat = profile.print_format_for_online || profile.print_format || "Standard";
+			const chosenFormat = profile.print_format_for_online || profile.print_format || "Standard";
+			const printFormat =
+				doctype === "Sales Invoice" ? resolveSalesInvoicePrintFormat(chosenFormat) : chosenFormat;
 			const letterHead = profile.letter_head || 0;
 			const debugPrint = isDebugPrintEnabled();
 			const useSilentPrint = !!profile.posa_silent_print;

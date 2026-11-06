@@ -116,7 +116,17 @@ export default {
 			return rows;
 		},
 		actions() {
-			return [{ label: this.__('Print'), color: 'primary', onClick: () => this.printDocument() }];
+			const formats = ['BSP Purchase Invoice Bangla', 'BSP Purchase Invoice English'];
+			return [
+				{
+					label: this.__('Print'),
+					color: 'primary',
+					menuItems: formats.map((printFormat) => ({
+						label: printFormat,
+						onClick: () => this.printDocument(printFormat),
+					})),
+				},
+			];
 		},
 	},
 	mounted() {
@@ -172,17 +182,18 @@ export default {
 		goBack() {
 			this.router.push('/purchase-invoices/list');
 		},
-		async printDocument() {
+		async printDocument(printFormat = 'BSP Purchase Invoice Bangla') {
 			try {
 				await openDocumentPdfPrint({
 					doctype: 'Purchase Invoice',
 					name: this.name,
+					printFormat,
 					noLetterhead: 1,
 					autoPrint: false,
 				});
 			} catch (error) {
 				console.warn('PDF print failed, falling back to printview', error);
-				openDocumentPrintView('Purchase Invoice', this.name);
+				openDocumentPrintView('Purchase Invoice', this.name, printFormat);
 			}
 		},
 	},

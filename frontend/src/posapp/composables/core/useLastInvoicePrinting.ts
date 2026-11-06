@@ -7,6 +7,7 @@ import {
 } from "../../plugins/print";
 import { printDocumentViaQz } from "../../services/qzTray";
 import { openDocumentPdfPrint } from "../../utils/openDocumentPdfPrint";
+import { resolveSalesInvoicePrintFormat } from "../../utils/paymentPrintFormat";
 
 declare const frappe: any;
 
@@ -49,7 +50,10 @@ export function useLastInvoicePrinting() {
 		);
 		const useSilentPrint = parseBooleanSetting(posProfile.posa_silent_print);
 		const noLetterhead = letter_head ? "0" : "1";
-		const printFormat = pf || "Standard";
+		const printFormat =
+			doctype === "Sales Invoice"
+				? resolveSalesInvoicePrintFormat(pf)
+				: pf || "Standard";
 
 		if (useSilentPrint) {
 			try {

@@ -50,9 +50,32 @@ export function resolvePaymentPrintFormat({
 
 	for (const format of preferredDefaults) {
 		if (format && isAvailableFormat(format, formats)) {
-			return format;
+			return preferBanglaSalesFormat(format, formats);
 		}
 	}
 
-	return formats[0] || "";
+	return preferBanglaSalesFormat(formats[0] || "", formats);
+}
+
+const LEGACY_SALES_PRINT_FORMATS = new Set(["", "Standard", "BSP Sales Invoice"]);
+
+export const BSP_SALES_INVOICE_BANGLA = "BSP Sales Invoice Bangla";
+
+function preferBanglaSalesFormat(format: string, formats: string[]) {
+	if (
+		LEGACY_SALES_PRINT_FORMATS.has(format) &&
+		formats.includes(BSP_SALES_INVOICE_BANGLA)
+	) {
+		return BSP_SALES_INVOICE_BANGLA;
+	}
+	return format;
+}
+
+/** Sales Invoice prints default to the Bangla format unless a specific format is chosen. */
+export function resolveSalesInvoicePrintFormat(format?: string | null) {
+	const name = normalizeFormatName(format);
+	if (LEGACY_SALES_PRINT_FORMATS.has(name)) {
+		return BSP_SALES_INVOICE_BANGLA;
+	}
+	return name;
 }
