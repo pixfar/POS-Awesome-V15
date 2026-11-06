@@ -11,7 +11,10 @@ from erpnext.accounts.party import get_party_account
 
 from .utils import get_active_pos_profile, get_default_warehouse
 from .invoice_processing.creation import _resolve_territory_for_warehouse
-from .invoice_processing.returns import get_invoice_for_return
+from .invoice_processing.returns import (
+    get_invoice_for_return,
+    prorate_return_additional_discount,
+)
 from .payment_processing.utils import get_pos_change_account
 from .payment_processing.creation import refund_payments_for_return
 from posawesome.posawesome.utils.warehouse_doc_permissions import (
@@ -1808,6 +1811,7 @@ def create_purchase_return(invoice, items=None):
     return_doc.set_posting_time = 1
     return_doc.posting_date = now.date()
     return_doc.posting_time = now.time()
+    prorate_return_additional_discount(source, return_doc)
     return_doc.insert()
     return_doc.submit()
 

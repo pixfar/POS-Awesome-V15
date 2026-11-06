@@ -38,6 +38,7 @@ from posawesome.posawesome.api.invoice_processing.returns import (
     search_invoices_for_return,
     validate_return_items,
     get_invoice_for_return,
+    prorate_return_additional_discount,
 )
 from posawesome.posawesome.api.invoice_processing.fulfillment import (
     get_delivery_statuses,
@@ -656,6 +657,7 @@ def create_sales_return(invoice, doctype=None, items=None):
         # naming_series, so a return would be indistinguishable from a
         # regular sale in the numbering sequence.
         return_doc.naming_series = "ACC-SIN-RET-.YYYY.-"
+    prorate_return_additional_discount(source, return_doc)
     _validate_return_window(return_doc, doctype, enable_validity)
     return_doc.insert()
     return_doc.submit()

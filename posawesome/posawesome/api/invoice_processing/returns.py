@@ -399,3 +399,45 @@ def validate_return_items(original_invoice_name, return_items, doctype="Sales In
             }
 
     return {"valid": True}
+
+
+def prorate_return_additional_discount(source, return_doc):
+    """Scale a fixed invoice discount down to the goods actually returned.
+
+    make_return_doc copies the whole additional discount onto the return.
+    A one-item return then carries a discount larger than those goods, and
+    ERPNext rejects it. A percentage discount is left alone because ERPNext
+    recomputes that from the return total.
+    """
+    original = abs(flt(source.get("discount_amount")))
+    if not original or flt(source.get("additional_discount_percentage")):
+        return
+
+    source_base = abs(flt(source.grand_total)) + original
+    return_base = abs(sum(flt(row.amount) for row in return_doc.get("items") or []))
+    if source_base <= 0 or return_base <= 0:
+        return_doc.discount_amount = 0
+        return_doc.base_discount_amount = 0
+        return
+
+    already = abs(
+        flt(
+            frappe.db.sql(
+                f"""
+                SELECT COALESCE(SUM(discount_amount), 0)
+                FROM `tab{return_doc.doctype}`
+                WHERE return_against = %s AND is_return = 1 AND docstatus = 1
+                """,
+                source.name,
+            )[0][0]
+        )
+    )
+    share = original * min(1, return_base / source_base)
+    share = min(share, max(original - already, 0), return_base)
+    share = flt(share, return_doc.precision("discount_amount"))
+    return_doc.additional_discount_percentage = 0
+    return_doc.discount_amount = -share
+    return_doc.base_discount_amount = flt(
+        -share * flt(return_doc.conversion_rate or 1),
+        return_doc.precision("base_discount_amount"),
+    )
