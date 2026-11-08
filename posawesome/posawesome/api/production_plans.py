@@ -38,7 +38,7 @@ def get_default_fg_warehouse():
 	Production Plan's Source/Target Warehouse fields."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can view Production Plans.'),
+			_('Only a System Manager or BSP Admin can view Production Plans.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -122,7 +122,7 @@ def resolve_scanned_item(barcode):
 	"""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can view Production Plans.'),
+			_('Only a System Manager or BSP Admin can view Production Plans.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -177,7 +177,7 @@ def get_bom_raw_materials(bom_no, qty=1):
 	plan."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can view Production Plans.'),
+			_('Only a System Manager or BSP Admin can view Production Plans.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -229,7 +229,7 @@ def create_production_plan(data):
 	"""Create a Production Plan (Draft) from POS. Restricted to System Manager."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can create a Production Plan.'),
+			_('Only a System Manager or BSP Admin can create a Production Plan.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -331,7 +331,7 @@ def get_production_plans_list(
 	"""Paginated, filterable Production Plan list. Restricted to System Manager."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can view Production Plans.'),
+			_('Only a System Manager or BSP Admin can view Production Plans.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -429,7 +429,7 @@ def get_production_plan_detail(name):
 	Restricted to System Manager."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can view Production Plans.'),
+			_('Only a System Manager or BSP Admin can view Production Plans.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -596,7 +596,7 @@ def advance_production_plan_status(name, action):
 	"""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can update Production Plan status.'),
+			_('Only a System Manager or BSP Admin can update Production Plan status.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -655,7 +655,7 @@ def delete_production_plan(name):
 	plan has to go through Cancel instead."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can delete Production Plans.'),
+			_('Only a System Manager or BSP Admin can delete Production Plans.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -710,7 +710,7 @@ def delete_cancelled_production_plan(name):
 	untouched and remain as the audit trail."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can delete Production Plans.'),
+			_('Only a System Manager or BSP Admin can delete Production Plans.'),
 			exc=frappe.PermissionError,
 		)
 

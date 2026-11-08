@@ -642,9 +642,9 @@ def cancel_payment_entry(name):
     """Cancel a submitted Payment Entry. Restricted to System Manager, matching
     the Sales/Purchase Invoice cancel gate elsewhere in POS Awesome. ERPNext's
     own Payment Entry controller reverses its GL Entries on cancel."""
-    if "System Manager" not in frappe.get_roles(frappe.session.user):
+    if not is_system_manager():
         frappe.throw(
-            _("Only a user with the System Manager role can cancel this document."),
+            _("Only a System Manager or BSP Admin can cancel this document."),
             frappe.PermissionError,
         )
 
@@ -661,7 +661,7 @@ def delete_cancelled_payment_entry(name):
     """Permanently delete a Draft or Cancelled Payment Entry."""
     if not is_system_manager():
         frappe.throw(
-            _("Only a System Manager can delete Payment Entries."),
+            _("Only a System Manager or BSP Admin can delete Payment Entries."),
             exc=frappe.PermissionError,
         )
 

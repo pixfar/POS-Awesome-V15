@@ -356,7 +356,7 @@ def set_requisition_status(requisition, status):
 
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can update the Requisition status.'),
+			_('Only a System Manager or BSP Admin can update the Requisition status.'),
 			title=_('Not Allowed'),
 			exc=frappe.PermissionError,
 		)
@@ -380,9 +380,9 @@ def cancel_requisition(requisition):
 	the Sales/Purchase Invoice cancel gate elsewhere in POS Awesome. Requisition
 	never creates a Stock Entry (unlike Material Transfer), so there is nothing
 	beyond docstatus for a plain cancel to reverse."""
-	if "System Manager" not in frappe.get_roles(frappe.session.user):
+	if not is_system_manager():
 		frappe.throw(
-			_("Only a user with the System Manager role can cancel this document."),
+			_("Only a System Manager or BSP Admin can cancel this document."),
 			frappe.PermissionError,
 		)
 
@@ -400,7 +400,7 @@ def delete_cancelled_requisition(requisition):
 	"""Permanently delete a Draft or Cancelled Requisition."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can delete Requisitions.'),
+			_('Only a System Manager or BSP Admin can delete Requisitions.'),
 			exc=frappe.PermissionError,
 		)
 

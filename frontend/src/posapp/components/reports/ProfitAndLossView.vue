@@ -117,7 +117,7 @@ const allCollapsed = ref(false);
 
 const hasAccess = computed(() => {
 	const roles = frappe?.boot?.user?.roles || [];
-	return roles.includes('System Manager');
+	return roles.includes('BSP Admin') || roles.includes('System Manager');
 });
 
 const summary = computed(() => {

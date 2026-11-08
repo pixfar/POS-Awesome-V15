@@ -376,7 +376,7 @@ import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 import { useToastStore } from '../../../stores/toastStore';
-import { isFundTransferManager } from '../../../utils/posWarehouseAccess';
+import { isFundTransferManager, isPosAdmin} from '../../../utils/posWarehouseAccess';
 
 export default {
 	name: 'PaymentList',
@@ -387,9 +387,7 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 
-		const isSystemManager = computed(() =>
-			(frappe?.boot?.user?.roles || []).includes('System Manager'),
-		);
+		const isSystemManager = computed(() => isPosAdmin());
 		// Same gate as Fund Transfer's "New Transfer" and the Navbar's
 		// "Supplier" payment link -- only BSP Admin/System Manager can make a
 		// Supplier Payment.

@@ -22,6 +22,7 @@ from posawesome.posawesome.utils.warehouse_doc_permissions import (
 	user_can_access_warehouse_scoped_doc,
 	ensure_can_create,
 	is_privileged_invoice_viewer,
+	is_system_manager,
 )
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
 
@@ -1682,11 +1683,12 @@ def _create_purchase_invoice(po_doc, payload, default_warehouse, transaction_dat
 
 @frappe.whitelist()
 def cancel_purchase_invoice(invoice):
-    """Cancel a submitted Purchase Invoice. Restricted to System Manager so
-    front-line POS users can't reverse a purchase's stock/payment/GL effects."""
-    if "System Manager" not in frappe.get_roles(frappe.session.user):
+    """Cancel a submitted Purchase Invoice. Restricted to System Manager /
+    BSP Admin so front-line POS users can't reverse a purchase's stock/
+    payment/GL effects."""
+    if not is_system_manager():
         frappe.throw(
-            _("Only a user with the System Manager role can cancel this document."),
+            _("Only a System Manager or BSP Admin can cancel this document."),
             frappe.PermissionError,
         )
 

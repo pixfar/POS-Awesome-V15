@@ -18,17 +18,23 @@ BSP_VIEWER_ROLE = 'BSP Viewer'
 
 
 def is_system_manager(user=None):
+	"""True for Administrator, System Manager, or BSP Admin.
+
+	BSP Admin is the shop-facing admin role: same POS Awesome powers as
+	System Manager (cancel/delete/status, overrides, etc.) without granting
+	full Frappe System Manager on the desk.
+	"""
 	user = user or frappe.session.user
-	return user == 'Administrator' or SYSTEM_MANAGER_ROLE in frappe.get_roles(user)
+	if user == 'Administrator':
+		return True
+	roles = frappe.get_roles(user)
+	return SYSTEM_MANAGER_ROLE in roles or BSP_ADMIN_ROLE in roles
 
 
 def is_privileged_invoice_viewer(user=None):
 	"""System Manager or BSP Admin may see every Sales/Purchase Invoice
 	regardless of who created it or which warehouse it touches."""
-	user = user or frappe.session.user
-	if user == 'Administrator' or is_system_manager(user):
-		return True
-	return BSP_ADMIN_ROLE in frappe.get_roles(user)
+	return is_system_manager(user)
 
 
 def is_read_only_viewer(user=None):

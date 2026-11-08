@@ -288,6 +288,8 @@ import RowActionsMenu from '../shared/RowActionsMenu.vue';
 import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 import ListItemFilter from '../shared/ListItemFilter.vue';
+import { isPosAdmin } from '../../../utils/posWarehouseAccess';
+
 
 export default {
 	name: 'BomList',
@@ -297,9 +299,7 @@ export default {
 		const router = useRouter();
 		const toastStore = useToastStore();
 
-		const isSystemManager = computed(() =>
-			(frappe?.boot?.user?.roles || []).includes('System Manager'),
-		);
+		const isSystemManager = computed(() => isPosAdmin());
 
 		const actionLoadingName = ref(null);
 		const confirmDialog = ref(false);

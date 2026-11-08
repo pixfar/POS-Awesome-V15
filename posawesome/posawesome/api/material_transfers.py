@@ -415,7 +415,7 @@ def delete_cancelled_material_transfer(transfer):
 	is untouched and remains as the cancelled audit trail."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can delete Material Transfers.'),
+			_('Only a System Manager or BSP Admin can delete Material Transfers.'),
 			exc=frappe.PermissionError,
 		)
 

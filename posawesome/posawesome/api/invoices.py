@@ -48,6 +48,7 @@ from posawesome.posawesome.api.invoice_processing.fulfillment import (
 from posawesome.posawesome.api.invoice_processing.payment import _create_change_payment_entries
 from posawesome.posawesome.api.payment_processing.creation import refund_payments_for_return
 from posawesome.posawesome.api.invoice_processing.data import get_last_invoice_rates
+from posawesome.posawesome.utils.warehouse_doc_permissions import is_system_manager
 from posawesome.posawesome.api.utils import log_perf_event
 from posawesome.posawesome.utils.warehouse_doc_permissions import apply_list_warehouse_scope
 from posawesome.posawesome.utils.weight import get_total_weight_by_parent
@@ -523,13 +524,14 @@ def _resolve_invoice_doctype(invoice, doctype):
 
 @frappe.whitelist()
 def cancel_sales_invoice(invoice, doctype=None):
-    """Cancel a submitted Sales/POS Invoice. Restricted to System Manager so
-    front-line POS users can't reverse a sale's stock/payment/GL effects."""
+    """Cancel a submitted Sales/POS Invoice. Restricted to System Manager /
+    BSP Admin so front-line POS users can't reverse a sale's stock/payment/GL
+    effects."""
     from frappe import _
 
-    if "System Manager" not in frappe.get_roles(frappe.session.user):
+    if not is_system_manager():
         frappe.throw(
-            _("Only a user with the System Manager role can cancel this document."),
+            _("Only a System Manager or BSP Admin can cancel this document."),
             frappe.PermissionError,
         )
 

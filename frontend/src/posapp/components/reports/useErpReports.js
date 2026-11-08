@@ -28,7 +28,7 @@ const reportGroups = [
 				// Income/Expense breakdown -- restricted since it exposes
 				// company-wide financial results. Rendered in-app (tree view)
 				// instead of redirecting to the ERPNext desk report.
-				roles: ['System Manager'],
+				roles: ['BSP Admin', 'System Manager'],
 				route: '/reports/profit-and-loss',
 			},
 			{

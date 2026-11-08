@@ -517,10 +517,12 @@ import { openDocumentPdfPrint } from '../../../utils/openDocumentPdfPrint';
 import { openDocumentPrintView } from '../../../utils/openDocumentPrintView';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 import ListItemFilter from '../shared/ListItemFilter.vue';
+import { isPosAdmin } from '../../../utils/posWarehouseAccess';
 
 const OVERDUE_STATUSES = ['Overdue', 'Overdue and Discounted'];
 const RETIRED_STATUS_FILTERS = ['Unpaid', 'Unpaid and Discounted'];
 const RETURN_STATUSES = ['Return', 'Credit Note Issued'];
+
 
 export default {
 	name: 'SalesInvoiceList',
@@ -531,9 +533,7 @@ export default {
 		const uiStore = useUIStore();
 		const toastStore = useToastStore();
 
-		const isSystemManager = computed(() =>
-			(frappe?.boot?.user?.roles || []).includes('System Manager'),
-		);
+		const isSystemManager = computed(() => isPosAdmin());
 
 		const NON_CANCELLABLE_STATUSES = ['Draft', 'Cancelled'];
 		const canReturn = (item) =>

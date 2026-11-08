@@ -244,6 +244,8 @@ import ConfirmActionDialog from '../shared/ConfirmActionDialog.vue';
 import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { useToastStore } from '../../../stores/toastStore';
+import { isPosAdmin } from '../../../utils/posWarehouseAccess';
+
 
 export default {
 	name: 'ExpenseList',
@@ -253,9 +255,7 @@ export default {
 		const router = useRouter();
 		const toastStore = useToastStore();
 
-		const isSystemManager = computed(() =>
-			(frappe?.boot?.user?.roles || []).includes('System Manager'),
-		);
+		const isSystemManager = computed(() => isPosAdmin());
 
 		const actionLoadingName = ref(null);
 		const confirmDialog = ref(false);

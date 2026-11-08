@@ -38,7 +38,7 @@ def get_default_pos_profile():
 	depend on a cashier session existing."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can manage BOMs.'),
+			_('Only a System Manager or BSP Admin can manage BOMs.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -66,7 +66,7 @@ def get_default_wip_warehouse():
 	context for the BOM raw material browser."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can manage BOMs.'),
+			_('Only a System Manager or BSP Admin can manage BOMs.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -86,7 +86,7 @@ def search_bom_items(search_text=None, limit=20, stock_items_only=0, exclude_ite
 	raw material row (stock items only)."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can manage BOMs.'),
+			_('Only a System Manager or BSP Admin can manage BOMs.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -150,7 +150,7 @@ def create_bom(data):
 	(BOM.manage_default_bom unmarks any previous default automatically)."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can create a BOM.'),
+			_('Only a System Manager or BSP Admin can create a BOM.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -216,7 +216,7 @@ def get_boms_list(
 	System Manager."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can view BOMs.'),
+			_('Only a System Manager or BSP Admin can view BOMs.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -289,7 +289,7 @@ def get_bom_detail(name):
 	Restricted to System Manager."""
 	if not is_system_manager():
 		frappe.throw(
-			_('Only a System Manager can view BOMs.'),
+			_('Only a System Manager or BSP Admin can view BOMs.'),
 			exc=frappe.PermissionError,
 		)
 
@@ -352,9 +352,9 @@ def get_bom_detail(name):
 def cancel_bom(name):
 	"""Cancel a submitted BOM. Restricted to System Manager, matching the
 	Sales/Purchase Invoice cancel gate elsewhere in POS Awesome."""
-	if "System Manager" not in frappe.get_roles(frappe.session.user):
+	if not is_system_manager():
 		frappe.throw(
-			_("Only a user with the System Manager role can cancel this document."),
+			_("Only a System Manager or BSP Admin can cancel this document."),
 			frappe.PermissionError,
 		)
 
@@ -371,7 +371,7 @@ def delete_cancelled_bom(name):
 	"""Permanently delete a Draft or Cancelled BOM."""
 	if not is_system_manager():
 		frappe.throw(
-			_("Only a System Manager can delete BOMs."),
+			_("Only a System Manager or BSP Admin can delete BOMs."),
 			exc=frappe.PermissionError,
 		)
 

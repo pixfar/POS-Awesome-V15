@@ -356,6 +356,7 @@ import InvoiceExpandedDetail from '../shared/InvoiceExpandedDetail.vue';
 import { useExpandedRowDetail } from '../../../composables/useExpandedRowDetail';
 import { useListFilterPersistence } from '../../../composables/useListFilterPersistence';
 import ListItemFilter from '../shared/ListItemFilter.vue';
+import { isPosAdmin } from '../../../utils/posWarehouseAccess';
 
 const STATUS_CONFIRM_MESSAGES = {
 	Sent: __('Mark this requisition as Sent? It can no longer be edited after this.'),
@@ -376,6 +377,7 @@ const CONFIRM_COLOR_BY_STATUS = {
 	Delete: 'error',
 };
 
+
 export default {
 	name: 'RequisitionList',
 	components: { ListItemFilter, DateFilterField, ConfirmActionDialog, RowActionsMenu, InvoiceExpandedDetail },
@@ -384,9 +386,7 @@ export default {
 		const router = useRouter();
 		const toastStore = useToastStore();
 
-		const isSystemManager = computed(() =>
-			(frappe?.boot?.user?.roles || []).includes('System Manager'),
-		);
+		const isSystemManager = computed(() => isPosAdmin());
 
 		const requisitionList = ref([]);
 		const listLoading = ref(false);

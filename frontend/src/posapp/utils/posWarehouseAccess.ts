@@ -15,6 +15,11 @@ export function isPosWarehouseSwitcher(): boolean {
 }
 
 export function isFundTransferManager(): boolean {
+	return isPosAdmin();
+}
+
+/** POS Awesome admin: System Manager or BSP Admin (same operations). */
+export function isPosAdmin(): boolean {
 	const roles = frappe?.boot?.user?.roles || [];
 	return roles.includes("BSP Admin") || roles.includes("System Manager");
 }

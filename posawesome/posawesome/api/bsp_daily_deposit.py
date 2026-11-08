@@ -300,9 +300,9 @@ def get_daily_deposit_detail(name):
 def cancel_daily_deposit(name):
 	"""Cancel a submitted BSP Daily Deposit. Restricted to System Manager,
 	matching the Sales/Purchase Invoice cancel gate elsewhere in POS Awesome."""
-	if "System Manager" not in frappe.get_roles(frappe.session.user):
+	if not is_system_manager():
 		frappe.throw(
-			_("Only a user with the System Manager role can cancel this document."),
+			_("Only a System Manager or BSP Admin can cancel this document."),
 			frappe.PermissionError,
 		)
 
@@ -341,7 +341,7 @@ def delete_cancelled_daily_deposit(name):
 	"""Permanently delete a Draft or Cancelled BSP Daily Deposit."""
 	if not is_system_manager():
 		frappe.throw(
-			_("Only a System Manager can delete daily deposits."),
+			_("Only a System Manager or BSP Admin can delete daily deposits."),
 			exc=frappe.PermissionError,
 		)
 
