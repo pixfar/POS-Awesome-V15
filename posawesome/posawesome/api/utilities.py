@@ -928,24 +928,33 @@ def log_client_error(payload=None):
         )
         return {"ok": False}
 
+def _ensure_column_preference_doctype():
+    """Install POS Awesome Column Preference if this site never migrated it."""
+    if frappe.db.exists("DocType", "POS Awesome Column Preference"):
+        return
+    from posawesome.setup_column_prefs import create_column_pref_doctype
+
+    create_column_pref_doctype()
+    frappe.clear_cache(doctype="POS Awesome Column Preference")
+
+
 @frappe.whitelist()
 def get_user_column_preferences(report_name: str) -> list:
     """Get the saved column preferences for the current user and report."""
     if not report_name:
         return []
-    
+
+    _ensure_column_preference_doctype()
     user = frappe.session.user
-    
-    # Try to find an existing preference record
+
     doc_name = frappe.db.get_value(
         "POS Awesome Column Preference",
         {"user": user, "report_name": report_name},
-        "name"
+        "name",
     )
-    
     if not doc_name:
         return []
-        
+
     doc = frappe.get_doc("POS Awesome Column Preference", doc_name)
     try:
         return json.loads(doc.selected_columns) if doc.selected_columns else []
@@ -958,28 +967,30 @@ def save_user_column_preferences(report_name: str, selected_columns: str) -> boo
     """Save the column preferences for the current user and report."""
     if not report_name:
         return False
-        
+
+    _ensure_column_preference_doctype()
     user = frappe.session.user
-    
-    # Check if preference already exists
+
     doc_name = frappe.db.get_value(
         "POS Awesome Column Preference",
         {"user": user, "report_name": report_name},
-        "name"
+        "name",
     )
-    
+
     if doc_name:
         doc = frappe.get_doc("POS Awesome Column Preference", doc_name)
         doc.selected_columns = selected_columns
         doc.save(ignore_permissions=True)
     else:
-        doc = frappe.get_doc({
-            "doctype": "POS Awesome Column Preference",
-            "user": user,
-            "report_name": report_name,
-            "selected_columns": selected_columns
-        })
+        doc = frappe.get_doc(
+            {
+                "doctype": "POS Awesome Column Preference",
+                "user": user,
+                "report_name": report_name,
+                "selected_columns": selected_columns,
+            }
+        )
         doc.insert(ignore_permissions=True)
-        
+
     frappe.db.commit()
     return True

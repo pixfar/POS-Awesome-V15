@@ -111,13 +111,6 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 		},
 		{ title: __("UOM"), key: "uom", align: "center", required: false },
 		{
-			title: __("Price List Rate"),
-			key: "price_list_rate",
-			align: "end",
-			required: false,
-			width: "120px",
-		},
-		{
 			title: __("Discount %"),
 			key: "discount_percentage",
 			align: "end",
@@ -131,12 +124,6 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 		},
 		{ title: __("Rate"), key: "rate", align: "center", required: true },
 		{ title: __("Amount"), key: "amount", align: "center", required: true },
-		{
-			title: __("Offer?"),
-			key: "posa_is_offer",
-			align: "center",
-			required: false,
-		},
 		{
 			title: __("Actions"),
 			key: "actions",
@@ -162,10 +149,16 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 				}
 			});
 			if (result.message && Array.isArray(result.message) && result.message.length > 0) {
-				const parsed = result.message;
-				selected_columns.value = parsed.map((key: string) =>
-					key === "discount_value" ? "discount_percentage" : key,
+				const allowed = new Set(
+					available_columns.value
+						.filter((col) => !col.required)
+						.map((col) => col.key),
 				);
+				selected_columns.value = result.message
+					.map((key: string) =>
+						key === "discount_value" ? "discount_percentage" : key,
+					)
+					.filter((key: string) => allowed.has(key));
 			} else {
 				selected_columns.value = [];
 			}
