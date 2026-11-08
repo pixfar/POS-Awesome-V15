@@ -657,6 +657,13 @@ def create_sales_return(invoice, doctype=None, items=None):
         # naming_series, so a return would be indistinguishable from a
         # regular sale in the numbering sequence.
         return_doc.naming_series = "ACC-SIN-RET-.YYYY.-"
+    # Sales returns often leave set_warehouse blank (no_copy); print formats
+    # and stock reports need it. Prefer the source header, else first item.
+    if not return_doc.get("set_warehouse"):
+        return_doc.set_warehouse = source.get("set_warehouse") or next(
+            (row.warehouse for row in (return_doc.items or []) if row.get("warehouse")),
+            None,
+        )
     prorate_return_additional_discount(source, return_doc)
     _validate_return_window(return_doc, doctype, enable_validity)
     return_doc.insert()

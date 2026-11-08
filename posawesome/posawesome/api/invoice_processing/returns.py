@@ -401,13 +401,45 @@ def validate_return_items(original_invoice_name, return_items, doctype="Sales In
     return {"valid": True}
 
 
-def prorate_return_additional_discount(source, return_doc):
-    """Scale a fixed invoice discount down to the goods actually returned.
+def _returned_item_base(source, return_doc):
+    """Sum of abs item amounts already returned against source (submitted)."""
+    item_dt = return_doc.doctype + " Item"
+    prior = frappe.get_all(
+        return_doc.doctype,
+        filters={
+            "return_against": source.name,
+            "is_return": 1,
+            "docstatus": 1,
+            "name": ["!=", return_doc.name or ""],
+        },
+        pluck="name",
+    )
+    if not prior:
+        return 0.0
+    return abs(
+        flt(
+            frappe.db.sql(
+                f"""
+                SELECT COALESCE(SUM(amount), 0)
+                FROM `tab{item_dt}`
+                WHERE parent IN %s
+                """,
+                (prior,),
+            )[0][0]
+        )
+    )
 
-    make_return_doc copies the whole additional discount onto the return.
-    A one-item return then carries a discount larger than those goods, and
-    ERPNext rejects it. A percentage discount is left alone because ERPNext
-    recomputes that from the return total.
+
+def prorate_return_additional_discount(source, return_doc):
+    """Keep bill discount off partial returns; apply leftover only on the last.
+
+    make_return_doc copies the whole additional discount onto every return.
+    Shop logic treats a partial return at the full item amount
+    (e.g. return 3000 from a 7200/200-discount bill credits 3000, and the
+    200 stays on what is left). Only when this return finishes the original
+    goods do we put the remaining discount on the credit note so a full
+    return still nets the original grand total. Percentage discounts are
+    left alone because ERPNext recomputes them from the return total.
     """
     original = abs(flt(source.get("discount_amount")))
     if not original or flt(source.get("additional_discount_percentage")):
@@ -418,22 +450,28 @@ def prorate_return_additional_discount(source, return_doc):
     if source_base <= 0 or return_base <= 0:
         return_doc.discount_amount = 0
         return_doc.base_discount_amount = 0
+        return_doc.additional_discount_percentage = 0
         return
 
-    already = abs(
+    already_discount = abs(
         flt(
             frappe.db.sql(
                 f"""
                 SELECT COALESCE(SUM(discount_amount), 0)
                 FROM `tab{return_doc.doctype}`
                 WHERE return_against = %s AND is_return = 1 AND docstatus = 1
+                  AND name != %s
                 """,
-                source.name,
+                (source.name, return_doc.name or ""),
             )[0][0]
         )
     )
-    share = original * min(1, return_base / source_base)
-    share = min(share, max(original - already, 0), return_base)
+    already_items = _returned_item_base(source, return_doc)
+    finishes_bill = (already_items + return_base) >= (source_base - 0.0001)
+    if finishes_bill:
+        share = min(max(original - already_discount, 0), return_base)
+    else:
+        share = 0.0
     share = flt(share, return_doc.precision("discount_amount"))
     return_doc.additional_discount_percentage = 0
     return_doc.discount_amount = -share

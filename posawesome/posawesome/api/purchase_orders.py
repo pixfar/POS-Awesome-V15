@@ -1811,6 +1811,15 @@ def create_purchase_return(invoice, items=None):
     return_doc.set_posting_time = 1
     return_doc.posting_date = now.date()
     return_doc.posting_time = now.time()
+    if not return_doc.get("set_warehouse"):
+        return_doc.set_warehouse = source.get("set_warehouse") or next(
+            (
+                row.warehouse
+                for row in (return_doc.items or [])
+                if row.get("warehouse")
+            ),
+            None,
+        )
     prorate_return_additional_discount(source, return_doc)
     return_doc.insert()
     return_doc.submit()

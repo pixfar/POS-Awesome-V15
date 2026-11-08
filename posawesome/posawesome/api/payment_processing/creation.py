@@ -152,76 +152,141 @@ def create_payment_entry(
     return pe
 
 
-def refund_payments_for_return(original_doc, return_doc, doctype):
-    """When a Sales/Purchase Invoice being returned has one or more submitted
-    Payment Entries actually allocated against it (i.e. paid later and
-    reconciled via a separate Payment Entry -- not the invoice's own inline
-    POS payment table, which the return flow already mirrors on its own),
-    create and submit a reversing Payment Entry per original payment so the
-    money is refunded through the *same account and mode of payment* it
-    originally moved through, not a new/different one.
-
-    Each refund is scaled to `abs(return_doc.grand_total) /
-    abs(original_doc.grand_total)` of that specific payment's own allocated
-    amount -- e.g. a return covering 40% of the original invoice refunds 40%
-    of every payment entry that funded it, split proportionally the same way
-    the original payments were, mirroring how ERPNext's own return
-    validation already guarantees returns can never exceed 100% of the
-    original invoice across however many are made over time, so this can't
-    double-refund a given payment across multiple partial returns without
-    needing to separately track "already refunded" state.
-
-    For Purchase Invoice specifically, bsp_engineering's own on_submit hook
-    (create_payment_entry_from_purchase_invoice) has no is_return guard, so
-    it already fires for the return itself whenever custom_is_paid carried
-    over as truthy (which it normally does, copied from the source) and
-    auto-settles it via its own Payment Entry *before this function ever
-    runs* -- by the time this checks, the return's outstanding is already 0
-    and it correctly finds nothing left to refund. Confirmed the entry that
-    hook produces (via get_payment_entry, since return_doc.outstanding_amount
-    is negative at the time it runs) is itself correct -- right direction,
-    right amount -- so this function is the real refund path for Sales/POS
-    Invoice (whose hook explicitly skips is_return) and a safe no-op
-    backstop for Purchase Invoice's common case, while still being what
-    actually fires for a Purchase Invoice whose custom_is_paid was never
-    set (paid entirely through a separately reconciled Payment Entry
-    instead).
-
-    Returns the list of created refund Payment Entry names."""
-    original_total = flt(original_doc.grand_total)
-    if not original_total:
-        return []
-
-    ratio = abs(flt(return_doc.grand_total)) / abs(original_total)
-    if ratio <= 0:
-        return []
-
-    ref_rows = frappe.get_all(
+def _payments_allocated_to_invoice(doctype, invoice_name):
+    """Submitted Payment Entry rows allocated against one invoice."""
+    rows = frappe.get_all(
         "Payment Entry Reference",
-        filters={"reference_doctype": doctype, "reference_name": original_doc.name},
+        filters={"reference_doctype": doctype, "reference_name": invoice_name},
         fields=["parent", "allocated_amount"],
     )
+    out = []
+    for row in rows:
+        if frappe.db.get_value("Payment Entry", row.parent, "docstatus") != 1:
+            continue
+        amount = abs(flt(row.allocated_amount))
+        if amount <= 0.0001:
+            continue
+        out.append(frappe._dict(parent=row.parent, allocated_amount=amount))
+    return out
+
+
+def _already_refunded_for_invoice(doctype, invoice_name):
+    """Cash already paid out for submitted returns against this invoice."""
+    returns = frappe.get_all(
+        doctype,
+        filters={"return_against": invoice_name, "is_return": 1, "docstatus": 1},
+        pluck="name",
+    )
+    if not returns:
+        return 0.0
+
+    total = 0.0
+    for row in frappe.get_all(
+        "Payment Entry Reference",
+        filters={"reference_doctype": doctype, "reference_name": ["in", returns]},
+        fields=["parent", "allocated_amount"],
+    ):
+        if frappe.db.get_value("Payment Entry", row.parent, "docstatus") != 1:
+            continue
+        total += abs(flt(row.allocated_amount))
+    return total
+
+
+def _return_finishes_original_invoice(original_doc, return_doc, doctype):
+    """True when this return (plus prior submitted ones) covers all goods."""
+    original = abs(flt(original_doc.get("discount_amount")))
+    source_base = abs(flt(original_doc.grand_total)) + original
+    return_base = abs(sum(flt(row.amount) for row in return_doc.get("items") or []))
+    prior = frappe.get_all(
+        doctype,
+        filters={
+            "return_against": original_doc.name,
+            "is_return": 1,
+            "docstatus": 1,
+            "name": ["!=", return_doc.name or ""],
+        },
+        pluck="name",
+    )
+    already_items = 0.0
+    if prior:
+        item_dt = doctype + " Item"
+        already_items = abs(
+            flt(
+                frappe.db.sql(
+                    f"""
+                    SELECT COALESCE(SUM(amount), 0)
+                    FROM `tab{item_dt}`
+                    WHERE parent IN %s
+                    """,
+                    (prior,),
+                )[0][0]
+            )
+        )
+    return (already_items + return_base) >= (source_base - 0.0001)
+
+
+def refund_payments_for_return(original_doc, return_doc, doctype):
+    """When a Sales/Purchase Invoice being returned has one or more submitted
+    Payment Entries allocated against it (paid via a separate Payment Entry,
+    not the invoice's own inline POS payment table), create reversing Payment
+    Entries so the money is refunded through the same account and mode of
+    payment it originally moved through.
+
+    Shop rules:
+    - If paid still covers this return in full, refund the return amount
+      (e.g. bill 7200, paid 5000, return 3600 → refund 3600; due stays 2200).
+    - If paid is less than the return, do not pay cash out — keep the payment
+      on the account and let the credit reduce due
+      (e.g. after-discount 7000, paid 1000, return 3000 → refund 0; due 3000).
+    - When this return finishes the whole bill, pay back any paid amount that
+      is still unrefunded so a completed return cannot leave stranded cash.
+
+    For Purchase Invoice, bsp_engineering's on_submit hook often settles the
+    return first when custom_is_paid is set; this then finds nothing left and
+    is a no-op. Sales/POS Invoice use this as the real refund path.
+
+    Returns the list of created refund Payment Entry names."""
+    return_total = abs(flt(return_doc.grand_total))
+    if return_total <= 0.0001:
+        return []
+
+    ref_rows = _payments_allocated_to_invoice(doctype, original_doc.name)
     if not ref_rows:
+        return []
+
+    total_paid = sum(row.allocated_amount for row in ref_rows)
+    already = _already_refunded_for_invoice(doctype, original_doc.name)
+    remaining_paid = max(total_paid - already, 0)
+    if remaining_paid <= 0.0001:
+        return []
+
+    if remaining_paid + 0.0001 >= return_total:
+        refund_needed = return_total
+    elif _return_finishes_original_invoice(original_doc, return_doc, doctype):
+        refund_needed = remaining_paid
+    else:
+        # Paid is smaller than this return and goods still remain — keep the
+        # payment applied; due becomes grand - paid - return.
+        return []
+
+    if refund_needed <= 0.0001:
         return []
 
     from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
     created = []
     for ref in ref_rows:
-        original_pe = frappe.get_doc("Payment Entry", ref.parent)
-        if original_pe.docstatus != 1:
-            continue
-        this_refund = flt(ref.allocated_amount) * ratio
+        this_refund = flt(ref.allocated_amount) / total_paid * refund_needed
         if this_refund <= 0.0001:
             continue
 
+        original_pe = frappe.get_doc("Payment Entry", ref.parent)
         # get_payment_entry builds a correctly-typed (Pay for a sales
         # return, Receive for a purchase return), correctly-referenced draft
         # against the *return* document, defaulting to its full outstanding
-        # amount in one reference row -- exactly what's needed except the
-        # amount and account, which get scaled/rerouted below.
+        # amount in one reference row -- amount/accounts are adjusted below.
         refund_pe = get_payment_entry(doctype, return_doc.name)
-        base_amount = flt(refund_pe.paid_amount or refund_pe.received_amount or 0)
+        base_amount = abs(flt(refund_pe.paid_amount or refund_pe.received_amount or 0))
         if not base_amount:
             continue
         pe_ratio = this_refund / base_amount
@@ -234,10 +299,10 @@ def refund_payments_for_return(original_doc, return_doc, doctype):
         refund_pe.paid_to = original_pe.paid_from
         refund_pe.paid_from_account_currency = original_pe.paid_to_account_currency
         refund_pe.paid_to_account_currency = original_pe.paid_from_account_currency
-        refund_pe.paid_amount = flt(refund_pe.paid_amount) * pe_ratio
-        refund_pe.received_amount = flt(refund_pe.received_amount) * pe_ratio
-        refund_pe.base_paid_amount = flt(refund_pe.base_paid_amount) * pe_ratio
-        refund_pe.base_received_amount = flt(refund_pe.base_received_amount) * pe_ratio
+        refund_pe.paid_amount = abs(flt(refund_pe.paid_amount) * pe_ratio)
+        refund_pe.received_amount = abs(flt(refund_pe.received_amount) * pe_ratio)
+        refund_pe.base_paid_amount = abs(flt(refund_pe.base_paid_amount) * pe_ratio)
+        refund_pe.base_received_amount = abs(flt(refund_pe.base_received_amount) * pe_ratio)
         for row in refund_pe.references:
             row.allocated_amount = flt(row.allocated_amount) * pe_ratio
         refund_pe.reference_no = f"Refund of {original_pe.name} for return {return_doc.name}"
