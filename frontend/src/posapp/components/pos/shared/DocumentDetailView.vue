@@ -245,6 +245,84 @@
 					</div>
 				</section>
 
+				<!-- Extra tables (e.g. linked Returns) — same card/table chrome as Items. -->
+				<section
+					v-for="section in relatedSections"
+					:key="section.key || section.title"
+					class="pos-detail-section"
+				>
+					<header class="pos-detail-section__head">
+						<span
+							class="pos-detail-section__icon"
+							:class="`pos-accent--${section.accent || 'amber'}`"
+						>
+							<v-icon size="18">{{ section.icon || "mdi-link-variant" }}</v-icon>
+						</span>
+						<h4 class="pos-detail-section__title">{{ section.title }}</h4>
+						<span class="pos-detail-section__badge">{{ (section.rows || []).length }}</span>
+					</header>
+					<div class="pos-detail-table-wrap">
+						<v-table density="comfortable" class="pos-themed-table pos-detail-items-table">
+							<thead>
+								<tr>
+									<th
+										v-for="col in section.columns || []"
+										:key="col.key"
+										:class="col.align === 'end' ? 'text-right' : 'text-left'"
+									>
+										{{ col.label }}
+									</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr
+									v-for="(row, idx) in section.rows || []"
+									:key="rowKey(row, idx)"
+									:class="{ 'pos-detail-row--link': Boolean(row.to) }"
+									@click="row.to && $emit('navigate', row.to)"
+								>
+									<td
+										v-for="col in section.columns || []"
+										:key="col.key"
+										:class="[
+											col.align === 'end' ? 'text-right' : 'text-left',
+											{ 'pos-detail-cell--code': isCodeColumn(col) || col.link },
+										]"
+									>
+										<a
+											v-if="col.link && row.to"
+											href="#"
+											class="pos-detail-meta-field__link"
+											@click.prevent="$emit('navigate', row.to)"
+										>
+											{{ cellText(row, col) }}
+										</a>
+										<v-chip
+											v-else-if="col.chip"
+											size="small"
+											variant="tonal"
+											:color="row.chipColor || col.chipColor || 'primary'"
+										>
+											{{ cellText(row, col) }}
+										</v-chip>
+										<template v-else>
+											{{ cellText(row, col) }}
+										</template>
+									</td>
+								</tr>
+								<tr v-if="!(section.rows || []).length">
+									<td
+										:colspan="(section.columns || []).length || 1"
+										class="text-center text-medium-emphasis py-4"
+									>
+										{{ __("No records") }}
+									</td>
+								</tr>
+							</tbody>
+						</v-table>
+					</div>
+				</section>
+
 				<!-- Optional extra section below the items (e.g. Production Plan's raw materials). -->
 				<slot />
 			</template>
@@ -288,6 +366,10 @@ export default {
 		// { doctype, name, printFormat } -- shows a "Share" button that sends
 		// this document's PDF (WhatsApp, email, ...). Omit to hide it.
 		share: { type: Object, default: null },
+		// Extra card+table sections under Items (e.g. linked return invoices).
+		// [{ key, title, icon, accent, columns, rows }] — rows may include `to`
+		// for click-through navigation via the navigate event.
+		relatedSections: { type: Array, default: () => [] },
 	},
 	emits: ["back", "navigate", "update:selectedKeys"],
 	data() {

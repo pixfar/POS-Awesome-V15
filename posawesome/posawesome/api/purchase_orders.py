@@ -1200,16 +1200,43 @@ def get_purchase_invoice_detail(name):
         if item_codes
         else {}
     )
+    from posawesome.posawesome.api.invoice_processing.fulfillment_qty import (
+        get_linked_returns,
+        get_returned_qty_by_invoice_item,
+        remaining_fulfillment_qty,
+    )
+
+    returned_by_item = {}
+    linked_returns = []
+    if not cint(doc.is_return):
+        returned_by_item = get_returned_qty_by_invoice_item(
+            "Purchase Invoice", [doc.name]
+        ).get(doc.name, {})
+        linked_returns = get_linked_returns("Purchase Invoice", doc.name)
+
     total_weight = 0.0
     items = []
     for row in doc.items:
         weight = flt(weight_by_item.get(row.item_code)) * flt(row.qty)
         total_weight += weight
+        returned_qty = flt(returned_by_item.get(row.name, 0))
+        # update_stock=1 already moved stock at submit — treat as fully received.
+        received_qty = (
+            flt(row.qty) if cint(doc.update_stock) else flt(row.received_qty)
+        )
+        not_received_qty = (
+            0.0
+            if cint(doc.is_return)
+            else remaining_fulfillment_qty(row.qty, received_qty, returned_qty)
+        )
         items.append(
             {
                 "item_code": row.item_code,
                 "item_name": row.item_name,
                 "qty": flt(row.qty),
+                "returned_qty": returned_qty,
+                "received_qty": received_qty,
+                "not_received_qty": not_received_qty,
                 "uom": row.uom,
                 "rate": flt(row.rate),
                 "amount": flt(row.amount),
@@ -1257,6 +1284,8 @@ def get_purchase_invoice_detail(name):
             }
         ),
         "outstanding_amount": flt(doc.outstanding_amount),
+        "is_return": doc.is_return,
+        "return_against": doc.get("return_against"),
         "remarks": doc.get("remarks"),
         "owner": owner_name,
         "created_by": owner_name,
@@ -1271,6 +1300,7 @@ def get_purchase_invoice_detail(name):
             for row in (doc.get("taxes") or [])
         ],
         "items": items,
+        "returns": linked_returns,
     }
 
 
@@ -1304,22 +1334,33 @@ def purchase_invoice_names_for_receipt_status(company, receipt_status):
         {"company": company},
         as_dict=True,
     )
+    from posawesome.posawesome.api.invoice_processing.fulfillment_qty import (
+        get_returned_qty_totals,
+    )
+
+    returned_totals = get_returned_qty_totals(
+        "Purchase Invoice", [row.name for row in rows]
+    )
     names = []
     for row in rows:
         if cint(row.update_stock):
             status = RECEIVED
         else:
-            total_qty = flt(row.total_qty)
-            total_received = flt(row.total_received)
-            if total_received <= 0.0001:
-                status = NOT_RECEIVED
-            elif total_received + 0.0001 < total_qty:
-                status = PARTLY_RECEIVED
-            else:
-                status = RECEIVED
+            net_qty = flt(row.total_qty) - flt(returned_totals.get(row.name, 0))
+            status = _receipt_status_from_qty(net_qty, flt(row.total_received))
         if status == receipt_status:
             names.append(row.name)
     return names
+
+
+def _receipt_status_from_qty(net_qty, total_received):
+    if net_qty <= 0.0001:
+        return RECEIVED
+    if total_received <= 0.0001:
+        return NOT_RECEIVED
+    if total_received + 0.0001 < net_qty:
+        return PARTLY_RECEIVED
+    return RECEIVED
 
 
 def get_receipt_statuses(names):
@@ -1327,10 +1368,14 @@ def get_receipt_statuses(names):
 
     Returns {name: "Not Received"|"Partly Received"|"Received"}. Callers are
     expected to have already excluded Draft/Cancelled/return rows — this only
-    looks at quantities.
+    looks at quantities. Returned qty is subtracted from the receivable total.
     """
     if not names:
         return {}
+
+    from posawesome.posawesome.api.invoice_processing.fulfillment_qty import (
+        get_returned_qty_totals,
+    )
 
     totals = frappe.db.get_all(
         "Purchase Invoice Item",
@@ -1338,17 +1383,14 @@ def get_receipt_statuses(names):
         fields=["parent", "sum(qty) as total_qty", "sum(received_qty) as total_received"],
         group_by="parent",
     )
+    returned_totals = get_returned_qty_totals("Purchase Invoice", names)
 
     statuses = {}
     for row in totals:
-        total_qty = flt(row.total_qty)
-        total_received = flt(row.total_received)
-        if total_received <= 0.0001:
-            statuses[row.parent] = NOT_RECEIVED
-        elif total_received + 0.0001 < total_qty:
-            statuses[row.parent] = PARTLY_RECEIVED
-        else:
-            statuses[row.parent] = RECEIVED
+        net_qty = flt(row.total_qty) - flt(returned_totals.get(row.parent, 0))
+        statuses[row.parent] = _receipt_status_from_qty(
+            net_qty, flt(row.total_received)
+        )
     return statuses
 
 
@@ -1451,7 +1493,12 @@ def get_items_by_do_number(do_number, warehouse=None, company=None):
 
 @frappe.whitelist()
 def get_purchase_invoice_for_receipt(invoice_name):
-    """Purchase Invoice items with remaining (unreceived) quantity."""
+    """Purchase Invoice items with remaining (unreceived, non-returned) quantity."""
+    from posawesome.posawesome.api.invoice_processing.fulfillment_qty import (
+        get_returned_qty_by_invoice_item,
+        remaining_fulfillment_qty,
+    )
+
     doc = frappe.get_doc("Purchase Invoice", invoice_name)
     if doc.docstatus != 1:
         frappe.throw(_("Only a submitted invoice can be received."))
@@ -1460,9 +1507,15 @@ def get_purchase_invoice_for_receipt(invoice_name):
     if cint(doc.update_stock):
         frappe.throw(_("This invoice already moved stock directly and has nothing left to receive."))
 
+    returned = get_returned_qty_by_invoice_item(
+        "Purchase Invoice", [doc.name]
+    ).get(doc.name, {})
+
     rows = []
     for row in doc.items:
-        remaining = flt(row.qty) - flt(row.received_qty)
+        remaining = remaining_fulfillment_qty(
+            row.qty, row.received_qty, returned.get(row.name, 0)
+        )
         if remaining <= 0.0001:
             continue
         rows.append(
@@ -1504,13 +1557,26 @@ def create_purchase_receipt(invoice, doctype=None, items=None):
     if cint(source.update_stock):
         frappe.throw(_("This invoice already moved stock directly and has nothing left to receive."))
 
+    from posawesome.posawesome.api.invoice_processing.fulfillment_qty import (
+        get_returned_qty_by_invoice_item,
+        remaining_fulfillment_qty,
+    )
+
     if isinstance(items, str):
         items = frappe.parse_json(items)
 
+    returned = get_returned_qty_by_invoice_item(
+        "Purchase Invoice", [source.name]
+    ).get(source.name, {})
+    remaining_by_row = {
+        row.name: remaining_fulfillment_qty(
+            row.qty, row.received_qty, returned.get(row.name, 0)
+        )
+        for row in source.items
+    }
+
     selected_qty_by_row = None
     if items:
-        remaining_by_row = {row.name: flt(row.qty) - flt(row.received_qty) for row in source.items}
-
         selected_qty_by_row = {}
         for row in items:
             row_name = row.get("row_name")
@@ -1526,6 +1592,14 @@ def create_purchase_receipt(invoice, doctype=None, items=None):
 
         if not selected_qty_by_row:
             frappe.throw(_("Select at least one item to receive."))
+    else:
+        selected_qty_by_row = {
+            row_name: qty
+            for row_name, qty in remaining_by_row.items()
+            if qty > 0.0001
+        }
+        if not selected_qty_by_row:
+            frappe.throw(_("Nothing left to receive after returns."))
 
     receipt_doc = make_purchase_receipt(invoice)
 
@@ -1825,6 +1899,8 @@ def create_purchase_return(invoice, items=None):
     prorate_return_additional_discount(source, return_doc)
     return_doc.insert()
     return_doc.submit()
+    # PR restock for buy→receive→return is handled on Purchase Invoice
+    # on_submit (bsp_engineering.doc_events.invoice.restock_on_return).
 
     try:
         refunded_payment_entries = refund_payments_for_return(source, return_doc, "Purchase Invoice")

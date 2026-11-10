@@ -1712,6 +1712,14 @@
 	text-decoration: underline;
 }
 
+.pos-detail-row--link {
+	cursor: pointer;
+}
+
+.pos-detail-row--link:hover {
+	background: rgba(var(--v-theme-primary), 0.04);
+}
+
 /* Phones / installed app on a phone: Document Information in two columns
    (minmax(220px) above only fits one), with a smaller icon to make room. */
 @media (max-width: 600px) {

@@ -350,16 +350,46 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
     # Non-stock lines (service/labour charges) never touch a warehouse --
     # older invoices still carry the POS Profile default on them, so hide it.
     stock_flags = get_stock_item_flags(item_codes)
+
+    # Return / delivery breakdown so the detail page can show Return Qty and
+    # Not Delivered without users having to reverse-engineer stock.
+    from posawesome.posawesome.api.invoice_processing.fulfillment_qty import (
+        get_linked_returns,
+        get_returned_qty_by_invoice_item,
+        remaining_fulfillment_qty,
+    )
+
+    returned_by_item = {}
+    linked_returns = []
+    if not cint(doc.is_return) and doctype == "Sales Invoice":
+        returned_by_item = get_returned_qty_by_invoice_item(
+            "Sales Invoice", [doc.name]
+        ).get(doc.name, {})
+        linked_returns = get_linked_returns("Sales Invoice", doc.name)
+
     total_weight = 0.0
     items = []
     for row in doc.items:
         weight = flt(weight_by_item.get(row.item_code)) * flt(row.qty)
         total_weight += weight
+        returned_qty = flt(returned_by_item.get(row.name, 0))
+        # update_stock=1 already moved stock at submit — treat as fully delivered.
+        delivered_qty = (
+            flt(row.qty) if cint(doc.update_stock) else flt(row.delivered_qty)
+        )
+        not_delivered_qty = (
+            0.0
+            if cint(doc.is_return)
+            else remaining_fulfillment_qty(row.qty, delivered_qty, returned_qty)
+        )
         items.append(
             {
                 "item_code": row.item_code,
                 "item_name": row.item_name,
                 "qty": flt(row.qty),
+                "returned_qty": returned_qty,
+                "delivered_qty": delivered_qty,
+                "not_delivered_qty": not_delivered_qty,
                 "uom": row.uom,
                 "rate": flt(row.rate),
                 "amount": flt(row.amount),
@@ -435,6 +465,7 @@ def get_sales_invoice_detail(name, doctype="Sales Invoice"):
             for row in (doc.get("taxes") or [])
         ],
         "items": items,
+        "returns": linked_returns,
     }
 
 
@@ -670,6 +701,9 @@ def create_sales_return(invoice, doctype=None, items=None):
     _validate_return_window(return_doc, doctype, enable_validity)
     return_doc.insert()
     return_doc.submit()
+    # DN restock for sell→deliver→return is handled on Sales Invoice on_submit
+    # (bsp_engineering.doc_events.invoice.restock_on_return) so desk returns
+    # get the same stock put-back as POS returns.
 
     refunded_payment_entries = []
     if doctype in ("Sales Invoice", "POS Invoice"):
@@ -722,10 +756,23 @@ def create_sales_delivery(invoice, doctype=None, items=None):
     if isinstance(items, str):
         items = frappe.parse_json(items)
 
+    from posawesome.posawesome.api.invoice_processing.fulfillment_qty import (
+        get_returned_qty_by_invoice_item,
+        remaining_fulfillment_qty,
+    )
+
+    returned = get_returned_qty_by_invoice_item(
+        "Sales Invoice", [source.name]
+    ).get(source.name, {})
+    remaining_by_row = {
+        row.name: remaining_fulfillment_qty(
+            row.qty, row.delivered_qty, returned.get(row.name, 0)
+        )
+        for row in source.items
+    }
+
     selected_qty_by_row = None
     if items:
-        remaining_by_row = {row.name: flt(row.qty) - flt(row.delivered_qty) for row in source.items}
-
         selected_qty_by_row = {}
         for row in items:
             row_name = row.get("row_name")
@@ -741,6 +788,15 @@ def create_sales_delivery(invoice, doctype=None, items=None):
 
         if not selected_qty_by_row:
             frappe.throw(_("Select at least one item to deliver."))
+    else:
+        # make_delivery_note ignores returns; trim to remaining after returns.
+        selected_qty_by_row = {
+            row_name: qty
+            for row_name, qty in remaining_by_row.items()
+            if qty > 0.0001
+        }
+        if not selected_qty_by_row:
+            frappe.throw(_("Nothing left to deliver after returns."))
 
     delivery_doc = make_delivery_note(invoice)
 

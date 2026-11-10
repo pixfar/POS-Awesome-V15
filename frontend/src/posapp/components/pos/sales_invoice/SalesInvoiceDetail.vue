@@ -13,12 +13,14 @@
 		:items="itemRows"
 		:totals="totals"
 		:actions="actions"
+		:related-sections="relatedSections"
 		@back="goBack"
+		@navigate="(path) => router.push(path)"
 	/>
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { formatDisplayTimeAmPm } from '../shared/docStatusUtils';
 import { useRoute, useRouter } from 'vue-router';
 import format from '../../../format';
@@ -41,8 +43,8 @@ export default {
 	setup() {
 		const route = useRoute();
 		const router = useRouter();
-		const name = route.params.name;
-		const doctype = route.query.doctype || 'Sales Invoice';
+		const name = computed(() => route.params.name);
+		const doctype = computed(() => route.query.doctype || 'Sales Invoice');
 
 		const loading = ref(true);
 		const notFound = ref(false);
@@ -73,6 +75,14 @@ export default {
 			router,
 		};
 	},
+	watch: {
+		name: {
+			immediate: true,
+			handler() {
+				this.loadDetail();
+			},
+		},
+	},
 	computed: {
 		metaFields() {
 			const fields = [
@@ -98,7 +108,11 @@ export default {
 				{ label: this.__('Territory'), value: this.detail.territory },
 			];
 			if (this.detail.is_return && this.detail.return_against) {
-				fields.push({ label: this.__('Return Against'), value: this.detail.return_against });
+				fields.push({
+					label: this.__('Return Against'),
+					value: this.detail.return_against,
+					to: `/sales-invoices/${this.detail.return_against}?doctype=Sales+Invoice`,
+				});
 			}
 			if (this.detail.custom_do_number) {
 				fields.push({ label: this.__('DO Number'), value: this.detail.custom_do_number });
@@ -109,16 +123,24 @@ export default {
 			return fields;
 		},
 		itemColumns() {
-			return [
+			const cols = [
 				{ key: 'item_code', label: this.__('Item Code') },
 				{ key: 'item_name', label: this.__('Item Name') },
 				{ key: 'warehouse', label: this.__('Warehouse') },
 				{ key: 'qty', label: this.__('Qty'), align: 'end' },
+			];
+			if (!this.detail.is_return) {
+				cols.push(
+					{ key: 'returned_qty', label: this.__('Return Qty'), align: 'end' },
+				);
+			}
+			cols.push(
 				{ key: 'weight', label: this.__('Weight'), align: 'end' },
 				{ key: 'uom', label: this.__('UOM') },
 				{ key: 'rate', label: this.__('Rate'), align: 'end' },
 				{ key: 'amount', label: this.__('Amount'), align: 'end' },
-			];
+			);
+			return cols;
 		},
 		itemRows() {
 			const symbol = this.currencySymbol(this.detail.currency);
@@ -126,6 +148,7 @@ export default {
 				...row,
 				// Non-stock lines (service/labour) have no warehouse.
 				warehouse: row.warehouse || '—',
+				returned_qty: Number(row.returned_qty || 0),
 				rate: `${symbol}${this.formatCurrency(row.rate)}`,
 				amount: `${symbol}${this.formatCurrency(row.amount)}`,
 			}));
@@ -173,9 +196,37 @@ export default {
 				},
 			];
 		},
-	},
-	mounted() {
-		this.loadDetail();
+		relatedSections() {
+			const returns = this.detail.returns || [];
+			if (!returns.length) return [];
+			const symbol = this.currencySymbol(this.detail.currency);
+			return [
+				{
+					key: 'returns',
+					title: this.__('Returns'),
+					icon: 'mdi-keyboard-return',
+					accent: 'amber',
+					columns: [
+						{ key: 'name', label: this.__('Return Invoice'), link: true },
+						{ key: 'date', label: this.__('Date') },
+						{ key: 'qty', label: this.__('Qty'), align: 'end' },
+						{ key: 'amount', label: this.__('Amount'), align: 'end' },
+						{ key: 'status', label: this.__('Status'), chip: true },
+					],
+					rows: returns.map((row) => ({
+						name: row.name,
+						date: row.posting_time
+							? `${this.formatDisplayDate(row.posting_date)} ${formatDisplayTimeAmPm(row.posting_time)}`
+							: this.formatDisplayDate(row.posting_date),
+						qty: Number(row.total_qty || 0),
+						amount: `${symbol}${this.formatCurrency(Math.abs(Number(row.grand_total || 0)))}`,
+						status: row.status,
+						chipColor: this.statusColor(row.status),
+						to: `/sales-invoices/${row.name}?doctype=Sales+Invoice`,
+					})),
+				},
+			];
+		},
 	},
 	methods: {
 		statusColor(status) {
