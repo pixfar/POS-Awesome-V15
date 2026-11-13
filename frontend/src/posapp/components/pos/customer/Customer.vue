@@ -9,8 +9,7 @@
 				clearable
 				variant="solo"
 				color="primary"
-				name="posa_customer_lookup"
-				autocomplete="new-password"
+				autocomplete="posa-off"
 				:label="customerFieldLabel"
 				:placeholder="customerFieldPlaceholder"
 				:loading="isCustomerSearchLocked || isCustomerLookupPending"

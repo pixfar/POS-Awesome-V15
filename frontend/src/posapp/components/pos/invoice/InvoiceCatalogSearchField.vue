@@ -23,7 +23,7 @@
 					:placeholder="__('Scan barcode or type item name / code')"
 					hide-details
 					clearable
-					autocomplete="off"
+					autocomplete="posa-off"
 					:menu-props="{ maxHeight: 360, closeOnContentClick: true }"
 					:no-data-text="noDataText"
 					@update:search="onSearchUpdate"

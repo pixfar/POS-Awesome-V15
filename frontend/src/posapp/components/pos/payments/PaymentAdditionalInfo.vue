@@ -112,7 +112,7 @@
 					:label="$frappe._('Authorization Code')"
 					v-model="invoiceDoc.posa_authorization_code"
 					hide-details
-					autocomplete="off"
+					autocomplete="posa-off"
 					maxlength="32"
 				></v-text-field>
 			</v-col>

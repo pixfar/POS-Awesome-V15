@@ -11,16 +11,20 @@
  *    browsers treat unknown tokens as "do not autofill" more reliably than "off".
  * 2. Mark password-manager ignore flags so LastPass / 1Password / Bitwarden
  *    stay out of the way too.
- * 3. Re-apply on DOM mutations and on `focusin` (Chrome decides at focus time).
+ * 3. Scrub autofill-friendly `name` tokens (customer, phone, search, …).
+ * 4. On focus: briefly set `readonly` then clear it — Chrome attaches its
+ *    autofill UI at focus time and skips readonly fields. App menus untouched.
+ * 5. Re-apply on DOM mutations and on `focusin`.
  *
  * Scope matches `suppressNativeTooltips`: only `.main-section` and Vuetify's
  * teleported `.v-overlay-container`. Desk chrome outside POS is untouched.
+ * True `type="password"` fields are left alone (login / password managers).
  */
 
 const POS_SCOPE = ".main-section, .v-overlay-container";
 
 /** Unknown token — more reliable than "off" against Chrome autofill heuristics. */
-const AUTOCOMPLETE_OFF = "posa-off";
+export const AUTOCOMPLETE_OFF = "posa-off";
 
 const TEXT_INPUT_TYPES = new Set([
 	"",
@@ -36,6 +40,13 @@ const TEXT_INPUT_TYPES = new Set([
 	"week",
 	"time",
 ]);
+
+/** Names Chrome / Firefox / Edge treat as autofill anchors. */
+const AUTOFILL_NAME_RE =
+	/^(search|q|query|name|customer|customer[_-]?name|supplier|supplier[_-]?name|email|e-?mail|phone|tel|mobile|mobile[_-]?no|address|street|city|state|zip|postal|warehouse|item|barcode|company|employee|username|user|login|posa_item_search|posa_customer_lookup|posa_field)$/i;
+
+const freshFieldName = () =>
+	`posa_${Math.random().toString(36).slice(2, 10)}`;
 
 const inPosScope = (el: Element): boolean =>
 	typeof el.closest === "function" && el.closest(POS_SCOPE) != null;
@@ -69,6 +80,18 @@ const isHardenableControl = (el: Element): el is HTMLInputElement | HTMLTextArea
 	return TEXT_INPUT_TYPES.has(type) || !el.hasAttribute("type");
 };
 
+const scrubAutofillName = (
+	el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+	{ rotate = false }: { rotate?: boolean } = {},
+) => {
+	const currentName = (el.getAttribute("name") || ("name" in el ? el.name : "") || "").trim();
+	// Chrome's black history dropdown keys off a stable `name`. Keep names
+	// non-heuristic at rest; on focus, rotate so prior typed values never match.
+	if (rotate || !currentName || AUTOFILL_NAME_RE.test(currentName)) {
+		el.setAttribute("name", freshFieldName());
+	}
+};
+
 const hardenControl = (el: Element) => {
 	if (!inPosScope(el) || !isHardenableControl(el)) {
 		return;
@@ -100,24 +123,34 @@ const hardenControl = (el: Element) => {
 		el.setAttribute("data-form-type", "other");
 	}
 
-	// Chrome matches autofill on common name/id tokens ("search", "customer",
-	// …). Give POS search inputs a stable non-matching name when empty or
-	// still carrying a browser-friendly name.
-	if (el instanceof HTMLInputElement) {
-		const currentName = (el.getAttribute("name") || el.name || "").toLowerCase();
-		if (
-			!currentName ||
-			currentName === "search" ||
-			currentName === "q" ||
-			currentName === "query" ||
-			currentName === "customer" ||
-			currentName === "email" ||
-			currentName === "phone" ||
-			currentName === "tel"
-		) {
-			el.setAttribute("name", "posa_field");
-		}
+	scrubAutofillName(el, { rotate: false });
+};
+
+/**
+ * Chrome decides autofill at focus. Readonly inputs are skipped. Set readonly
+ * for one frame, then unlock so typing / Vuetify menus still work.
+ */
+const lockThenUnlockForAutofill = (el: HTMLInputElement | HTMLTextAreaElement) => {
+	if (el.getAttribute("data-posa-ro-lock") === "1") {
+		return;
 	}
+	const hadReadonly = el.hasAttribute("readonly") || el.readOnly;
+	if (hadReadonly) {
+		return;
+	}
+	el.setAttribute("data-posa-ro-lock", "1");
+	el.setAttribute("readonly", "readonly");
+	const unlock = () => {
+		el.removeAttribute("readonly");
+		// Allow a fresh lock on the next focus cycle.
+		requestAnimationFrame(() => {
+			el.removeAttribute("data-posa-ro-lock");
+		});
+	};
+	// Double rAF: Chrome paints autofill UI after the first frame.
+	requestAnimationFrame(() => {
+		requestAnimationFrame(unlock);
+	});
 };
 
 const hardenForm = (el: Element) => {
@@ -160,9 +193,17 @@ export function installBrowserAutocompleteSuppressor(
 
 	const onFocusIn = (event: FocusEvent) => {
 		const target = event.target;
-		if (target instanceof Element) {
-			hardenControl(target);
-			hardenForm(target);
+		if (!(target instanceof Element)) {
+			return;
+		}
+		hardenControl(target);
+		hardenForm(target);
+		if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+			if (isHardenableControl(target) && inPosScope(target)) {
+				// Break Chrome form-history match for this focus session.
+				scrubAutofillName(target, { rotate: true });
+				lockThenUnlockForAutofill(target);
+			}
 		}
 	};
 
@@ -178,7 +219,7 @@ export function installBrowserAutocompleteSuppressor(
 		for (const mutation of mutations) {
 			if (mutation.type === "attributes" && mutation.target instanceof Element) {
 				// Vuetify / Vue may rewrite autocomplete after mount — put ours back.
-				if (mutation.attributeName === "autocomplete") {
+				if (mutation.attributeName === "autocomplete" || mutation.attributeName === "name") {
 					hardenControl(mutation.target);
 					hardenForm(mutation.target);
 				}
@@ -190,7 +231,7 @@ export function installBrowserAutocompleteSuppressor(
 
 	observer.observe(document.body, {
 		attributes: true,
-		attributeFilter: ["autocomplete"],
+		attributeFilter: ["autocomplete", "name"],
 		childList: true,
 		subtree: true,
 	});
